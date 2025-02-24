@@ -1,0 +1,11 @@
+[Unit]
+Description=Run WRO run
+After=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/program
+ExecStart=/usr/bin/python3 /home/pi/program/roi.py --headless --pillars
+
+[Install]
+WantedBy=multi-user.target

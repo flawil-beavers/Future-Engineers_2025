@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Servo.h>
+#include "PinChangeInterrupt.h"
 
 const int servoPin = 2;
 
@@ -11,6 +12,14 @@ const int in2Pin = 6;
 
 const int enTogglePin = 7;
 
+const int encoderPinA = 3;
+const int encoderPinB = 4;
+
+const int countperrev = 1807;
+
+int encoder_pos = 0;
+int encoder_dir = 1; // 1 -> CCW, -1 -> CW
+
 bool en_state = false;
 
 int current_speed = 0;
@@ -18,9 +27,9 @@ int set_speed = 0;
 unsigned long acc_time = 20;
 unsigned long last_acc_time = 0;
 
-int middle = 70; // +55 -55
-int degree_max = 125;
-int degree_min = 15;
+int middle = 97; // +55 -55
+int degree_max = middle + 30;
+int degree_min = middle - 30;
 int current_degree = 0;
 int set_degree = 0;
 
@@ -119,6 +128,10 @@ void parseMessage(char *msg)
   {
     set_degree = value;
   }
+  else if (cmd[0] == 'e')
+  {
+    Serial.println(encoder_pos);
+  }
 }
 
 void processMessage()
@@ -165,6 +178,31 @@ void checkEnable()
   }
 }
 
+void update_encoder(int encoderPin)
+{
+  int a = digitalRead(encoderPinA);
+  int b = digitalRead(encoderPinB);
+  if ((a == b && encoderPin == encoderPinA) || (a != b && encoderPin == encoderPinB))
+  {
+    encoder_dir = 1;
+  }
+  else
+  {
+    encoder_dir = -1;
+  }
+  encoder_pos += encoder_dir;
+}
+
+void update_encoder_a()
+{
+  update_encoder(encoderPinA);
+}
+
+void update_encoder_b()
+{
+  update_encoder(encoderPinB);
+}
+
 void setup()
 {
   pinMode(in1Pin, OUTPUT);
@@ -174,10 +212,16 @@ void setup()
 
   servo.attach(servoPin);
 
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
+
   digitalWrite(in1Pin, LOW);
   digitalWrite(in2Pin, LOW);
   analogWrite(enaPin, 0);
   Serial.begin(9600);
+
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinA), update_encoder_a, CHANGE);
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
 }
 
 int a = 0;
@@ -201,6 +245,8 @@ void loop()
     if (incomingByte == '\n')
     {
       processMessage();
+      // Serial.print("encoder_pos: ");
+      // Serial.println(encoder_pos);
     }
   }
   steer(en_state ? set_degree : 0);

@@ -19,7 +19,7 @@ class Pipeline:
 
   def filter_RG_Bl(self, hsv: np.ndarray, color_image: np.ndarray):
     """
-    Extracts the red, green and black colors from the image -> thiis used to detect the pillars and walls
+    Extracts the red, green and black colors from the image -> this is used to detect the pillars and walls
     """
     redMin = tuple(self.configloader.get_property("filters")['REDLO'])
     redMax = tuple(self.configloader.get_property("filters")['REDHI'])

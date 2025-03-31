@@ -16,14 +16,20 @@ from statemachine import StateMachine
 from picamera2 import Picamera2
 from rounddir import find_round_dir
 import argparse
+import libcamera
 
 #?: Webviewer controls for tuning colors, pd, and selecting stream
+
+# turn the camera image by 180 degrees
 
 configloader = ConfigLoader("config.json")
 pipeline = Pipeline(configloader)
 
 picam2 = Picamera2()
-picam2.configure(picam2.create_preview_configuration())
+# picam2.configure(picam2.create_preview_configuration())
+preview_config = picam2.create_preview_configuration()
+preview_config["transform"] = libcamera.Transform(vflip=True, hflip=True)
+picam2.configure(preview_config)
 picam2.start()
 
 picam2.set_controls({
@@ -194,7 +200,7 @@ def cycle():
   
 
   correction = max(-1.0, min(1.0, correction))
-  MAX_STEERING_ANGLE = -55.0
+  MAX_STEERING_ANGLE = 25.0
   steering_angle = correction * MAX_STEERING_ANGLE
 
 
@@ -304,12 +310,13 @@ if __name__ == "__main__":
   shutdown = args.shutdown
 
   if ser:
+    print("Connecting to Arduino")
     while True:
       msg = ser.readline().decode('utf-8')
       msg = msg.strip()
       if msg == "enable 1" :
         break
-
+    print("Arduino connected")
   if headless:
     main()
   else:

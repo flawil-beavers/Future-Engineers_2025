@@ -1,6 +1,15 @@
 #include <Arduino.h>
 #include <Servo.h>
-#include "PinChangeInterrupt.h"
+#include <PinChangeInterrupt.h>
+// add function to use the adafruit lsm303dlhc and l3gd20 sensors with sensor fusion
+#include <Adafruit_Sensor.h>
+#include <Adafruit_L3GD20_U.h>
+#include <Adafruit_LSM303_Accel.h>
+#include <Adafruit_LSM303DLH_Mag.h>
+#include <Wire.h>
+
+const int sdaPin = 18;
+const int sclPin = 19;
 
 const int servoPin = 2;
 
@@ -32,6 +41,12 @@ int degree_max = middle + 30;
 int degree_min = middle - 30;
 int current_degree = 0;
 int set_degree = 0;
+
+// initialise gyro
+Adafruit_L3GD20_Unified gyro = Adafruit_L3GD20_Unified(20);
+
+// initialise accel
+Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
 
 #define BUFFER_SIZE 64
 
@@ -222,6 +237,92 @@ void setup()
 
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinA), update_encoder_a, CHANGE);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
+
+  gyro.enableAutoRange(true);
+
+  if(!gyro.begin())
+  {
+    /* There was a problem detecting the L3GD20 ... check your connections */
+    Serial.println("Ooops, no L3GD20 detected ... Check your wiring!");
+    while(1);
+  }
+
+  sensor_t sensor;
+  gyro.getSensor(&sensor);
+  Serial.println("------------------------------------");
+  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" rad/s");
+  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" rad/s");
+  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" rad/s");
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
+
+  if (!accel.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
+    while (1)
+      ;
+  }
+
+  // sensor_t sensor;
+  accel.getSensor(&sensor);
+  Serial.println("------------------------------------");
+  Serial.print("Sensor:       ");
+  Serial.println(sensor.name);
+  Serial.print("Driver Ver:   ");
+  Serial.println(sensor.version);
+  Serial.print("Unique ID:    ");
+  Serial.println(sensor.sensor_id);
+  Serial.print("Max Value:    ");
+  Serial.print(sensor.max_value);
+  Serial.println(" m/s^2");
+  Serial.print("Min Value:    ");
+  Serial.print(sensor.min_value);
+  Serial.println(" m/s^2");
+  Serial.print("Resolution:   ");
+  Serial.print(sensor.resolution);
+  Serial.println(" m/s^2");
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
+
+  accel.setRange(LSM303_RANGE_4G);
+  Serial.print("Range set to: ");
+  lsm303_accel_range_t new_range = accel.getRange();
+  switch (new_range)
+  {
+  case LSM303_RANGE_2G:
+    Serial.println("+- 2G");
+    break;
+  case LSM303_RANGE_4G:
+    Serial.println("+- 4G");
+    break;
+  case LSM303_RANGE_8G:
+    Serial.println("+- 8G");
+    break;
+  case LSM303_RANGE_16G:
+    Serial.println("+- 16G");
+    break;
+  }
+  accel.setMode(LSM303_MODE_NORMAL);
+  Serial.print("Mode set to: ");
+  lsm303_accel_mode_t new_mode = accel.getMode();
+  switch (new_mode)
+  {
+  case LSM303_MODE_NORMAL:
+    Serial.println("Normal");
+    break;
+  case LSM303_MODE_LOW_POWER:
+    Serial.println("Low Power");
+    break;
+  case LSM303_MODE_HIGH_RESOLUTION:
+    Serial.println("High Resolution");
+    break;
+  }
 }
 
 int a = 0;
@@ -252,4 +353,34 @@ void loop()
   steer(en_state ? set_degree : 0);
   drive(en_state ? set_speed : 0);
   checkEnable();
+  //   sensors_event_t event;
+  //   gyro.getEvent(&event);
+  //   Serial.print("X: ");
+  //   Serial.print(event.gyro.x);
+  //   Serial.print("  ");
+  //   Serial.print("Y: ");
+  //   Serial.print(event.gyro.y);
+  //   Serial.print("  ");
+  //   Serial.print("Z: ");
+  //   Serial.print(event.gyro.z);
+  //   Serial.print("  ");
+  //   Serial.println("rad/s");
+  //   delay(1000);
+  sensors_event_t event;
+  accel.getEvent(&event);
+
+  /* Display the results (acceleration is measured in m/s^2) */
+  Serial.print("X: ");
+  Serial.print(event.acceleration.x);
+  Serial.print("  ");
+  Serial.print("Y: ");
+  Serial.print(event.acceleration.y);
+  Serial.print("  ");
+  Serial.print("Z: ");
+  Serial.print(event.acceleration.z);
+  Serial.print("  ");
+  Serial.println("m/s^2");
+
+  /* Delay before the next sample */
+  delay(500);
 }

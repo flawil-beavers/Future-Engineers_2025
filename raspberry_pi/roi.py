@@ -43,7 +43,7 @@ ports = serial.tools.list_ports.comports()
 
 
 try:
-  ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), 9600)
+  ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
 except:
   print("Arduino not connected, available devices")
   ser = None

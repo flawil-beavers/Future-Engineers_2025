@@ -30,5 +30,6 @@
     "kp": 4.5,
     "kd": 8.0
   },
-  "ArduinoSerialPort": "/dev/ttyUSB0"
+  "ArduinoSerialPort": "/dev/ttyUSB0",
+  "ArduinoBaudRate": 115200
 }

@@ -2,9 +2,10 @@
 #include <Servo.h>
 #include "PinChangeInterrupt.h"
 
-const int servoPin = 2;
-
 Servo servo;
+
+// pin definitions
+const int servoPin = 2;
 
 const int enaPin = 11;
 const int in1Pin = 5;
@@ -44,6 +45,23 @@ int middle = 97; // +55 -55
 int degree_max = middle + 30;
 int degree_min = middle - 30;
 int set_degree = 0;
+
+// PID
+float target_distance = 0; // target encoder position in mm
+
+int dc_to_set_temp = 0;
+float measured_speed = 0;   // measured speed in mm/s
+float current_distance = 0; // current distance in mm
+float last_distance = 0;    // last distance in mm
+float Kp = 2.0;         // proportional gain for PID controller
+float Kd = 0.0;         // derivative gain for PID controller
+float last_error = 0.0; // last error for PID controller
+
+// time variables
+unsigned long current_time = 0;
+unsigned long last_time = 0;
+unsigned long last_status_time = 0; // when the last status was printed
+float last_loop_time = 0;           // last loop time in seconds
 
 #define BUFFER_SIZE 64
 
@@ -392,8 +410,6 @@ void setup()
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
 }
 
-int a = 0;
-
 void loop()
 {
   current_time = micros();
@@ -424,4 +440,39 @@ void loop()
   steer(en_state ? set_degree : 0);
   drive(en_state ? _set_speed : 0);
   checkEnable();
+
+  drive_loop();
+  // set_dc(dc_to_set_temp);
+  if (current_time - last_status_time > 200000)
+  {
+    last_status_time = current_time;
+    Serial.print("time passed (ms): ");
+    Serial.print(last_loop_time * 1000);
+    Serial.print(" encoder_pos: ");
+    Serial.print(get_distance(encoder_pos));
+    Serial.print(" target_speed: ");
+    Serial.print(target_speed);
+    Serial.print(" current_speed: ");
+    Serial.print(current_speed);
+    Serial.print(" target_distance: ");
+    Serial.print(target_distance);
+    Serial.print(" measured_speed: ");
+    Serial.print(measured_speed);
+    Serial.print(" dc_to_set_temp: ");
+    Serial.print(dc_to_set_temp);
+    Serial.print(" current_dc: ");
+    Serial.print(current_dc);
+    Serial.print(" kp: ");
+    Serial.print(Kp);
+    Serial.print(" kd: ");
+    Serial.print(Kd);
+    Serial.print(" dc: ");
+    Serial.print(current_dc);
+    Serial.print(" error: ");
+    Serial.print(target_distance - current_distance);
+    Serial.print("\r\n");
+  }
+
+  last_time = current_time;
+  last_distance = current_distance;
 }

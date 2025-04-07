@@ -8,8 +8,8 @@
 #include <Adafruit_LSM303DLH_Mag.h>
 #include <Wire.h>
 
-const int sdaPin = 18;
-const int sclPin = 19;
+// const int sdaPin = 18;
+// const int sclPin = 19;
 
 const int servoPin = 2;
 
@@ -47,6 +47,9 @@ Adafruit_L3GD20_Unified gyro = Adafruit_L3GD20_Unified(20);
 
 // initialise accel
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
+
+// initialise magnetometer
+Adafruit_LSM303DLH_Mag_Unified mag = Adafruit_LSM303DLH_Mag_Unified(12345);
 
 #define BUFFER_SIZE 64
 
@@ -233,32 +236,65 @@ void setup()
   digitalWrite(in1Pin, LOW);
   digitalWrite(in2Pin, LOW);
   analogWrite(enaPin, 0);
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinA), update_encoder_a, CHANGE);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
 
-  gyro.enableAutoRange(true);
-
-  if(!gyro.begin())
-  {
-    /* There was a problem detecting the L3GD20 ... check your connections */
-    Serial.println("Ooops, no L3GD20 detected ... Check your wiring!");
-    while(1);
-  }
-
   sensor_t sensor;
+
+  gyro.enableAutoRange(true);
+  // read out the who am i register of the gyro and print it. The i2c address is 0x69
+  Serial.print("Gyro I2C address: ");
+  Wire.begin();
+  Wire.beginTransmission(0x69);
+  Wire.write(0x0F);
+  Wire.endTransmission();
+  Wire.requestFrom(0x69, 1);
+  if (Wire.available())
+  {
+    Serial.println(Wire.read(), HEX);
+  }
+  else
+  {
+    Serial.println("No response from gyro");
+  }
+  while (1) {}
+  // if(!gyro.begin())
+  // {
+  //   /* There was a problem detecting the L3GD20 ... check your connections */
+  //   Serial.println("Ooops, no L3GD20 detected ... Check your wiring!");
+  //   while(1);
+  // }
+
   gyro.getSensor(&sensor);
   Serial.println("------------------------------------");
-  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
-  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
-  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
-  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" rad/s");
-  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" rad/s");
-  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" rad/s");
+  Serial.print("Sensor:       ");
+  Serial.println(sensor.name);
+  Serial.print("Driver Ver:   ");
+  Serial.println(sensor.version);
+  Serial.print("Unique ID:    ");
+  Serial.println(sensor.sensor_id);
+  Serial.print("Max Value:    ");
+  Serial.print(sensor.max_value);
+  Serial.println(" rad/s");
+  Serial.print("Min Value:    ");
+  Serial.print(sensor.min_value);
+  Serial.println(" rad/s");
+  Serial.print("Resolution:   ");
+  Serial.print(sensor.resolution);
+  Serial.println(" rad/s");
   Serial.println("------------------------------------");
   Serial.println("");
   delay(500);
+
+  if (!mag.begin())
+  {
+    /* There was a problem detecting the LSM303 ... check your connections */
+    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
+    while (1)
+      ;
+  }
 
   if (!accel.begin())
   {
@@ -353,21 +389,20 @@ void loop()
   steer(en_state ? set_degree : 0);
   drive(en_state ? set_speed : 0);
   checkEnable();
-  //   sensors_event_t event;
-  //   gyro.getEvent(&event);
-  //   Serial.print("X: ");
-  //   Serial.print(event.gyro.x);
-  //   Serial.print("  ");
-  //   Serial.print("Y: ");
-  //   Serial.print(event.gyro.y);
-  //   Serial.print("  ");
-  //   Serial.print("Z: ");
-  //   Serial.print(event.gyro.z);
-  //   Serial.print("  ");
-  //   Serial.println("rad/s");
-  //   delay(1000);
+  
   sensors_event_t event;
-  accel.getEvent(&event);
+  gyro.getEvent(&event);
+  Serial.print("X: ");
+  Serial.print(event.gyro.x);
+  Serial.print("  ");
+  Serial.print("Y: ");
+  Serial.print(event.gyro.y);
+  Serial.print("  ");
+  Serial.print("Z: ");
+  Serial.print(event.gyro.z);
+  Serial.print("  ");
+  Serial.println("rad/s");
+  delay(1000);
 
   /* Display the results (acceleration is measured in m/s^2) */
   Serial.print("X: ");
@@ -381,6 +416,55 @@ void loop()
   Serial.print("  ");
   Serial.println("m/s^2");
 
+  mag.getEvent(&event);
+
+  // Calculate the angle of the vector y,x
+  float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / PI;
+
+  // Normalize to 0-360
+  if (heading < 0)
+  {
+    heading = 360 + heading;
+  }
+  Serial.print("Compass Heading: ");
+  Serial.println(heading);
+
   /* Delay before the next sample */
   delay(500);
+  // byte error, address;
+  // int nDevices = 0;
+  // for(address = 1; address < 127; address++ )
+  // {
+  //   Wire.beginTransmission(address);
+  //   error = Wire.endTransmission();
+  //   if (error == 0)
+  //   {
+  //     Serial.print("I2C device found at address 0x");
+  //     if (address < 16)
+  //     {
+  //       Serial.print("0");
+  //     }
+  //     Serial.print(address, HEX);
+  //     Serial.println(" !");
+
+  //     nDevices++;
+  //   }
+  //   else if (error == 4)
+  //   {
+  //     Serial.print("Unknown error at address 0x");
+  //     if (address < 16)
+  //     {
+  //       Serial.print("0");
+  //     }
+  //     Serial.println(address, HEX);
+  //   }
+  // }
+  // if (nDevices == 0)
+  // {
+  //   Serial.println("No I2C devices found\n");
+  // }
+  // else
+  // {
+  //   Serial.println("done\n");
+  // }
 }

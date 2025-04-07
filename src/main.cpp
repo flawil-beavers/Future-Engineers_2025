@@ -3,9 +3,9 @@
 #include <PinChangeInterrupt.h>
 // add function to use the adafruit lsm303dlhc and l3gd20 sensors with sensor fusion
 #include <Adafruit_Sensor.h>
-#include <Adafruit_L3GD20_U.h>
 #include <Adafruit_LSM303_Accel.h>
 #include <Adafruit_LSM303DLH_Mag.h>
+#include <L3G.h>
 #include <Wire.h>
 
 // const int sdaPin = 18;
@@ -43,7 +43,7 @@ int current_degree = 0;
 int set_degree = 0;
 
 // initialise gyro
-Adafruit_L3GD20_Unified gyro = Adafruit_L3GD20_Unified(20);
+L3G gyro;
 
 // initialise accel
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
@@ -241,52 +241,15 @@ void setup()
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinA), update_encoder_a, CHANGE);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
 
+  if (!gyro.init())
+  {
+    /* There was a problem detecting the L3GD20 ... check your connections */
+    Serial.println("Ooops, no L3GD20 detected ... Check your wiring!");
+    while (1)
+      ;
+  }
+
   sensor_t sensor;
-
-  gyro.enableAutoRange(true);
-  // read out the who am i register of the gyro and print it. The i2c address is 0x69
-  Serial.print("Gyro I2C address: ");
-  Wire.begin();
-  Wire.beginTransmission(0x69);
-  Wire.write(0x0F);
-  Wire.endTransmission();
-  Wire.requestFrom(0x69, 1);
-  if (Wire.available())
-  {
-    Serial.println(Wire.read(), HEX);
-  }
-  else
-  {
-    Serial.println("No response from gyro");
-  }
-  while (1) {}
-  // if(!gyro.begin())
-  // {
-  //   /* There was a problem detecting the L3GD20 ... check your connections */
-  //   Serial.println("Ooops, no L3GD20 detected ... Check your wiring!");
-  //   while(1);
-  // }
-
-  gyro.getSensor(&sensor);
-  Serial.println("------------------------------------");
-  Serial.print("Sensor:       ");
-  Serial.println(sensor.name);
-  Serial.print("Driver Ver:   ");
-  Serial.println(sensor.version);
-  Serial.print("Unique ID:    ");
-  Serial.println(sensor.sensor_id);
-  Serial.print("Max Value:    ");
-  Serial.print(sensor.max_value);
-  Serial.println(" rad/s");
-  Serial.print("Min Value:    ");
-  Serial.print(sensor.min_value);
-  Serial.println(" rad/s");
-  Serial.print("Resolution:   ");
-  Serial.print(sensor.resolution);
-  Serial.println(" rad/s");
-  Serial.println("------------------------------------");
-  Serial.println("");
-  delay(500);
 
   if (!mag.begin())
   {
@@ -391,18 +354,6 @@ void loop()
   checkEnable();
   
   sensors_event_t event;
-  gyro.getEvent(&event);
-  Serial.print("X: ");
-  Serial.print(event.gyro.x);
-  Serial.print("  ");
-  Serial.print("Y: ");
-  Serial.print(event.gyro.y);
-  Serial.print("  ");
-  Serial.print("Z: ");
-  Serial.print(event.gyro.z);
-  Serial.print("  ");
-  Serial.println("rad/s");
-  delay(1000);
 
   /* Display the results (acceleration is measured in m/s^2) */
   Serial.print("X: ");
@@ -467,4 +418,15 @@ void loop()
   // {
   //   Serial.println("done\n");
   // }
+  gyro.read();
+  Serial.print("X: ");
+  Serial.print(gyro.g.x);
+  Serial.print("  ");
+  Serial.print("Y: ");
+  Serial.print(gyro.g.y);
+  Serial.print("  ");
+  Serial.print("Z: ");
+  Serial.print(gyro.g.z);
+  Serial.print("  ");
+  Serial.println("dps\n\r");
 }

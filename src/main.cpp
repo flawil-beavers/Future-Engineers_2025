@@ -26,7 +26,7 @@ int encoder_dir = 1; // 1 -> CCW, -1 -> CW
 
 bool en_state = false; // enable state
 
-int max_dc = 255;       // max duty cycle for motor driver
+int max_dc = 200;       // max duty cycle for motor driver
 int min_dc = 0;         // min duty cycle for motor driver
 float max_acc_dc = 255; // max acceleration duty cycle for motor driver (dc/s)
 float current_dc = 0;   // current duty cycle for motor driver
@@ -65,8 +65,8 @@ float last_error = 0.0;     // last error for PID controller
 unsigned long current_time = 0;
 unsigned long last_time = 0;
 unsigned long last_status_time = 0; // when the last status was printed
+unsigned long last_loop_time_us = 0;        // last loop time in microseconds
 float last_loop_time = 0;           // last loop time in seconds
-float last_loop_time_us = 0;        // last loop time in microseconds
 
 #define BUFFER_SIZE 64
 
@@ -154,17 +154,14 @@ void pid_speed()
 {
   target_distance += current_speed * last_loop_time;
   float error = target_distance - current_distance;
-  if (enable_dc)
-  {
-    pid_integral += error * last_loop_time; // ! somwhow the sign changes when ki is too high
-  }
+  pid_integral += error * last_loop_time; // ! somwhow the sign changes when ki is too high
   pid_before_checking = pid_integral;
-  if (pid_integral != 0 && fabs(pid_integral) > i_max * current_speed)
+  if (pid_integral != 0 && fabs(pid_integral) > i_max * fabs(current_speed))
   {
-    pid_integral = i_max * (pid_integral / fabs(pid_integral)) * current_speed;
+    pid_integral = i_max * fabs(current_speed) * (pid_integral / fabs(pid_integral));
   }
-  float additional_speed = Kp * error + Ki * pid_integral + Kd * (error - last_error) / last_loop_time;
-  set_dc(additional_speed);
+  float speed = Kp * error + Ki * pid_integral + Kd * (error - last_error) / last_loop_time;
+  set_dc(speed);
   last_error = error;
 }
 
@@ -174,9 +171,9 @@ This function takes care of acceleration
 */
 void drive_loop()
 {
-  if (target_speed - current_speed != 0 && fabs(target_speed - current_speed) > 1)
+  if (fabs(target_speed - current_speed) > 1)
   {
-    current_speed += (float)(target_speed - current_speed) / fabs(target_speed - current_speed) * acc * last_loop_time;
+    current_speed += (target_speed - current_speed) / fabs(target_speed - current_speed) * acc * last_loop_time;
   }
   else
   {
@@ -448,6 +445,8 @@ void setup()
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
 }
 
+int pos = 0;
+
 void loop()
 {
   current_time = micros();
@@ -476,11 +475,15 @@ void loop()
       // Serial.println(encoder_pos);
     }
   }
-  steer(en_state ? set_degree : 0);
-  drive(en_state ? _set_speed : 0);
-  checkEnable();
+  // steer(en_state ? set_degree : 0);
+  // drive(en_state ? _set_speed : 0);
+  // checkEnable();
 
   drive_loop();
+  if (current_dc > 0)
+  {
+    pos ++;
+  }
   // set_dc(dc_to_set_temp);
   if (current_time - last_status_time > 200000)
   {
@@ -517,6 +520,8 @@ void loop()
     Serial.print(dc_out);
     Serial.print(" pid_before_checking: ");
     Serial.print(pid_before_checking);
+    Serial.print(" pos: ");
+    Serial.print(pos);
     Serial.print("\r\n");
   }
 

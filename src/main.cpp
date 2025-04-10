@@ -67,7 +67,6 @@ unsigned long last_time = 0;
 unsigned long last_status_time = 0; // when the last status was printed
 unsigned long last_loop_time_us = 0;        // last loop time in microseconds
 float last_loop_time = 0;           // last loop time in seconds
-float last_loop_time_us = 0;        // last loop time in microseconds
 
 #define BUFFER_SIZE 64
 

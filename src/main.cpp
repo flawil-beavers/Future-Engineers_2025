@@ -42,6 +42,15 @@ int degree_min = middle - 30;
 int current_degree = 0;
 int set_degree = 0;
 
+unsigned long current_time = 0;
+unsigned long last_time = 0;
+unsigned long last_status_time = 0; // when the last status was printed
+unsigned long last_loop_time_us = 0;        // last loop time in microseconds
+float last_loop_time = 0;           // last loop time in seconds
+
+sensors_event_t event;
+float degree = 0;
+
 // initialise gyro
 Adafruit_L3GD20_Unified gyro;
 
@@ -330,6 +339,10 @@ int a = 0;
 
 void loop()
 {
+  current_time = micros();
+  last_loop_time_us = current_time - last_time;
+  last_loop_time = last_loop_time_us / 1000000.0; // in seconds
+
   while (Serial.available() > 0)
   {
     char incomingByte = Serial.read();
@@ -352,81 +365,22 @@ void loop()
     }
   }
   steer(en_state ? set_degree : 0);
-  drive(en_state ? set_speed : 0);
+  // drive(en_state ? _set_speed : 0);
   checkEnable();
-  
-  sensors_event_t event;
-
-  /* Display the results (acceleration is measured in m/s^2) */
-  Serial.print("X: ");
-  Serial.print(event.acceleration.x);
-  Serial.print("  ");
-  Serial.print("Y: ");
-  Serial.print(event.acceleration.y);
-  Serial.print("  ");
-  Serial.print("Z: ");
-  Serial.print(event.acceleration.z);
-  Serial.print("  ");
-  Serial.println("m/s^2");
-
-  mag.getEvent(&event);
-
-  // Calculate the angle of the vector y,x
-  float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / PI;
-
-  // Normalize to 0-360
-  if (heading < 0)
-  {
-    heading = 360 + heading;
-  }
-  Serial.print("Compass Heading: ");
-  Serial.println(heading);
-
   gyro.getEvent(&event);
-  Serial.print("Gyro X: ");
-  Serial.print(event.gyro.x);
-  Serial.print(" Gyro Y: ");
-  Serial.print(event.gyro.y);
-  Serial.print(" Gyro Z: ");
-  Serial.print(event.gyro.z);
-  Serial.println(" rad/s");
+  degree += event.gyro.z * last_loop_time;
 
-  /* Delay before the next sample */
-  delay(500);
-  // byte error, address;
-  // int nDevices = 0;
-  // for(address = 1; address < 127; address++ )
-  // {
-  //   Wire.beginTransmission(address);
-  //   error = Wire.endTransmission();
-  //   if (error == 0)
-  //   {
-  //     Serial.print("I2C device found at address 0x");
-  //     if (address < 16)
-  //     {
-  //       Serial.print("0");
-  //     }
-  //     Serial.print(address, HEX);
-  //     Serial.println(" !");
+  // set_dc(dc_to_set_temp);
+  if (current_time - last_status_time > 200000)
+  {
+    last_status_time = current_time;
+    Serial.print("time passed (ms): ");
+    Serial.print(last_loop_time * 1000);
+    Serial.print(" degree: ");
+    Serial.print(degree * 180 / PI);
 
-  //     nDevices++;
-  //   }
-  //   else if (error == 4)
-  //   {
-  //     Serial.print("Unknown error at address 0x");
-  //     if (address < 16)
-  //     {
-  //       Serial.print("0");
-  //     }
-  //     Serial.println(address, HEX);
-  //   }
-  // }
-  // if (nDevices == 0)
-  // {
-  //   Serial.println("No I2C devices found\n");
-  // }
-  // else
-  // {
-  //   Serial.println("done\n");
-  // }
+    Serial.print("\r\n");
   }
+
+  last_time = current_time;
+}

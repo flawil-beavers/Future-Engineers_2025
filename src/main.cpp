@@ -5,7 +5,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM303_Accel.h>
 #include <Adafruit_LSM303DLH_Mag.h>
-#include <L3G.h>
+#include <Adafruit_L3GD20_U.h>
 #include <Wire.h>
 
 // const int sdaPin = 18;
@@ -43,7 +43,7 @@ int current_degree = 0;
 int set_degree = 0;
 
 // initialise gyro
-L3G gyro;
+Adafruit_L3GD20_Unified gyro;
 
 // initialise accel
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
@@ -241,7 +241,9 @@ void setup()
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinA), update_encoder_a, CHANGE);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
 
-  if (!gyro.init())
+  delay(30);
+
+  if (!gyro.begin())
   {
     /* There was a problem detecting the L3GD20 ... check your connections */
     Serial.println("Ooops, no L3GD20 detected ... Check your wiring!");
@@ -380,6 +382,15 @@ void loop()
   Serial.print("Compass Heading: ");
   Serial.println(heading);
 
+  gyro.getEvent(&event);
+  Serial.print("Gyro X: ");
+  Serial.print(event.gyro.x);
+  Serial.print(" Gyro Y: ");
+  Serial.print(event.gyro.y);
+  Serial.print(" Gyro Z: ");
+  Serial.print(event.gyro.z);
+  Serial.println(" rad/s");
+
   /* Delay before the next sample */
   delay(500);
   // byte error, address;
@@ -418,15 +429,4 @@ void loop()
   // {
   //   Serial.println("done\n");
   // }
-  gyro.read();
-  Serial.print("X: ");
-  Serial.print(gyro.g.x);
-  Serial.print("  ");
-  Serial.print("Y: ");
-  Serial.print(gyro.g.y);
-  Serial.print("  ");
-  Serial.print("Z: ");
-  Serial.print(gyro.g.z);
-  Serial.print("  ");
-  Serial.println("dps\n\r");
-}
+  }

@@ -205,7 +205,7 @@ def cycle():
 
 
   if ser:
-    message = "d" + str(int(100)) + "\n"
+    message = "d" + str(int(300)) + "\n"
     ser.write(message.encode())
     message = "s " + str(int(steering_angle)) + "\n"
     ser.write(message.encode())

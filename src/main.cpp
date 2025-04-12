@@ -313,9 +313,9 @@ void parseMessage(char *msg)
 
   switch (cmd[0])
   {
-  case 'd':
-    _set_speed = value;
-    break;
+  // case 'd':
+  //   _set_speed = value;
+  //   break;
   case 's':
     set_degree = value;
     break;
@@ -328,7 +328,7 @@ void parseMessage(char *msg)
   case 'p':
     emergency_stop();
     break;
-  case 'i':
+  case 'd':
     set_speed(value);
     break;
   case 'q':
@@ -475,9 +475,9 @@ void loop()
       // Serial.println(encoder_pos);
     }
   }
-  // steer(en_state ? set_degree : 0);
+  steer(en_state ? set_degree : 0);
   // drive(en_state ? _set_speed : 0);
-  // checkEnable();
+  checkEnable();
 
   drive_loop();
   if (current_dc > 0)

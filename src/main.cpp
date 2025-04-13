@@ -44,17 +44,19 @@ int set_degree = 0;
 
 unsigned long current_time = 0;
 unsigned long last_time = 0;
-unsigned long last_status_time = 0; // when the last status was printed
-unsigned long last_loop_time_us = 0;        // last loop time in microseconds
-float last_loop_time = 0;           // last loop time in seconds
+unsigned long last_status_time = 0;  // when the last status was printed
+unsigned long last_loop_time_us = 0; // last loop time in microseconds
+float last_loop_time = 0;            // last loop time in seconds
 
 sensors_event_t event;
 float degree = 0;
 float degree_calibrated = 0;
 float offset = 0;
-const float calculated_offset = -0.0082; // deg/s offset
+const float calculated_offset = -0.010805; // deg/s offset at temperature of 10
 unsigned long last_offset_time = 0;
-const float scaling_calibrated = 1800/1750.03; // deg measured for 5 rotations
+const float scaling_calibrated = 1800 / 1750.03; // deg measured for 5 rotations
+
+int temperature = 0;
 
 // initialise gyro
 Adafruit_L3GD20_Unified gyro;
@@ -124,6 +126,20 @@ void steer(int angle)
     angle = degree_min;
   }
   servo.write(angle);
+}
+
+int get_temperature()
+{
+  Wire.beginTransmission(L3GD20_ADDRESS);
+  Wire.write(GYRO_REGISTER_OUT_TEMP); // Set read bit
+  Wire.endTransmission(false); // Send repeated start
+  Wire.requestFrom(L3GD20_ADDRESS, 1);
+
+  if (Wire.available())
+  {
+    temperature = (int8_t)Wire.read(); // Read as signed 8-bit integer
+  }
+  return temperature;
 }
 
 void parseMessage(char *msg)
@@ -282,7 +298,6 @@ void setup()
       ;
   }
 
-
   accel.setRange(LSM303_RANGE_4G);
   Serial.print("Range set to: ");
   lsm303_accel_range_t new_range = accel.getRange();
@@ -364,17 +379,20 @@ void loop()
     Serial.print(degree * 180 / PI);
     Serial.print(" degree_calibrated: ");
     Serial.print(degree_calibrated * 180 / PI);
+    get_temperature();
 
     Serial.print("\r\n");
   }
-  // if (current_time - last_offset_time > 100000000)
-  // {
-  //   last_offset_time = current_time;
-  //   offset = degree;
-  //   Serial.print("new offset: ");
-  //   Serial.println(offset/100, 6);
-  //   delay(100000);
-  // }
+  if (current_time - last_offset_time > 100000000)
+  {
+    last_offset_time = current_time;
+    offset = degree;
+    Serial.print("offset: ");
+    Serial.print(offset / 100, 6);
+    Serial.print(" temperature: ");
+    Serial.print(get_temperature());
+    delay(100000);
+  }
 
   last_time = current_time;
 }

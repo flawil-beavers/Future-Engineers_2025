@@ -50,6 +50,11 @@ float last_loop_time = 0;           // last loop time in seconds
 
 sensors_event_t event;
 float degree = 0;
+float degree_calibrated = 0;
+float offset = 0;
+const float calculated_offset = -0.0082; // deg/s offset
+unsigned long last_offset_time = 0;
+const float scaling_calibrated = 1800/1750.03; // deg measured for 5 rotations
 
 // initialise gyro
 Adafruit_L3GD20_Unified gyro;
@@ -259,8 +264,7 @@ void setup()
     while (1)
       ;
   }
-
-  sensor_t sensor;
+  gyro.enableAutoRange(true);
 
   if (!mag.begin())
   {
@@ -278,27 +282,6 @@ void setup()
       ;
   }
 
-  // sensor_t sensor;
-  accel.getSensor(&sensor);
-  Serial.println("------------------------------------");
-  Serial.print("Sensor:       ");
-  Serial.println(sensor.name);
-  Serial.print("Driver Ver:   ");
-  Serial.println(sensor.version);
-  Serial.print("Unique ID:    ");
-  Serial.println(sensor.sensor_id);
-  Serial.print("Max Value:    ");
-  Serial.print(sensor.max_value);
-  Serial.println(" m/s^2");
-  Serial.print("Min Value:    ");
-  Serial.print(sensor.min_value);
-  Serial.println(" m/s^2");
-  Serial.print("Resolution:   ");
-  Serial.print(sensor.resolution);
-  Serial.println(" m/s^2");
-  Serial.println("------------------------------------");
-  Serial.println("");
-  delay(500);
 
   accel.setRange(LSM303_RANGE_4G);
   Serial.print("Range set to: ");
@@ -308,7 +291,7 @@ void setup()
   case LSM303_RANGE_2G:
     Serial.println("+- 2G");
     break;
-  case LSM303_RANGE_4G:
+  case LSM303_RANGE_4G: // currently set mode
     Serial.println("+- 4G");
     break;
   case LSM303_RANGE_8G:
@@ -369,6 +352,7 @@ void loop()
   checkEnable();
   gyro.getEvent(&event);
   degree += event.gyro.z * last_loop_time;
+  degree_calibrated = (degree - calculated_offset * current_time / 1000000.0) * scaling_calibrated;
 
   // set_dc(dc_to_set_temp);
   if (current_time - last_status_time > 200000)
@@ -378,9 +362,19 @@ void loop()
     Serial.print(last_loop_time * 1000);
     Serial.print(" degree: ");
     Serial.print(degree * 180 / PI);
+    Serial.print(" degree_calibrated: ");
+    Serial.print(degree_calibrated * 180 / PI);
 
     Serial.print("\r\n");
   }
+  // if (current_time - last_offset_time > 100000000)
+  // {
+  //   last_offset_time = current_time;
+  //   offset = degree;
+  //   Serial.print("new offset: ");
+  //   Serial.println(offset/100, 6);
+  //   delay(100000);
+  // }
 
   last_time = current_time;
 }

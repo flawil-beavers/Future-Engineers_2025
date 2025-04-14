@@ -8,7 +8,7 @@ Servo servo;
 
 const int enaPin = 11;
 const int in1Pin = 5;
-const int in2Pin = 6;
+const int in2Pin = 8;
 
 const int enTogglePin = 7;
 

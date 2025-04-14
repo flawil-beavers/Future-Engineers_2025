@@ -54,10 +54,10 @@ int dc_to_set_temp = 0;
 float measured_speed = 0;   // measured speed in mm/s
 float current_distance = 0; // current distance in mm
 float last_distance = 0;    // last distance in mm
-float Kp = 0.8;             // proportional gain for PID controller
-float Ki = 1.0;             // integral gain for PID controller
-float Kd = 0.4;             // derivative gain for PID controller
-float i_max = 1.0;          // max integral value for PID controller
+float Kp = 4.0;             // proportional gain for PID controller
+float Ki = 3.0;             // integral gain for PID controller
+float Kd = 5.0;             // derivative gain for PID controller
+float i_max = 150.0;          // max integral value for PID controller
 float pid_integral = 0.0;   // integral term for PID controller
 float last_error = 0.0;     // last error for PID controller
 
@@ -156,9 +156,9 @@ void pid_speed()
   float error = target_distance - current_distance;
   pid_integral += error * last_loop_time; // ! somwhow the sign changes when ki is too high
   pid_before_checking = pid_integral;
-  if (pid_integral != 0 && fabs(pid_integral) > i_max * fabs(current_speed))
+  if (pid_integral != 0 && fabs(pid_integral) > i_max)
   {
-    pid_integral = i_max * fabs(current_speed) * (pid_integral / fabs(pid_integral));
+    pid_integral = i_max * (pid_integral / fabs(pid_integral));
   }
   float speed = Kp * error + Ki * pid_integral + Kd * (error - last_error) / last_loop_time;
   set_dc(speed);

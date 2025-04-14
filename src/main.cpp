@@ -53,16 +53,10 @@ float degree = 0;
 float degree_calibrated = 0;
 float offset = 0;
 float last_offset = 0;
-const float calculated_offset = -0.010805; // deg/s offset at temperature of 10 // -0.013763 at temperature of 16 // -0.011576 at temperature of 12
-// float y = -0.0005x - 0.0057
-float offset_m = -0.0005;
-float offset_b = -0.0057;
-float degree_calibrated_temp = 0;
 // float y = -0.0006x - 0.0034
-float offset_m_2 = -0.0006;
-float offset_b_2 = -0.0034;
-float degree_calibrated_temp_2 = 0;
-float degree_2 = 0;
+float offset_m = -0.0006;
+float offset_b = -0.0034;
+float degree_calibrated_temp = 0;
 
 unsigned long last_offset_time = 0;
 const float scaling_calibrated = 1800 / 1750.03; // deg measured for 5 rotations
@@ -238,6 +232,13 @@ void checkEnable()
   }
 }
 
+void update_gyro()
+{
+  gyro.getEvent(&event);
+  degree += event.gyro.z * last_loop_time;
+  degree_calibrated_temp += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+}
+
 void update_encoder(int encoderPin)
 {
   int a = digitalRead(encoderPinA);
@@ -293,56 +294,6 @@ void setup()
       ;
   }
   gyro.enableAutoRange(true);
-
-  // if (!mag.begin())
-  // {
-  //   /* There was a problem detecting the LSM303 ... check your connections */
-  //   Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
-  //   while (1)
-  //     ;
-  // }
-
-  // if (!accel.begin())
-  // {
-  //   /* There was a problem detecting the ADXL345 ... check your connections */
-  //   Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
-  //   while (1)
-  //     ;
-  // }
-
-  // accel.setRange(LSM303_RANGE_4G);
-  // Serial.print("Range set to: ");
-  // lsm303_accel_range_t new_range = accel.getRange();
-  // switch (new_range)
-  // {
-  // case LSM303_RANGE_2G:
-  //   Serial.println("+- 2G");
-  //   break;
-  // case LSM303_RANGE_4G: // currently set mode
-  //   Serial.println("+- 4G");
-  //   break;
-  // case LSM303_RANGE_8G:
-  //   Serial.println("+- 8G");
-  //   break;
-  // case LSM303_RANGE_16G:
-  //   Serial.println("+- 16G");
-  //   break;
-  // }
-  // accel.setMode(LSM303_MODE_NORMAL);
-  // Serial.print("Mode set to: ");
-  // lsm303_accel_mode_t new_mode = accel.getMode();
-  // switch (new_mode)
-  // {
-  // case LSM303_MODE_NORMAL:
-  //   Serial.println("Normal"); // currently set mode
-  //   break;
-  // case LSM303_MODE_LOW_POWER:
-  //   Serial.println("Low Power");
-  //   break;
-  // case LSM303_MODE_HIGH_RESOLUTION:
-  //   Serial.println("High Resolution");
-  //   break;
-  // }
 }
 
 int a = 0;
@@ -377,33 +328,19 @@ void loop()
   steer(en_state ? set_degree : 0);
   // drive(en_state ? _set_speed : 0);
   checkEnable();
-  gyro.getEvent(&event);
-  degree += event.gyro.z * last_loop_time;
-  temperature = get_temperature();
-  // calculate the average since last offset time
-  temperature_average += temperature * last_loop_time;
-  degree_calibrated = (degree - calculated_offset * current_time / 1000000.0) * scaling_calibrated;
-  degree_calibrated_temp = (degree - (offset_m * get_temperature() + offset_b) * current_time / 1000000.0) * scaling_calibrated;
-
-  degree_2 += (event.gyro.z - (offset_m_2 * get_temperature() + offset_b_2) / 2) * last_loop_time;
-  degree_calibrated_temp_2 = degree_2 * scaling_calibrated;
+  update_gyro();
   // set_dc(dc_to_set_temp);
   if (current_time - last_status_time > 200000)
   {
     last_status_time = current_time;
     Serial.print("time passed (ms): ");
     Serial.print(last_loop_time * 1000);
-    Serial.print(" degree: ");
-    Serial.print(degree * 180 / PI);
-    Serial.print(" degree_calibrated: ");
-    Serial.print(degree_calibrated * 180 / PI);
-    Serial.print(" degree_calibrated_temp: ");
-    Serial.print(degree_calibrated_temp * 180 / PI);
     Serial.print(" temperature: ");
     Serial.print(get_temperature());
-    Serial.print(" degree_calibrated_temp_2: ");
-    Serial.print(degree_calibrated_temp_2 * 180 / PI);
-
+    Serial.print(" degree: ");
+    Serial.print(degree * 180 / PI);
+    Serial.print(" degree_calibrated_temp: ");
+    Serial.print(degree_calibrated_temp * 180 / PI);
     Serial.print("\r\n");
   }
   if (current_time - last_offset_time > 100000000)
@@ -419,6 +356,5 @@ void loop()
     last_offset += offset;
     // delay(100000);
   }
-
   last_time = current_time;
 }

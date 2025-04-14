@@ -27,10 +27,10 @@ int encoder_dir = 1; // 1 -> CCW, -1 -> CW
 bool en_state = false; // enable state
 
 int max_dc = 200;       // max duty cycle for motor driver
-int min_dc = 0;         // min duty cycle for motor driver
+int min_dc = 25;         // min duty cycle for motor driver
 float max_acc_dc = 255; // max acceleration duty cycle for motor driver (dc/s)
 float current_dc = 0;   // current duty cycle for motor driver
-float acc = 200;        // acceleration speed (mm/s^2)
+float acc = 700;        // acceleration speed (mm/s^2)
 bool enable_dc = true;  // enable dc motor
 bool hold_dc = false;
 
@@ -56,7 +56,7 @@ float current_distance = 0; // current distance in mm
 float last_distance = 0;    // last distance in mm
 float Kp = 4.0;             // proportional gain for PID controller
 float Ki = 3.0;             // integral gain for PID controller
-float Kd = 5.0;             // derivative gain for PID controller
+float Kd = 1.0;             // derivative gain for PID controller
 float i_max = 150.0;          // max integral value for PID controller
 float pid_integral = 0.0;   // integral term for PID controller
 float last_error = 0.0;     // last error for PID controller

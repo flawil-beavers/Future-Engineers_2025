@@ -144,7 +144,7 @@ int get_temperature()
 {
   Wire.beginTransmission(L3GD20_ADDRESS);
   Wire.write(GYRO_REGISTER_OUT_TEMP); // Set read bit
-  Wire.endTransmission(false); // Send repeated start
+  Wire.endTransmission(false);        // Send repeated start
   Wire.requestFrom(L3GD20_ADDRESS, 1);
 
   if (Wire.available())
@@ -385,7 +385,7 @@ void loop()
   degree_calibrated = (degree - calculated_offset * current_time / 1000000.0) * scaling_calibrated;
   degree_calibrated_temp = (degree - (offset_m * get_temperature() + offset_b) * current_time / 1000000.0) * scaling_calibrated;
 
-  degree_2 += event.gyro.z * last_loop_time * (offset_m_2 * get_temperature() + offset_b_2);
+  degree_2 += (event.gyro.z - (offset_m_2 * get_temperature() + offset_b_2) / 2) * last_loop_time;
   degree_calibrated_temp_2 = degree_2 * scaling_calibrated;
   // set_dc(dc_to_set_temp);
   if (current_time - last_status_time > 200000)
@@ -401,8 +401,6 @@ void loop()
     Serial.print(degree_calibrated_temp * 180 / PI);
     Serial.print(" temperature: ");
     Serial.print(get_temperature());
-    Serial.print(" degree_2: ");
-    Serial.print(degree_2 * 180 / PI);
     Serial.print(" degree_calibrated_temp_2: ");
     Serial.print(degree_calibrated_temp_2 * 180 / PI);
 

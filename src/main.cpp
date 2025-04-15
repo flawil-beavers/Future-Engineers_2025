@@ -1,10 +1,7 @@
 #include <Arduino.h>
 #include <Servo.h>
 #include <PinChangeInterrupt.h>
-// add function to use the adafruit lsm303dlhc and l3gd20 sensors with sensor fusion
 #include <Adafruit_Sensor.h>
-#include <Adafruit_LSM303_Accel.h>
-#include <Adafruit_LSM303DLH_Mag.h>
 #include <Adafruit_L3GD20_U.h>
 #include <Wire.h>
 
@@ -63,12 +60,6 @@ float temperature_average = 0; // average temperature since last offset time
 
 // initialise gyro
 Adafruit_L3GD20_Unified gyro;
-
-// initialise accel
-Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
-
-// initialise magnetometer
-Adafruit_LSM303DLH_Mag_Unified mag = Adafruit_LSM303DLH_Mag_Unified(12345);
 
 #define BUFFER_SIZE 64
 

@@ -8,9 +8,6 @@
 #include <Adafruit_L3GD20_U.h>
 #include <Wire.h>
 
-// const int sdaPin = 18;
-// const int sclPin = 19;
-
 const int servoPin = 2;
 
 Servo servo;

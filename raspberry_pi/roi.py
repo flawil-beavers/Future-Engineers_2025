@@ -269,7 +269,7 @@ async def img_stream(websocket: WebSocketServerProtocol, path):
   kd = configloader.get_property("PD")['kd']
 
   has_sent_streams_info = False
-  current_streams = ["viz", "black"]
+  current_streams = ["viz", "black", "color_image"]
   try:
     while True:
       products = cycle() 
@@ -284,12 +284,14 @@ async def img_stream(websocket: WebSocketServerProtocol, path):
         res = json.loads(await asyncio.wait_for(websocket.recv(), timeout=0.01))
         current_streams[0] = res["streamA"]
         current_streams[1] = res["streamB"]
+        current_streams[2] = res["streamC"]
       except:
         pass
 
       data = {
         "a": encode_image(products[current_streams[0]]),
-        "b": encode_image(products[current_streams[1]])
+        "b": encode_image(products[current_streams[1]]),
+        "c": encode_image(products[current_streams[2]])
       }
       await websocket.send(json.dumps(data))
   except (KeyboardInterrupt):

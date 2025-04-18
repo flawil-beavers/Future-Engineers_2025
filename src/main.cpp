@@ -422,7 +422,7 @@ void parseMessage(char *msg)
     set_degree = value;
     break;
   case 'n':
-    Serial.println(encoder_pos);
+    Serial.println(get_distance(encoder_pos));
     break;
   case 'p':
     emergency_stop();
@@ -435,6 +435,9 @@ void parseMessage(char *msg)
     break;
   case 'e':
     Kd = value / 10.;
+    break;
+  case 'g':
+    Serial.println(degree_calibrated_temp * 180 / PI);
     break;
   }
 }

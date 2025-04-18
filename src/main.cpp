@@ -27,6 +27,8 @@ long encoder_pos = 0;
 int encoder_dir = 1; // 1 -> CCW, -1 -> CW
 
 bool en_state = false; // enable state
+const char en_state_true[] = "enable 1";
+const char en_state_false[] = "enable 0";
 
 int max_dc = 200;       // max duty cycle for motor driver
 int min_dc = 25;        // min duty cycle for motor driver
@@ -77,7 +79,6 @@ float last_offset = 0;
 // float y = -0.0006x - 0.0034
 float offset_m = -0.0006;
 float offset_b = -0.0034;
-float degree_calibrated_temp = 0;
 
 unsigned long last_offset_time = 0;
 const float scaling_calibrated = 1800 / 1750.03; // deg measured for 5 rotations
@@ -97,6 +98,23 @@ int tail = 0;
 // debug variables
 int dc_out = 0;
 float pid_before_checking = 0;
+
+/*
+Set the steering angle of the servo
+*/
+void steer(int angle)
+{
+  angle = angle + middle;
+  if (angle > degree_max)
+  {
+    angle = degree_max;
+  }
+  else if (angle < degree_min)
+  {
+    angle = degree_min;
+  }
+  servo.write(angle);
+}
 
 /*
 Set the duty cycle of the motor driver.
@@ -151,6 +169,7 @@ float get_distance(long encoder_pos)
 /*
 Estimates dc for a given value in mm/s
 50 dc = 300 mm/s
+Not very accurate yet as just one measurement is used from the past loop
 */
 int estimate_dc(float speed)
 {
@@ -172,9 +191,13 @@ PID controlled speed function
 */
 void pid_speed()
 {
+  if (last_loop_time == 0)
+  {
+    return;
+  }
   target_distance += current_speed * last_loop_time;
   float error = target_distance - current_distance;
-  pid_integral += error * last_loop_time; // ! somwhow the sign changes when ki is too high
+  pid_integral += error * last_loop_time;
   pid_before_checking = pid_integral;
   if (pid_integral != 0 && fabs(pid_integral) > i_max)
   {
@@ -191,6 +214,11 @@ This function takes care of acceleration
 */
 void drive_loop()
 {
+  if (last_loop_time == 0)
+  {
+    return;
+  }
+  steer(set_degree);
   if (fabs(target_speed - current_speed) > 1)
   {
     current_speed += (target_speed - current_speed) / fabs(target_speed - current_speed) * acc * last_loop_time;
@@ -213,6 +241,14 @@ void drive_loop()
 /*
 Function to set the acceleration speed
 */
+void set_acceleration(int acceleration)
+{
+  if (acceleration < 0)
+  {
+    acceleration = 0;
+  }
+  acc = acceleration;
+}
 
 /*
 Emergency stop, shuts down speed directly to 0
@@ -250,61 +286,9 @@ void set_speed(int speed)
   }
 }
 
-void drive(int speed, bool force = false)
-{
-  if (speed > 200)
-  {
-    speed = 200;
-  }
-  else if (speed < -200)
-  {
-    speed = -200;
-  }
-  if (millis() < last_acc_time + acc_time)
-  {
-    return;
-  }
-  last_acc_time = millis();
-  if (fabs(speed - current_speed) > 1 && !force)
-  {
-    current_speed = current_speed + (speed - current_speed) / fabs(speed - current_speed) * 1;
-  }
-  else if (speed == 0)
-  {
-    current_speed = 0;
-  }
-  if (current_speed > 0)
-  {
-    digitalWrite(in1Pin, LOW);
-    digitalWrite(in2Pin, HIGH);
-  }
-  else if (current_speed < 0)
-  {
-    digitalWrite(in1Pin, HIGH);
-    digitalWrite(in2Pin, LOW);
-  }
-  else
-  {
-    digitalWrite(in1Pin, LOW);
-    digitalWrite(in2Pin, LOW);
-  }
-  analogWrite(enaPin, fabs(current_speed));
-}
-
-void steer(int angle)
-{
-  angle = angle + middle;
-  if (angle > degree_max)
-  {
-    angle = degree_max;
-  }
-  else if (angle < degree_min)
-  {
-    angle = degree_min;
-  }
-  servo.write(angle);
-}
-
+/*
+Get the temperature from the gyro, used mainly for temperature compensation
+*/
 int get_temperature()
 {
   Wire.beginTransmission(L3GD20_ADDRESS);
@@ -374,6 +358,7 @@ void pid_config_print()
     Serial.print("\r\n");
   }
 }
+
 void gyro_config_print()
 {
   if (current_time - last_status_time > 200000)
@@ -385,8 +370,8 @@ void gyro_config_print()
     Serial.print(get_temperature());
     Serial.print(" degree: ");
     Serial.print(degree * 180 / PI);
-    Serial.print(" degree_calibrated_temp: ");
-    Serial.print(degree_calibrated_temp * 180 / PI);
+    Serial.print(" degree_calibrated: ");
+    Serial.print(degree_calibrated * 180 / PI);
     Serial.print("\r\n");
   }
 }
@@ -422,7 +407,7 @@ void parseMessage(char *msg)
     set_degree = value;
     break;
   case 'n':
-    Serial.println(encoder_pos);
+    Serial.println(get_distance(encoder_pos));
     break;
   case 'p':
     emergency_stop();
@@ -435,6 +420,9 @@ void parseMessage(char *msg)
     break;
   case 'e':
     Kd = value / 10.;
+    break;
+  case 'g':
+    Serial.println(degree_calibrated * 180 / PI);
     break;
   }
 }
@@ -458,36 +446,73 @@ void processMessage()
   }
 
   message[index] = '\0'; // Null-terminate the message string
-  // Serial.println(message);
 
   // Parse the extracted message
   parseMessage(message);
 }
 
-void checkEnable()
+void check_serial_available()
 {
-  bool last_state = en_state;
-  en_state = digitalRead(enTogglePin) == HIGH;
-
-  if (en_state != last_state)
+  while (Serial.available() > 0)
   {
-    if (en_state)
+    char c = Serial.read();
+    ringBuffer[head] = c;
+    head = (head + 1) % BUFFER_SIZE;
+
+    if (head == tail)
     {
-      Serial.println("enable 1");
+      // Buffer overflow, discard the oldest character
+      tail = (tail + 1) % BUFFER_SIZE;
     }
-    else
+    if (c == '\n')
     {
-      Serial.println("enable 0");
+      processMessage();
     }
-    delay(250);
   }
 }
 
+/*
+Change enable state based on interrupt
+*/
+void enable_interrupt()
+{
+  en_state = digitalRead(enTogglePin) == HIGH;
+  if (en_state)
+  {
+    enable_dc = true;
+    set_speed(target_speed);
+    Serial.println(en_state_true);
+  }
+  else
+  {
+    enable_dc = false;
+    emergency_stop();
+    Serial.println(en_state_false);
+  }
+}
+
+/*
+Update gyro degree, has to be called each loop, so that integration works reliably
+*/
 void update_gyro()
 {
   gyro.getEvent(&event);
   degree += event.gyro.z * last_loop_time;
-  degree_calibrated_temp += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+  degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+}
+
+void loop_updater()
+{
+  last_time = current_time;
+  last_distance = current_distance;
+
+  current_time = micros();
+  last_loop_time_us = current_time - last_time;
+  last_loop_time = last_loop_time_us / 1000000.0; // in seconds
+  
+  current_distance = get_distance(encoder_pos);
+
+  update_gyro();
 }
 
 void update_encoder(int encoderPin)
@@ -534,6 +559,7 @@ void setup()
 
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinA), update_encoder_a, CHANGE);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(enTogglePin), enable_interrupt, CHANGE);
 
   delay(30);
 
@@ -549,38 +575,7 @@ void setup()
 
 void loop()
 {
-  current_time = micros();
-  current_distance = get_distance(encoder_pos);
-  last_loop_time_us = current_time - last_time;
-  last_loop_time = last_loop_time_us / 1000000.0; // in seconds
-
-  while (Serial.available() > 0)
-  {
-    char incomingByte = Serial.read();
-    // Serial.print(incomingByte);
-    ringBuffer[head] = incomingByte;
-    head = ++head % BUFFER_SIZE; // Move the head and wrap it around
-
-    // If head meets tail, it means buffer overflow, so move tail forward
-    if (head == tail)
-    {
-      tail = ++tail % BUFFER_SIZE;
-    }
-
-    // Check for the end of the message (newline '\n')
-    if (incomingByte == '\n')
-    {
-      processMessage();
-      // Serial.print("encoder_pos: ");
-      // Serial.println(encoder_pos);
-    }
-  }
-  steer(en_state ? set_degree : 0);
-  checkEnable();
-
+  loop_updater();
+  check_serial_available();
   drive_loop();
-  update_gyro();
-
-  last_time = current_time;
-  last_distance = current_distance;
 }

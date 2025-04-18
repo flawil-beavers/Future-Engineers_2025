@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -42,6 +41,11 @@
     <div id="largeView">
       <button onclick="showMainMenu()">Back to Menu</button>
       <h2>Large Camera View</h2>
+      <select name="streamCselect" id="select-c" onchange="selectStream()">
+        <option value="">--</option>
+      </select>
+      <br />
+      <br />
       <img
         id="largeCameraView"
         src=""
@@ -56,6 +60,7 @@
       let ip_input = document.getElementById("ip");
       let selectA = document.getElementById("select-a");
       let selectB = document.getElementById("select-b");
+      let selectC = document.getElementById("select-c");
       var ws;
 
       var availableStreams = [];
@@ -69,12 +74,18 @@
           if (data.a) {
             var imageSrc = "data:image/jpeg;base64," + data.a;
             document.getElementById("colorStream").src = imageSrc;
-            document.getElementById("largeCameraView").src = imageSrc;
+            
           }
 
           if (data.b) {
             var imageSrc = "data:image/jpeg;base64," + data.b;
             document.getElementById("depthStream").src = imageSrc;
+            
+          }
+          if (data.c) {
+            var imageSrc = "data:image/jpeg;base64," + data.c;
+            document.getElementById("largeCameraView").src = imageSrc;         
+            
           }
           if (data.streams) {
             console.log(data.streams);
@@ -91,27 +102,51 @@
       function buildSelects() {
         selectA.innerHTML = "";
         selectB.innerHTML = "";
+        selectC.innerHTML = "";
         availableStreams.forEach((stream) => {
           let option = document.createElement("option");
           option.value = stream;
           option.text = stream;
           selectA.appendChild(option);
+
           let option2 = document.createElement("option");
           option2.value = stream;
           option2.text = stream;
           selectB.appendChild(option2);
+
+          let option3 = document.createElement("option");
+          option3.value = stream;
+          option3.text = stream;
+          selectC.appendChild(option3);
+
         });
       }
 
       function selectStream() {
-        ws.send(JSON.stringify({ streamA: selectA.value, streamB: selectB.value }));
+        ws.send(JSON.stringify({
+            streamA: selectA.value,
+            streamB: selectB.value,
+            streamC: selectC.value
+        }));
+
+       
       }
 
       function showLargeView() {
-       
         document.getElementById("mainMenu").style.display = "none";
         document.getElementById("largeView").style.display = "block";
-        document.getElementById("largeCameraView").src = document.getElementById("colorStream").src;
+
+        // Wähle standardmäßig den ersten Stream in select-c aus
+        const selectC = document.getElementById("select-c");
+        if (selectC.options.length > 0) {
+            selectC.selectedIndex = 5; // Wähle den ersten Eintrag aus
+            const selectedStream = selectC.value;
+
+            // Sende den ausgewählten Stream an den WebSocket-Server
+            if (selectedStream) {
+                ws.send(JSON.stringify({ streamC: selectedStream }));
+            }
+        }
       }
 
       function showMainMenu() {
@@ -132,8 +167,12 @@
         const y = event.clientY - rect.top;
 
         const pixel = ctx.getImageData(x, y, 1, 1).data;
-        const rgb = `RGB(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
-        document.getElementById("colorValues").innerText = `Clicked Color: ${rgb}`;
+        const rgb = `[${pixel[0]}, ${pixel[1]}, ${pixel[2]}]`;
+        const colorInput = document.createElement("input");
+        colorInput.type = "text";
+        colorInput.value = rgb;
+        document.getElementById("colorValues").innerHTML = "RGB Werte: ";
+        document.getElementById("colorValues").appendChild(colorInput);
       }
 
       window.onload = function () {

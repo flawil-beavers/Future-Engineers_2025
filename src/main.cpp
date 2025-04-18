@@ -543,12 +543,12 @@ void loop()
     char incomingByte = Serial.read();
     // Serial.print(incomingByte);
     ringBuffer[head] = incomingByte;
-    head = ++head % BUFFER_SIZE; // Move the head and wrap it around
+    head = (head + 1) % BUFFER_SIZE; // Move the head and wrap it around
 
     // If head meets tail, it means buffer overflow, so move tail forward
     if (head == tail)
     {
-      tail = ++tail % BUFFER_SIZE;
+      tail = (tail + 1) % BUFFER_SIZE;
     }
 
     // Check for the end of the message (newline '\n')

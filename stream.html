@@ -5,54 +5,119 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Color and Depth Streams</title>
     <style>
-      #largeView {
-        display: none;
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f9;
+        margin: 0;
+        padding: 0;
+        color: #333;
+      }
+
+      h2 {
+        color: #444;
         text-align: center;
       }
-      #mainMenu {
+
+      #mainMenu, #largeView {
+        max-width: 1000px;
+        margin: 20px auto;
+        padding: 20px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      #mainMenu input[type="text"] {
+        width: calc(100% - 120px);
+        padding: 10px;
+        margin-right: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      #mainMenu button {
+        padding: 10px 15px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      #mainMenu button:hover {
+        background-color: #0056b3;
+      }
+
+      select {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      img {
         display: block;
+        max-width: 100%;
+        height: auto;
+        margin: 10px auto;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+      }
+
+      #colorValues {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 14px;
+        color: #555;
+      }
+
+      #largeView button {
+        display: block;
+        margin: 10px auto;
+        padding: 10px 15px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      #largeView button:hover {
+        background-color: #1e7e34;
       }
     </style>
   </head>
   <body>
     <div id="mainMenu">
+      <h2>Main Menu</h2>
       <input type="text" id="ip" value="car2.local" />
       <button onclick="connectWebSocket()">Connect</button>
+      <p></p>
       <button onclick="showLargeView()">Show Large Camera View</button>
+      
 
       <div>
         <h2>Stream A</h2>
-        <select name="streamAselect" id="select-a" onchange="selectStream()">
-          <option value="">--</option>
-        </select>
-        <br />
-        <img id="colorStream" src="" alt="Color Stream" style="border: 2px solid red" />
+        <select name="streamAselect" id="select-a" onchange="selectStream()"></select>
+        <img id="colorStream" src="" alt="Color Stream" />
       </div>
       <div>
         <h2>Stream B</h2>
-        <select name="streamBselect" id="select-b" onchange="selectStream()">
-          <option value="">--</option>
-        </select>
-        <br />
-        <img id="depthStream" src="" alt="Depth Stream" style="border: 2px solid red" />
+        <select name="streamBselect" id="select-b" onchange="selectStream()"></select>
+        <img id="depthStream" src="" alt="Depth Stream" />
       </div>
     </div>
 
-    <div id="largeView">
+    <div id="largeView" style="display: none;">
       <button onclick="showMainMenu()">Back to Menu</button>
       <h2>Large Camera View</h2>
       <select name="streamCselect" id="select-c" onchange="selectStream()">
         <option value="">--</option>
       </select>
-      <br />
-      <br />
-      <img
-        id="largeCameraView"
-        src=""
-        alt="Large Camera View"
-        style="border: 2px solid black; cursor: crosshair;"
-        onclick="getColorValues(event)"
-      />
+      <img id="largeCameraView" src="" alt="Large Camera View" onclick="getColorValues(event)" />
       <p id="colorValues">Click on the image to see RGB values.</p>
     </div>
 

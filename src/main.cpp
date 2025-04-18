@@ -27,6 +27,8 @@ long encoder_pos = 0;
 int encoder_dir = 1; // 1 -> CCW, -1 -> CW
 
 bool en_state = false; // enable state
+const char en_state_true[] = "enable 1";
+const char en_state_false[] = "enable 0";
 
 int max_dc = 200;       // max duty cycle for motor driver
 int min_dc = 25;        // min duty cycle for motor driver
@@ -99,6 +101,23 @@ int dc_out = 0;
 float pid_before_checking = 0;
 
 /*
+Set the steering angle of the servo
+*/
+void steer(int angle)
+{
+  angle = angle + middle;
+  if (angle > degree_max)
+  {
+    angle = degree_max;
+  }
+  else if (angle < degree_min)
+  {
+    angle = degree_min;
+  }
+  servo.write(angle);
+}
+
+/*
 Set the duty cycle of the motor driver.
 The duty cycle is limited by max_dc, min_dc and max_acc_dc.
 dc can be a positive or negative value.
@@ -151,6 +170,7 @@ float get_distance(long encoder_pos)
 /*
 Estimates dc for a given value in mm/s
 50 dc = 300 mm/s
+Not very accurate yet as just one measurement is used from the past loop
 */
 int estimate_dc(float speed)
 {
@@ -191,6 +211,7 @@ This function takes care of acceleration
 */
 void drive_loop()
 {
+  steer(set_degree);
   if (fabs(target_speed - current_speed) > 1)
   {
     current_speed += (target_speed - current_speed) / fabs(target_speed - current_speed) * acc * last_loop_time;
@@ -213,6 +234,14 @@ void drive_loop()
 /*
 Function to set the acceleration speed
 */
+void set_acceleration(int acceleration)
+{
+  if (acceleration < 0)
+  {
+    acceleration = 0;
+  }
+  acc = acceleration;
+}
 
 /*
 Emergency stop, shuts down speed directly to 0
@@ -291,20 +320,9 @@ void drive(int speed, bool force = false)
   analogWrite(enaPin, fabs(current_speed));
 }
 
-void steer(int angle)
-{
-  angle = angle + middle;
-  if (angle > degree_max)
-  {
-    angle = degree_max;
-  }
-  else if (angle < degree_min)
-  {
-    angle = degree_min;
-  }
-  servo.write(angle);
-}
-
+/*
+Get the temperature from the gyro, used mainly for temperature compensation
+*/
 int get_temperature()
 {
   Wire.beginTransmission(L3GD20_ADDRESS);
@@ -374,6 +392,7 @@ void pid_config_print()
     Serial.print("\r\n");
   }
 }
+
 void gyro_config_print()
 {
   if (current_time - last_status_time > 200000)
@@ -461,31 +480,34 @@ void processMessage()
   }
 
   message[index] = '\0'; // Null-terminate the message string
-  // Serial.println(message);
 
   // Parse the extracted message
   parseMessage(message);
 }
 
-void checkEnable()
+/*
+Change enable state based on interrupt
+*/
+void enable_interrupt()
 {
-  bool last_state = en_state;
   en_state = digitalRead(enTogglePin) == HIGH;
-
-  if (en_state != last_state)
+  if (en_state)
   {
-    if (en_state)
-    {
-      Serial.println("enable 1");
-    }
-    else
-    {
-      Serial.println("enable 0");
-    }
-    delay(250);
+    enable_dc = true;
+    set_speed(target_speed);
+    Serial.println(en_state_true);
+  }
+  else
+  {
+    enable_dc = false;
+    emergency_stop();
+    Serial.println(en_state_false);
   }
 }
 
+/*
+Update gyro degree, has to be called each loop, so that integration works reliably
+*/
 void update_gyro()
 {
   gyro.getEvent(&event);
@@ -537,6 +559,7 @@ void setup()
 
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinA), update_encoder_a, CHANGE);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(enTogglePin), enable_interrupt, CHANGE);
 
   delay(30);
 
@@ -574,13 +597,8 @@ void loop()
     if (incomingByte == '\n')
     {
       processMessage();
-      // Serial.print("encoder_pos: ");
-      // Serial.println(encoder_pos);
     }
   }
-  steer(en_state ? set_degree : 0);
-  checkEnable();
-
   drive_loop();
   update_gyro();
 

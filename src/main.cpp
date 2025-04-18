@@ -79,7 +79,6 @@ float last_offset = 0;
 // float y = -0.0006x - 0.0034
 float offset_m = -0.0006;
 float offset_b = -0.0034;
-float degree_calibrated_temp = 0;
 
 unsigned long last_offset_time = 0;
 const float scaling_calibrated = 1800 / 1750.03; // deg measured for 5 rotations
@@ -194,7 +193,7 @@ void pid_speed()
 {
   target_distance += current_speed * last_loop_time;
   float error = target_distance - current_distance;
-  pid_integral += error * last_loop_time; // ! somwhow the sign changes when ki is too high
+  pid_integral += error * last_loop_time;
   pid_before_checking = pid_integral;
   if (pid_integral != 0 && fabs(pid_integral) > i_max)
   {
@@ -277,47 +276,6 @@ void set_speed(int speed)
     enable_dc = true;
     target_speed = speed;
   }
-}
-
-void drive(int speed, bool force = false)
-{
-  if (speed > 200)
-  {
-    speed = 200;
-  }
-  else if (speed < -200)
-  {
-    speed = -200;
-  }
-  if (millis() < last_acc_time + acc_time)
-  {
-    return;
-  }
-  last_acc_time = millis();
-  if (fabs(speed - current_speed) > 1 && !force)
-  {
-    current_speed = current_speed + (speed - current_speed) / fabs(speed - current_speed) * 1;
-  }
-  else if (speed == 0)
-  {
-    current_speed = 0;
-  }
-  if (current_speed > 0)
-  {
-    digitalWrite(in1Pin, LOW);
-    digitalWrite(in2Pin, HIGH);
-  }
-  else if (current_speed < 0)
-  {
-    digitalWrite(in1Pin, HIGH);
-    digitalWrite(in2Pin, LOW);
-  }
-  else
-  {
-    digitalWrite(in1Pin, LOW);
-    digitalWrite(in2Pin, LOW);
-  }
-  analogWrite(enaPin, fabs(current_speed));
 }
 
 /*
@@ -404,8 +362,8 @@ void gyro_config_print()
     Serial.print(get_temperature());
     Serial.print(" degree: ");
     Serial.print(degree * 180 / PI);
-    Serial.print(" degree_calibrated_temp: ");
-    Serial.print(degree_calibrated_temp * 180 / PI);
+    Serial.print(" degree_calibrated: ");
+    Serial.print(degree_calibrated * 180 / PI);
     Serial.print("\r\n");
   }
 }
@@ -456,7 +414,7 @@ void parseMessage(char *msg)
     Kd = value / 10.;
     break;
   case 'g':
-    Serial.println(degree_calibrated_temp * 180 / PI);
+    Serial.println(degree_calibrated * 180 / PI);
     break;
   }
 }
@@ -512,7 +470,7 @@ void update_gyro()
 {
   gyro.getEvent(&event);
   degree += event.gyro.z * last_loop_time;
-  degree_calibrated_temp += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+  degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
 }
 
 void update_encoder(int encoderPin)

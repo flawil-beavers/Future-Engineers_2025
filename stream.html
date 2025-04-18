@@ -1,34 +1,61 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Color and Depth Streams</title>
+    <style>
+      #largeView {
+        display: none;
+        text-align: center;
+      }
+      #mainMenu {
+        display: block;
+      }
+    </style>
   </head>
   <body>
-    <input type="text" id="ip" value="car.local" />
-    <button onclick="connectWebSocket()">Connect</button>
+    <div id="mainMenu">
+      <input type="text" id="ip" value="car2.local" />
+      <button onclick="connectWebSocket()">Connect</button>
+      <button onclick="showLargeView()">Show Large Camera View</button>
 
-    <div>
-      <h2>Stream A</h2>
-      <select name="streamAselect" id="select-a" onchange="selectStream()">
-        <option value="">--</option></select
-      ><br />
-      <img id="colorStream" src="" alt="Color Stream" style="border: 2px solid red" />
+      <div>
+        <h2>Stream A</h2>
+        <select name="streamAselect" id="select-a" onchange="selectStream()">
+          <option value="">--</option>
+        </select>
+        <br />
+        <img id="colorStream" src="" alt="Color Stream" style="border: 2px solid red" />
+      </div>
+      <div>
+        <h2>Stream B</h2>
+        <select name="streamBselect" id="select-b" onchange="selectStream()">
+          <option value="">--</option>
+        </select>
+        <br />
+        <img id="depthStream" src="" alt="Depth Stream" style="border: 2px solid red" />
+      </div>
     </div>
-    <div>
-      <h2>Stream B</h2>
-      <select name="streamBselect" id="select-b" onchange="selectStream()">
-        <option value="">--</option></select
-      ><br />
-      <img id="depthStream" src="" alt="Depth Stream" style="border: 2px solid red" />
+
+    <div id="largeView">
+      <button onclick="showMainMenu()">Back to Menu</button>
+      <h2>Large Camera View</h2>
+      <img
+        id="largeCameraView"
+        src=""
+        alt="Large Camera View"
+        style="border: 2px solid black; cursor: crosshair;"
+        onclick="getColorValues(event)"
+      />
+      <p id="colorValues">Click on the image to see RGB values.</p>
     </div>
 
     <script>
       let ip_input = document.getElementById("ip");
       let selectA = document.getElementById("select-a");
       let selectB = document.getElementById("select-b");
-
       var ws;
 
       var availableStreams = [];
@@ -36,13 +63,13 @@
       // Function to connect to the WebSocket server
       function connectWebSocket() {
         ws = new WebSocket(`ws://${ip_input.value}:8765`);
-
         // Event handler for receiving messages from the server
         ws.onmessage = function (event) {
           let data = JSON.parse(event.data);
           if (data.a) {
             var imageSrc = "data:image/jpeg;base64," + data.a;
             document.getElementById("colorStream").src = imageSrc;
+            document.getElementById("largeCameraView").src = imageSrc;
           }
 
           if (data.b) {
@@ -55,12 +82,10 @@
             buildSelects();
           }
         };
-
         // Event handler for when the WebSocket connection closes
         ws.onclose = function () {
           console.log("WebSocket connection closed");
         };
-        // setTimeout(connectWebSocket(), 2000);
       }
 
       function buildSelects() {
@@ -82,7 +107,35 @@
         ws.send(JSON.stringify({ streamA: selectA.value, streamB: selectB.value }));
       }
 
-      // Connect to WebSocket when the page loads
+      function showLargeView() {
+       
+        document.getElementById("mainMenu").style.display = "none";
+        document.getElementById("largeView").style.display = "block";
+        document.getElementById("largeCameraView").src = document.getElementById("colorStream").src;
+      }
+
+      function showMainMenu() {
+        document.getElementById("largeView").style.display = "none";
+        document.getElementById("mainMenu").style.display = "block";
+      }
+
+      function getColorValues(event) {
+        const img = document.getElementById("largeCameraView");
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0, img.width, img.height);
+
+        const rect = img.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        const pixel = ctx.getImageData(x, y, 1, 1).data;
+        const rgb = `RGB(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+        document.getElementById("colorValues").innerText = `Clicked Color: ${rgb}`;
+      }
+
       window.onload = function () {
         connectWebSocket();
       };

@@ -191,6 +191,10 @@ PID controlled speed function
 */
 void pid_speed()
 {
+  if (last_loop_time == 0)
+  {
+    return;
+  }
   target_distance += current_speed * last_loop_time;
   float error = target_distance - current_distance;
   pid_integral += error * last_loop_time;
@@ -210,6 +214,10 @@ This function takes care of acceleration
 */
 void drive_loop()
 {
+  if (last_loop_time == 0)
+  {
+    return;
+  }
   steer(set_degree);
   if (fabs(target_speed - current_speed) > 1)
   {
@@ -443,6 +451,26 @@ void processMessage()
   parseMessage(message);
 }
 
+void check_serial_available()
+{
+  while (Serial.available() > 0)
+  {
+    char c = Serial.read();
+    ringBuffer[head] = c;
+    head = (head + 1) % BUFFER_SIZE;
+
+    if (head == tail)
+    {
+      // Buffer overflow, discard the oldest character
+      tail = (tail + 1) % BUFFER_SIZE;
+    }
+    if (c == '\n')
+    {
+      processMessage();
+    }
+  }
+}
+
 /*
 Change enable state based on interrupt
 */
@@ -471,6 +499,20 @@ void update_gyro()
   gyro.getEvent(&event);
   degree += event.gyro.z * last_loop_time;
   degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+}
+
+void loop_updater()
+{
+  last_time = current_time;
+  last_distance = current_distance;
+
+  current_time = micros();
+  last_loop_time_us = current_time - last_time;
+  last_loop_time = last_loop_time_us / 1000000.0; // in seconds
+  
+  current_distance = get_distance(encoder_pos);
+
+  update_gyro();
 }
 
 void update_encoder(int encoderPin)
@@ -533,33 +575,7 @@ void setup()
 
 void loop()
 {
-  current_time = micros();
-  current_distance = get_distance(encoder_pos);
-  last_loop_time_us = current_time - last_time;
-  last_loop_time = last_loop_time_us / 1000000.0; // in seconds
-
-  while (Serial.available() > 0)
-  {
-    char incomingByte = Serial.read();
-    // Serial.print(incomingByte);
-    ringBuffer[head] = incomingByte;
-    head = (head + 1) % BUFFER_SIZE; // Move the head and wrap it around
-
-    // If head meets tail, it means buffer overflow, so move tail forward
-    if (head == tail)
-    {
-      tail = (tail + 1) % BUFFER_SIZE;
-    }
-
-    // Check for the end of the message (newline '\n')
-    if (incomingByte == '\n')
-    {
-      processMessage();
-    }
-  }
+  loop_updater();
+  check_serial_available();
   drive_loop();
-  update_gyro();
-
-  last_time = current_time;
-  last_distance = current_distance;
 }

@@ -43,7 +43,7 @@ ports = serial.tools.list_ports.comports()
 
 
 try:
-  ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), 9600)
+  ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
 except:
   print("Arduino not connected, available devices")
   ser = None
@@ -205,7 +205,7 @@ def cycle():
 
 
   if ser:
-    message = "d" + str(int(100)) + "\n"
+    message = "d" + str(int(300)) + "\n"
     ser.write(message.encode())
     message = "s " + str(int(steering_angle)) + "\n"
     ser.write(message.encode())

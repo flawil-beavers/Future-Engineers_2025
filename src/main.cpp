@@ -297,6 +297,8 @@ void stop(bool hold = false) // todo rework emergency stop
 
 /*
 Function to set the speed
+
+If no speed is given, the last speed is used before the robot was paused
 */
 void set_speed(int speed = last_speed) // todo when setting speed to zero no emergency stop should be called
 {
@@ -304,6 +306,7 @@ void set_speed(int speed = last_speed) // todo when setting speed to zero no eme
   disable_servo = false;
   hold_dc = false;
   target_speed = speed;
+  last_speed = speed;
 }
 
 /*
@@ -521,13 +524,11 @@ void enable_interrupt()
   en_state = !en_state;
   if (en_state)
   {
-    disable_dc = false;
     set_speed();
     Serial.println(en_state_true);
   }
   else
   {
-    disable_dc = true;
     stop();
     Serial.println(en_state_false);
   }
@@ -611,7 +612,7 @@ void setup()
   if (!gyro.begin())
   {
     /* There was a problem detecting the L3GD20 ... check your connections */
-    Serial.println("Gyro error");
+    Serial.println("Gyro error"); // todo: add functionality to Raspberry to restart connection
     while (1)
       ;
   }

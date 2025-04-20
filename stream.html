@@ -1,214 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Color and Depth Streams</title>
-    <style>
-      body {
-        font-family: 'Roboto', Arial, sans-serif;
-        background: linear-gradient(100deg, #74ebd5, #acb6e5);
-        margin: 0;
-        padding: 0;
-        color: #212529;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color and Depth Streams</title>
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background: linear-gradient(100deg, #ebcf74, #b67a02);
+      margin: 0;
+      padding: 0;
+      color: #212529;
+    }
 
-      h2 {
-        color: #444;
-        text-align: center;
-        
-      }
+    h2 {
+      color: #444;
+      text-align: center;
 
-      #mainMenu, #largeView {
-        max-width: 1000px;
-        margin: 20px auto;
-        padding: 20px;
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 12px;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-      }
+    }
 
-      #mainMenu input[type="text"] {
-        width: calc(100% - 140px);
-        padding: 10px;
-        margin-right: 10px;
-        border: 1px solid #ced4da;
-        border-radius: 6px;
-        font-size: 14px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-      }
+    #mainMenu,
+    #largeView {
+      max-width: 1000px;
+      margin: 20px auto;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    }
 
-      #mainMenu button {
-        padding: 10px 15px;
-        border-radius: 4px;
-        font-size: 14px;
-        background: linear-gradient(135deg, #007bff, #0056b3);
-        color: white;
-        border: none;
-        cursor: pointer;
-        transition: background 0.3s, transform 0.2s;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      }
+    #mainMenu input[type="text"] {
+      width: calc(100% - 140px);
+      padding: 10px;
+      margin-right: 10px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 14px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
 
-      #mainMenu button:hover {
-        background: linear-gradient(135deg, #0056b3, #003f7f);
-      }
+    #mainMenu button {
+      padding: 10px 15px;
+      border-radius: 4px;
+      font-size: 14px;
+      background: linear-gradient(135deg, #ffd000, #b86f02);
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
 
-      select {
-        width: 100%;
-        padding: 10px;
-        margin: 10px 0;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-      }
+    #mainMenu button:hover {
+      background: linear-gradient(135deg, #0056b3, #003f7f);
+    }
 
-      img {
-        display: block;
-        max-width: 100%;
-        height: auto;
-        margin: 10px auto;
-        border: 2px solid #ddd;
-        border-radius: 4px;
-      }
+    select {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
 
-      #colorValues {
-        text-align: center;
-        margin-top: 10px;
-        font-size: 14px;
-        color: #555;
-      }
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 10px auto;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+    }
 
-      #largeView button {
-        display: block;
-        margin: 10px auto;
-        padding: 10px 15px;
-        background-color: #28a745;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-      }
+    #colorValues {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
 
-      #largeView button:hover {
-        background-color: #1e7e34;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="mainMenu">
-      <h2>Main Menu</h2>
-      <input type="text" id="ip" value="car2.local" />
-      <button onclick="connectWebSocket()">Connect</button>
-      <p></p>
-      <button onclick="showLargeView()">Show Large Camera View</button>
-      
+    #largeView button {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 15px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
 
-      <div>
-        <h2>Stream A</h2>
-        <select name="streamAselect" id="select-a" onchange="selectStream()">
-          <option value="">--</option>
-        </select>
-        <img id="colorStream" src="" alt="Color Stream" />
-      </div>
-      <div>
-        <h2>Stream B</h2>
-        <select name="streamBselect" id="select-b" onchange="selectStream()">
-          <option value="">--</option>
-        </select>
-        <img id="depthStream" src="" alt="Depth Stream" />
-      </div>
-    </div>
+    #largeView button:hover {
+      background-color: #1e7e34;
+    }
 
-    <div id="largeView" style="display: none;">
-      <button onclick="showMainMenu()">Back to Menu</button>
-      <h2>Large Camera View</h2>
-      <select name="streamCselect" id="select-c" onchange="selectStream()">
+    #logo {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 100px; /* Breite des Logos */
+      height: auto;
+      z-index: 1000; /* Sicherstellen, dass es über anderen Elementen liegt */
+      border:none;
+    }
+  </style>
+</head>
+
+<body>
+  <img id="logo" src="flawil_beavers_logo.png" alt="Flawil Beavers Logo" />
+  <div id="mainMenu">
+    <h2>Main Menu</h2>
+    
+    <input type="text" id="ip" value="car2.local" />
+    <button onclick="connectWebSocket()">Connect</button>
+    <p></p>
+    <button onclick="showLargeView()">Show Large Camera View</button>
+
+    <div>
+      <h2>Stream A</h2>
+      <select name="streamAselect" id="select-a" onchange="selectStream()">
         <option value="">--</option>
       </select>
-      <img id="largeCameraView" src="" alt="Large Camera View" onclick="getColorValues(event)" />
-      <p id="colorValues">Click on the image to see RGB values.</p>
+      <img id="colorStream" src="" alt="Color Stream" />
     </div>
+    <div>
+      <h2>Stream B</h2>
+      <select name="streamBselect" id="select-b" onchange="selectStream()">
+        <option value="">--</option>
+      </select>
+      <img id="depthStream" src="" alt="Depth Stream" />
+    </div>
+  </div>
 
-    <script>
-      let ip_input = document.getElementById("ip");
-      let selectA = document.getElementById("select-a");
-      let selectB = document.getElementById("select-b");
+  <div id="largeView" style="display: none;">
+    <button onclick="showMainMenu()">Back to Menu</button>
+    <h2>Large Camera View</h2>
+      <select name="streamCselect" id="select-c" onchange="selectStream()">
+        <option value="">--</option>
+    </select>
+    <img id="largeCameraView" src="" alt="Large Camera View" onclick="getColorValues(event)" />
+    <p id="colorValues">Click on the image to see RGB values.</p>
+  </div>
+
+  <script>
+    let ip_input = document.getElementById("ip");
+    let selectA = document.getElementById("select-a");
+    let selectB = document.getElementById("select-b");
       let selectC = document.getElementById("select-c");
-      var ws;
+    var ws;
 
-      var availableStreams = [];
+    var availableStreams = [];
 
-      // Function to connect to the WebSocket server
-      function connectWebSocket() {
-        ws = new WebSocket(`ws://${ip_input.value}:8765`);
-        // Event handler for receiving messages from the server
-        ws.onmessage = function (event) {
-          let data = JSON.parse(event.data);
-          if (data.a) {
-            var imageSrc = "data:image/jpeg;base64," + data.a;
-            document.getElementById("colorStream").src = imageSrc;
-            
-          }
+    // Function to connect to the WebSocket server
+    function connectWebSocket() {
+      ws = new WebSocket(`ws://${ip_input.value}:8765`);
+      // Event handler for receiving messages from the server
+      ws.onmessage = function (event) {
+        let data = JSON.parse(event.data);
+        if (data.a) {
+          var imageSrc = "data:image/jpeg;base64," + data.a;
+          document.getElementById("colorStream").src = imageSrc;
 
-          if (data.b) {
-            var imageSrc = "data:image/jpeg;base64," + data.b;
-            document.getElementById("depthStream").src = imageSrc;
-            
-          }
-          if (data.c) {
-            var imageSrc = "data:image/jpeg;base64," + data.c;
-            document.getElementById("largeCameraView").src = imageSrc;         
-            
-          }
-          if (data.streams) {
-            console.log(data.streams);
-            availableStreams = data.streams;
-            buildSelects();
-          }
-        };
-        // Event handler for when the WebSocket connection closes
-        ws.onclose = function () {
-          console.log("WebSocket connection closed");
-        };
-      }
+        }
 
-      function buildSelects() {
-        selectA.innerHTML = "";
-        selectB.innerHTML = "";
+        if (data.b) {
+          var imageSrc = "data:image/jpeg;base64," + data.b;
+          document.getElementById("depthStream").src = imageSrc;
+        }
+        if (data.c) {
+          var imageSrc = "data:image/jpeg;base64," + data.c;
+          document.getElementById("largeCameraView").src = imageSrc;
+        }
+
+        if (data.streams) {
+          console.log(data.streams);
+          availableStreams = data.streams;
+          buildSelects();
+        }
+      };
+      // Event handler for when the WebSocket connection closes
+      ws.onclose = function () {
+        console.log("WebSocket connection closed");
+      };
+    }
+
+    function buildSelects() {
+      selectA.innerHTML = "";
+      selectB.innerHTML = "";
         selectC.innerHTML = "";
-        availableStreams.forEach((stream) => {
-          let option = document.createElement("option");
-          option.value = stream;
-          option.text = stream;
-          selectA.appendChild(option);
+      availableStreams.forEach((stream) => {
+        let option = document.createElement("option");
+        option.value = stream;
+        option.text = stream;
+        selectA.appendChild(option);
 
-          let option2 = document.createElement("option");
-          option2.value = stream;
-          option2.text = stream;
-          selectB.appendChild(option2);
+        let option2 = document.createElement("option");
+        option2.value = stream;
+        option2.text = stream;
+        selectB.appendChild(option2);
 
           let option3 = document.createElement("option");
           option3.value = stream;
           option3.text = stream;
           selectC.appendChild(option3);
 
-        });
-      }
+      });
+    }
 
-      function selectStream() {
-        ws.send(JSON.stringify({
-            streamA: selectA.value,
-            streamB: selectB.value,
+    function selectStream() {
+      ws.send(JSON.stringify({
+        streamA: selectA.value,
+        streamB: selectB.value,
             streamC: selectC.value
-        }));
+      }));
 
-       
-      }
 
-      function showLargeView() {
-        document.getElementById("mainMenu").style.display = "none";
-        document.getElementById("largeView").style.display = "block";
+    }
+
+    function showLargeView() {
+      document.getElementById("mainMenu").style.display = "none";
+      document.getElementById("largeView").style.display = "block";
 
         // Wähle standardmäßig den ersten Stream in select-c aus
         const selectC = document.getElementById("select-c");
@@ -216,42 +228,43 @@
             selectC.selectedIndex = 5; // Wähle den ersten Eintrag aus
             const selectedStream = selectC.value;
 
-            // Sende den ausgewählten Stream an den WebSocket-Server
+        // Sende den ausgewählten Stream an den WebSocket-Server
             if (selectedStream) {
                 ws.send(JSON.stringify({ streamC: selectedStream }));
             }
-        }
       }
+    }
 
-      function showMainMenu() {
-        document.getElementById("largeView").style.display = "none";
-        document.getElementById("mainMenu").style.display = "block";
-      }
+    function showMainMenu() {
+      document.getElementById("largeView").style.display = "none";
+      document.getElementById("mainMenu").style.display = "block";
+    }
 
-      function getColorValues(event) {
-        const img = document.getElementById("largeCameraView");
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0, img.width, img.height);
+    function getColorValues(event) {
+      const img = document.getElementById("largeCameraView");
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0, img.width, img.height);
 
-        const rect = img.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+      const rect = img.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
 
-        const pixel = ctx.getImageData(x, y, 1, 1).data;
-        const rgb = `[${pixel[0]}, ${pixel[1]}, ${pixel[2]}]`;
-        const colorInput = document.createElement("input");
-        colorInput.type = "text";
-        colorInput.value = rgb;
-        document.getElementById("colorValues").innerHTML = "RGB Werte: ";
-        document.getElementById("colorValues").appendChild(colorInput);
-      }
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const rgb = `[${pixel[0]}, ${pixel[1]}, ${pixel[2]}]`;
+      const colorInput = document.createElement("input");
+      colorInput.type = "text";
+      colorInput.value = rgb;
+      document.getElementById("colorValues").innerHTML = "RGB Werte: ";
+      document.getElementById("colorValues").appendChild(colorInput);
+    }
 
-      window.onload = function () {
-        connectWebSocket();
-      };
-    </script>
-  </body>
+    window.onload = function () {
+      connectWebSocket();
+    };
+  </script>
+</body>
+
 </html>

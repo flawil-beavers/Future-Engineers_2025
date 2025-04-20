@@ -30,12 +30,13 @@ bool en_state = false; // enable state
 const char en_state_true[] = "enable 1";
 const char en_state_false[] = "enable 0";
 
-int max_dc = 200;       // max duty cycle for motor driver
-int min_dc = 25;        // min duty cycle for motor driver
-float max_acc_dc = 255; // max acceleration duty cycle for motor driver (dc/s)
-float current_dc = 0;   // current duty cycle for motor driver
-float acc = 700;        // acceleration speed (mm/s^2)
-bool enable_dc = true;  // enable dc motor
+// dc motor settings
+int max_dc = 200;        // max duty cycle for motor driver
+int min_dc = 25;         // min duty cycle for motor driver
+float max_acc_dc = 255;  // max acceleration duty cycle for motor driver (dc/s)
+float current_dc = 0;    // current duty cycle for motor driver
+float acc = 700;         // acceleration speed (mm/s^2)
+bool disable_dc = false; // enable dc motor
 bool hold_dc = false;
 
 // speed settings
@@ -44,12 +45,15 @@ int target_speed = 0; // target speed for the motor in mm/s
 unsigned long acc_time = 20;
 unsigned long last_acc_time = 0;
 
+float last_speed = 0;
+
 // steering settings
 int middle = 97; // +55 -55
 int degree_max = middle + 30;
 int degree_min = middle - 30;
 int current_degree = 0;
 int set_degree = 0;
+bool disable_servo = false;
 
 // PID
 float target_distance = 0; // target encoder position in mm
@@ -67,9 +71,10 @@ float last_error = 0.0;     // last error for PID controller
 // time variables
 unsigned long current_time = 0;
 unsigned long last_time = 0;
-unsigned long last_status_time = 0;  // when the last status was printed
-unsigned long last_loop_time_us = 0; // last loop time in microseconds
-float last_loop_time = 0;            // last loop time in seconds
+unsigned long last_status_time = 0;           // when the last status was printed
+unsigned long last_loop_time_us = 0;          // last loop time in microseconds
+float last_loop_time = 0;                     // last loop time in seconds
+unsigned long last_enable_interrupt_time = 0; // last time the enable interrupt was called
 
 sensors_event_t event;
 float degree = 0;
@@ -104,6 +109,10 @@ Set the steering angle of the servo
 */
 void steer(int angle)
 {
+  if (disable_servo)
+  {
+    return;
+  }
   angle = angle + middle;
   if (angle > degree_max)
   {
@@ -117,14 +126,25 @@ void steer(int angle)
 }
 
 /*
+Function to set the steering angle of the servo
+*/
+void set_steering(int angle)
+{
+  disable_servo = false;
+  set_degree = angle;
+}
+
+/*
 Set the duty cycle of the motor driver.
 The duty cycle is limited by max_dc, min_dc and max_acc_dc.
 dc can be a positive or negative value.
 */
 void set_dc(float dc)
 {
-  if (!enable_dc)
+  if (disable_dc)
   {
+    digitalWrite(in1Pin, LOW);
+    digitalWrite(in2Pin, LOW);
     return;
   }
   if (dc != 0 && fabs(dc) > max_dc)
@@ -195,7 +215,6 @@ void pid_speed()
   {
     return;
   }
-  target_distance += current_speed * last_loop_time;
   float error = target_distance - current_distance;
   pid_integral += error * last_loop_time;
   pid_before_checking = pid_integral;
@@ -214,27 +233,31 @@ This function takes care of acceleration
 */
 void drive_loop()
 {
-  if (last_loop_time == 0)
+  if (last_loop_time == 0) // don't do loop if not yet initialised; so we don't divide by 0
   {
     return;
   }
   steer(set_degree);
-  if (fabs(target_speed - current_speed) > 1)
+  if (!hold_dc)
   {
-    current_speed += (target_speed - current_speed) / fabs(target_speed - current_speed) * acc * last_loop_time;
+    if (fabs(target_speed - current_speed) > 1)
+    {
+      current_speed += (target_speed - current_speed) / fabs(target_speed - current_speed) * acc * last_loop_time;
+    }
+    else
+    {
+      current_speed = target_speed;
+    }
+    if (!disable_dc)
+    {
+      target_distance += current_speed * last_loop_time;
+    }
   }
-  else
+  else if (disable_dc)
   {
-    current_speed = target_speed;
+    return;
   }
-  if (enable_dc || hold_dc)
-  {
-    pid_speed();
-  }
-  else
-  {
-    target_distance = current_distance;
-  }
+  pid_speed();
   measured_speed = (current_distance - last_distance) / last_loop_time; // approximate speed in mm/s todo: average over multiple loops
 }
 
@@ -251,39 +274,39 @@ void set_acceleration(int acceleration)
 }
 
 /*
-Emergency stop, shuts down speed directly to 0
+Stops both motors
 */
-void emergency_stop(bool hold = false)
+void stop(bool hold = false) // todo rework emergency stop
 {
-  target_speed = 0;
-  target_distance = current_distance;
-  analogWrite(enaPin, 0);
-  digitalWrite(in1Pin, LOW);
-  digitalWrite(in2Pin, LOW);
-  current_dc = 0;
-  current_speed = 0;
-  enable_dc = false;
+  last_speed = current_speed;
   if (!hold)
   {
+    disable_dc = true;
     pid_integral = 0;
     last_error = 0;
+    hold_dc = false;
   }
+  else
+  {
+    disable_dc = false;
+    hold_dc = true;
+  }
+
+  disable_servo = true;
 }
 
 /*
 Function to set the speed
+
+If no speed is given, the last speed is used before the robot was paused
 */
-void set_speed(int speed)
+void set_speed(int speed = last_speed) // todo when setting speed to zero no emergency stop should be called
 {
-  if (speed == 0)
-  {
-    emergency_stop();
-  }
-  else
-  {
-    enable_dc = true;
-    target_speed = speed;
-  }
+  disable_dc = false;
+  disable_servo = false;
+  hold_dc = false;
+  target_speed = speed;
+  last_speed = speed;
 }
 
 /*
@@ -303,20 +326,17 @@ int get_temperature()
   return temperature;
 }
 
-void gyro_config()
+void gyro_config(float time_interval = 10)
 {
-  if (current_time - last_offset_time > 100000000)
+  if (current_time - last_offset_time > time_interval * 1000000)
   {
     last_offset_time = current_time;
     offset = degree - last_offset;
-    // Serial.print("offset: ");
-    Serial.print(offset / 100, 6);
-    // Serial.print(" temperature: ");
+    Serial.print(offset / time_interval, 6);
     Serial.print(", ");
-    Serial.println(temperature_average / 100, 6);
+    Serial.println(temperature_average / time_interval, 6);
     temperature_average = 0;
     last_offset += offset;
-    // delay(100000);
   }
 }
 
@@ -404,13 +424,16 @@ void parseMessage(char *msg)
     set_speed(value);
     break;
   case 's':
-    set_degree = value;
+    set_steering(value);
     break;
   case 'n':
     Serial.println(get_distance(encoder_pos));
     break;
   case 'p':
-    emergency_stop();
+    stop();
+    break;
+  case 'h':
+    stop(true);
     break;
   case 'q':
     Kp = value / 10.;
@@ -423,6 +446,15 @@ void parseMessage(char *msg)
     break;
   case 'g':
     Serial.println(degree_calibrated * 180 / PI);
+    break;
+  case 't':
+    Serial.println(get_temperature());
+    break;
+  case 'a':
+    set_acceleration(value);
+    break;
+  case 'r':
+    set_speed();
     break;
   }
 }
@@ -473,20 +505,31 @@ void check_serial_available()
 
 /*
 Change enable state based on interrupt
+This is the start stop and pause button
+
+Switch on:
+Starts the robot
+When the robot is paused this makes the robot resume
+
+Switch off:
+Pauses the robot
 */
 void enable_interrupt()
 {
-  en_state = digitalRead(enTogglePin) == HIGH;
+  if (current_time - last_enable_interrupt_time < 100000)
+  {
+    return;
+  }
+  last_enable_interrupt_time = current_time;
+  en_state = !en_state;
   if (en_state)
   {
-    enable_dc = true;
-    set_speed(target_speed);
+    set_speed();
     Serial.println(en_state_true);
   }
   else
   {
-    enable_dc = false;
-    emergency_stop();
+    stop();
     Serial.println(en_state_false);
   }
 }
@@ -499,6 +542,7 @@ void update_gyro()
   gyro.getEvent(&event);
   degree += event.gyro.z * last_loop_time;
   degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+  temperature_average += temperature * last_loop_time;
 }
 
 void loop_updater()
@@ -509,7 +553,7 @@ void loop_updater()
   current_time = micros();
   last_loop_time_us = current_time - last_time;
   last_loop_time = last_loop_time_us / 1000000.0; // in seconds
-  
+
   current_distance = get_distance(encoder_pos);
 
   update_gyro();
@@ -561,12 +605,14 @@ void setup()
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(encoderPinB), update_encoder_b, CHANGE);
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(enTogglePin), enable_interrupt, CHANGE);
 
+  en_state = digitalRead(enTogglePin) == HIGH; // initial state of the enable button
+
   delay(30);
 
   if (!gyro.begin())
   {
     /* There was a problem detecting the L3GD20 ... check your connections */
-    Serial.println("Ooops, no L3GD20 detected ... Check your wiring!");
+    Serial.println("Gyro error"); // todo: add functionality to Raspberry to restart connection
     while (1)
       ;
   }
@@ -578,4 +624,7 @@ void loop()
   loop_updater();
   check_serial_available();
   drive_loop();
+  // pid_config_print();
+  // gyro_config_print();
+  // gyro_config();
 }

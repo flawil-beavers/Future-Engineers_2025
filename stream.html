@@ -22,7 +22,7 @@
     }
 
     #mainMenu,
-    #largeView {
+    #colorAdjust {
       width: 80%; /* Nimmt 80% der Bildschirmbreite ein */
       max-width: 1000px; /* Begrenzung der maximalen Breite */
       margin: 20px auto;
@@ -82,7 +82,7 @@
       color: #555;
     }
 
-    #largeView button {
+    #colorAdjust button {
       display: block;
       margin: 10px auto;
       padding: 10px 15px;
@@ -94,7 +94,7 @@
       transition: background-color 0.3s;
     }
 
-    #largeView button:hover {
+    #colorAdjust button:hover {
       background-color: #1e7e34;
     }
 
@@ -118,7 +118,7 @@
     <input type="text" id="ip" value="car2.local" />
     <button onclick="connectWebSocket()">Connect</button>
     <p></p>
-    <button onclick="showLargeView()">Show Large Camera View</button>
+    <button onclick="showcolorAdjust()">Color Adjust</button>
 
     <div>
       <h2>Stream A</h2>
@@ -136,13 +136,13 @@
     </div>
   </div>
 
-  <div id="largeView" style="display: none;">
+  <div id="colorAdjust" style="display: none;">
     <button onclick="showMainMenu()">Back to Menu</button>
-    <h2>Large Camera View</h2>
+    <h2>Color Adjust</h2>
       <select name="streamCselect" id="select-c" onchange="selectStream()">
         <option value="">--</option>
     </select>
-    <img id="largeCameraView" src="" alt="Large Camera View" onclick="getColorValues(event)" />
+    <img id="colorAdjustView" src="" alt="Color Adjust" onclick="getColorValues(event)" />
     <p id="colorValues">Click on the image to see RGB values.</p>
   </div>
 
@@ -173,7 +173,7 @@
         }
         if (data.c) {
           var imageSrc = "data:image/jpeg;base64," + data.c;
-          document.getElementById("largeCameraView").src = imageSrc;
+          document.getElementById("colorAdjustView").src = imageSrc;
         }
 
         if (data.streams) {
@@ -221,9 +221,9 @@
 
     }
 
-    function showLargeView() {
+    function showcolorAdjust() {
       document.getElementById("mainMenu").style.display = "none";
-      document.getElementById("largeView").style.display = "block";
+      document.getElementById("colorAdjust").style.display = "block";
 
         // Wähle standardmäßig den ersten Stream in select-c aus
         const selectC = document.getElementById("select-c");
@@ -239,12 +239,12 @@
     }
 
     function showMainMenu() {
-      document.getElementById("largeView").style.display = "none";
+      document.getElementById("colorAdjust").style.display = "none";
       document.getElementById("mainMenu").style.display = "block";
     }
 
     function getColorValues(event) {
-      const img = document.getElementById("largeCameraView");
+      const img = document.getElementById("colorAdjustView");
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       canvas.width = img.width;

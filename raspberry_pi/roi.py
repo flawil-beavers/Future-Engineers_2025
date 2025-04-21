@@ -316,7 +316,19 @@ if __name__ == "__main__":
     while True:
       msg = ser.readline().decode('utf-8')
       msg = msg.strip()
-      if msg == "enable 1" :
+      if msg == "Gyro OK":
+        break
+      elif msg == "Gyro error":
+        print("Gyro error, closing serial and restarting connection")
+        ser.close()
+        sleep(1)
+        ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
+        continue
+    print("Gyro initialized successfully")
+    while True:
+      msg = ser.readline().decode('utf-8')
+      msg = msg.strip()
+      if msg == "enable 1":
         break
     print("Arduino connected")
   if headless:

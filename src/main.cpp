@@ -607,15 +607,16 @@ void setup()
 
   en_state = digitalRead(enTogglePin) == HIGH; // initial state of the enable button
 
-  delay(30);
+  delay(100);
 
   if (!gyro.begin())
   {
     /* There was a problem detecting the L3GD20 ... check your connections */
-    Serial.println("Gyro error"); // todo: add functionality to Raspberry to restart connection
+    Serial.println("Gyro error");
     while (1)
       ;
   }
+  Serial.println("Gyro OK");
   gyro.enableAutoRange(true);
 }
 

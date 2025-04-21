@@ -8,20 +8,23 @@
     body {
       font-family: 'Roboto', Arial, sans-serif;
       background: linear-gradient(100deg, #ebcf74, #b67a02);
+      background-size: cover; /* Passt den Hintergrund an die Bildschirmgröße an */
+      background-attachment: fixed; /* Fixiert den Hintergrund beim Scrollen */
       margin: 0;
       padding: 0;
       color: #212529;
+      box-sizing: border-box; /* Sorgt dafür, dass Padding und Border in die Breite einbezogen werden */
     }
 
     h2 {
       color: #444;
       text-align: center;
-
     }
 
     #mainMenu,
     #largeView {
-      max-width: 1000px;
+      width: 80%; /* Nimmt 80% der Bildschirmbreite ein */
+      max-width: 1000px; /* Begrenzung der maximalen Breite */
       margin: 20px auto;
       padding: 20px;
       background: rgba(255, 255, 255, 0.9);
@@ -98,11 +101,11 @@
     #logo {
       position: fixed;
       top: 10px;
-      right: 10px;
-      width: 100px; /* Breite des Logos */
+      right: max(1%, 10px); /* Abstand von 1% der Bildschirmbreite, aber maximal 10px */
+      width: min(8%, 100px); /* Breite des Logos: maximal 10% der Bildschirmbreite, aber nicht größer als 100px */
       height: auto;
       z-index: 1000; /* Sicherstellen, dass es über anderen Elementen liegt */
-      border:none;
+      border: none;
     }
   </style>
 </head>

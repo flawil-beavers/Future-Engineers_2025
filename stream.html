@@ -10,14 +10,13 @@
       font-family: 'Roboto', Arial, sans-serif;
       background: linear-gradient(100deg, #ebcf74, #b67a02);
       background-size: cover;
-      /* Passt den Hintergrund an die Bildschirmgröße an */
       background-attachment: fixed;
-      /* Fixiert den Hintergrund beim Scrollen */
+      /* Fixes the background while scrolling */
       margin: 0;
       padding: 0;
       color: #212529;
       box-sizing: border-box;
-      /* Sorgt dafür, dass Padding und Border in die Breite einbezogen werden */
+      /* Ensures padding and border are included in the width */
     }
 
     h2 {
@@ -28,9 +27,9 @@
     #mainMenu,
     #colorAdjust {
       width: 80%;
-      /* Nimmt 80% der Bildschirmbreite ein */
+      /* Takes up 80% of the screen width */
       max-width: 1000px;
-      /* Begrenzung der maximalen Breite */
+      /* Limits the maximum width */
       margin: 20px auto;
       padding: 20px;
       background: rgba(255, 255, 255, 0.9);
@@ -118,12 +117,12 @@
       position: fixed;
       top: 10px;
       right: max(1%, 10px);
-      /* Abstand von 1% der Bildschirmbreite, aber maximal 10px */
+      /* Distance of 1% of the screen width, but maximum 10px */
       width: min(8%, 100px);
-      /* Breite des Logos: maximal 10% der Bildschirmbreite, aber nicht größer als 100px */
+      /* Width of the logo: maximum 10% of the screen width, but not larger than 100px */
       height: auto;
       z-index: 1000;
-      /* Sicherstellen, dass es über anderen Elementen liegt */
+      /* Ensures it is above other elements */
       border: none;
     }
 
@@ -136,28 +135,34 @@
       height: 100%;
       background-color: black;
       z-index: 2000;
-      /* Sicherstellen, dass es über anderen Elementen liegt */
+      /* Ensures it is above other elements */
     }
 
     #fullscreenView img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      /* Ensures the image fills the container while maintaining aspect ratio */
     }
   </style>
 </head>
 
 <body>
+  <!-- Logo in the top-right corner -->
   <img id="logo" src="flawil_beavers_logo.png" alt="Flawil Beavers Logo" />
+
+  <!-- Main Menu -->
   <div id="mainMenu">
     <h2>Main Menu</h2>
 
+    <!-- Input field for WebSocket connection -->
     <input type="text" id="ip" value="car2.local" />
     <button onclick="connectWebSocket()">Connect</button>
     <p></p>
     <button onclick="showcolorAdjust()">Color Adjust</button>
     <button onclick="showFullscreen()">Stream A Fullscreen</button>
 
+    <!-- Stream A -->
     <div>
       <h2>Stream A</h2>
       <select name="streamAselect" id="select-a" onchange="selectStream()">
@@ -165,6 +170,8 @@
       </select>
       <img id="colorStream" src="" alt="Color Stream" />
     </div>
+
+    <!-- Stream B -->
     <div>
       <h2>Stream B</h2>
       <select name="streamBselect" id="select-b" onchange="selectStream()">
@@ -174,6 +181,7 @@
     </div>
   </div>
 
+  <!-- Color Adjust View -->
   <div id="colorAdjust" style="display: none;">
     <button onclick="showMainMenu()">Back to Menu</button>
     <h2>Color Adjust</h2>
@@ -184,20 +192,23 @@
     <p id="colorValues">Click on the image to see RGB values.</p>
   </div>
 
+  <!-- Fullscreen View -->
   <div id="fullscreenView">
     <button onclick="showMainMenu()">Back to Menu</button>
     <img id="fullscreenImage" src="" alt="Fullscreen Stream" />
-
   </div>
 
   <script>
+    // Input field for the WebSocket server IP
     let ip_input = document.getElementById("ip");
+
+    // Dropdowns for selecting streams
     let selectA = document.getElementById("select-a");
     let selectB = document.getElementById("select-b");
     let selectC = document.getElementById("select-c");
-    var ws;
 
-    var availableStreams = [];
+    var ws; // WebSocket connection
+    var availableStreams = []; // List of available streams
 
     // Function to connect to the WebSocket server
     function connectWebSocket() {
@@ -206,32 +217,38 @@
       ws.onmessage = function (event) {
         let data = JSON.parse(event.data);
         if (data.a) {
+          // Update Stream A image
           var imageSrc = "data:image/jpeg;base64," + data.a;
           document.getElementById("colorStream").src = imageSrc;
-
         }
 
         if (data.b) {
+          // Update Stream B image
           var imageSrc = "data:image/jpeg;base64," + data.b;
           document.getElementById("depthStream").src = imageSrc;
         }
+
         if (data.c) {
+          // Update Color Adjust image
           var imageSrc = "data:image/jpeg;base64," + data.c;
           document.getElementById("colorAdjustView").src = imageSrc;
         }
 
         if (data.streams) {
+          // Update available streams
           console.log(data.streams);
           availableStreams = data.streams;
           buildSelects();
         }
       };
+
       // Event handler for when the WebSocket connection closes
       ws.onclose = function () {
         console.log("WebSocket connection closed");
       };
     }
 
+    // Function to populate the dropdowns with available streams
     function buildSelects() {
       selectA.innerHTML = "";
       selectB.innerHTML = "";
@@ -251,43 +268,46 @@
         option3.value = stream;
         option3.text = stream;
         selectC.appendChild(option3);
-
       });
     }
 
+    // Function to send the selected streams to the server
     function selectStream() {
-      ws.send(JSON.stringify({
-        streamA: selectA.value,
-        streamB: selectB.value,
-        streamC: selectC.value
-      }));
-
-
+      ws.send(
+        JSON.stringify({
+          streamA: selectA.value,
+          streamB: selectB.value,
+          streamC: selectC.value,
+        })
+      );
     }
 
+    // Function to show the Color Adjust view
     function showcolorAdjust() {
       document.getElementById("mainMenu").style.display = "none";
       document.getElementById("colorAdjust").style.display = "block";
 
-      // Wähle standardmäßig den fünften Stream in select-c aus
+      // Select the fifth stream in select-c by default
       const selectC = document.getElementById("select-c");
       if (selectC.options.length > 0) {
-        selectC.selectedIndex = 5; // Wähle den ersten Eintrag aus
+        selectC.selectedIndex = 5; // Select the fifth entry
         const selectedStream = selectC.value;
 
-        // Sende den ausgewählten Stream an den WebSocket-Server
+        // Send the selected stream to the WebSocket server
         if (selectedStream) {
           ws.send(JSON.stringify({ streamC: selectedStream }));
         }
       }
     }
 
+    // Function to return to the Main Menu
     function showMainMenu() {
       document.getElementById("fullscreenView").style.display = "none";
       document.getElementById("colorAdjust").style.display = "none";
       document.getElementById("mainMenu").style.display = "block";
     }
 
+    // Function to get RGB values from the Color Adjust image
     function getColorValues(event) {
       const img = document.getElementById("colorAdjustView");
       const canvas = document.createElement("canvas");
@@ -305,22 +325,24 @@
       const colorInput = document.createElement("input");
       colorInput.type = "text";
       colorInput.value = rgb;
-      document.getElementById("colorValues").innerHTML = "RGB Werte: ";
+      document.getElementById("colorValues").innerHTML = "RGB Values: ";
       document.getElementById("colorValues").appendChild(colorInput);
     }
 
+    // Function to show Stream A in fullscreen
     function showFullscreen() {
       const streamElement = document.getElementById("colorStream");
       const fullscreenView = document.getElementById("fullscreenView");
       const fullscreenImage = document.getElementById("fullscreenImage");
 
-      // Setze das Bild im Vollbildmodus
+      // Set the image in fullscreen mode
       fullscreenImage.src = streamElement.src;
 
-      // Zeige die Vollbildansicht an
+      // Show the fullscreen view
       fullscreenView.style.display = "block";
     }
 
+    // Automatically connect to the WebSocket server on page load
     window.onload = function () {
       connectWebSocket();
     };

@@ -183,7 +183,7 @@ def cycle():
     correction = 0.0
     print("---- DONE ----")
     if ser:
-      message = "d" + str(int(0)) + "\n"
+      message = "p\n"
       ser.write(message.encode())
       message = "s0\n"
       ser.write(message.encode())
@@ -252,7 +252,7 @@ def main():
   except (KeyboardInterrupt):
     if ser:
       ser.write("s0\n".encode())
-      ser.write("d0\n".encode())
+      ser.write("p\n".encode())
     exit()
 
 def encode_image(image):
@@ -297,7 +297,7 @@ async def img_stream(websocket: WebSocketServerProtocol, path):
   except (KeyboardInterrupt):
     if ser:
       ser.write("s0\n".encode())
-      ser.write("d0\n".encode())
+      ser.write("p\n".encode())
     exit()
     
 
@@ -316,7 +316,19 @@ if __name__ == "__main__":
     while True:
       msg = ser.readline().decode('utf-8')
       msg = msg.strip()
-      if msg == "enable 1" :
+      if msg == "Gyro OK":
+        break
+      elif msg == "Gyro error":
+        print("Gyro error, closing serial and restarting connection")
+        ser.close()
+        sleep(1)
+        ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
+        continue
+    print("Gyro initialized successfully")
+    while True:
+      msg = ser.readline().decode('utf-8')
+      msg = msg.strip()
+      if msg == "enable 1":
         break
     print("Arduino connected")
   if headless:

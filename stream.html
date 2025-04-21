@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,12 +9,15 @@
     body {
       font-family: 'Roboto', Arial, sans-serif;
       background: linear-gradient(100deg, #ebcf74, #b67a02);
-      background-size: cover; /* Passt den Hintergrund an die Bildschirmgröße an */
-      background-attachment: fixed; /* Fixiert den Hintergrund beim Scrollen */
+      background-size: cover;
+      /* Passt den Hintergrund an die Bildschirmgröße an */
+      background-attachment: fixed;
+      /* Fixiert den Hintergrund beim Scrollen */
       margin: 0;
       padding: 0;
       color: #212529;
-      box-sizing: border-box; /* Sorgt dafür, dass Padding und Border in die Breite einbezogen werden */
+      box-sizing: border-box;
+      /* Sorgt dafür, dass Padding und Border in die Breite einbezogen werden */
     }
 
     h2 {
@@ -23,8 +27,10 @@
 
     #mainMenu,
     #colorAdjust {
-      width: 80%; /* Nimmt 80% der Bildschirmbreite ein */
-      max-width: 1000px; /* Begrenzung der maximalen Breite */
+      width: 80%;
+      /* Nimmt 80% der Bildschirmbreite ein */
+      max-width: 1000px;
+      /* Begrenzung der maximalen Breite */
       margin: 20px auto;
       padding: 20px;
       background: rgba(255, 255, 255, 0.9);
@@ -55,7 +61,7 @@
     }
 
     #mainMenu button:hover {
-      background: linear-gradient(135deg, #0056b3, #003f7f);
+      background: linear-gradient(135deg, #b86f02, #603a01);
     }
 
     select {
@@ -86,7 +92,7 @@
       display: block;
       margin: 10px auto;
       padding: 10px 15px;
-      background-color: #28a745;
+      background: linear-gradient(135deg, #ffd000, #b86f02);
       color: white;
       border: none;
       border-radius: 4px;
@@ -94,18 +100,49 @@
       transition: background-color 0.3s;
     }
 
-    #colorAdjust button:hover {
-      background-color: #1e7e34;
+    #colorAdjust button:hover,
+    #fullscreenView button:hover {
+      background: linear-gradient(135deg, #b86f02, #603a01);
+    }
+
+    #fullscreenView button {
+      background: linear-gradient(135deg, #ffd000, #b86f02);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
     }
 
     #logo {
       position: fixed;
       top: 10px;
-      right: max(1%, 10px); /* Abstand von 1% der Bildschirmbreite, aber maximal 10px */
-      width: min(8%, 100px); /* Breite des Logos: maximal 10% der Bildschirmbreite, aber nicht größer als 100px */
+      right: max(1%, 10px);
+      /* Abstand von 1% der Bildschirmbreite, aber maximal 10px */
+      width: min(8%, 100px);
+      /* Breite des Logos: maximal 10% der Bildschirmbreite, aber nicht größer als 100px */
       height: auto;
-      z-index: 1000; /* Sicherstellen, dass es über anderen Elementen liegt */
+      z-index: 1000;
+      /* Sicherstellen, dass es über anderen Elementen liegt */
       border: none;
+    }
+
+    #fullscreenView {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: black;
+      z-index: 2000;
+      /* Sicherstellen, dass es über anderen Elementen liegt */
+    }
+
+    #fullscreenView img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
   </style>
 </head>
@@ -114,11 +151,12 @@
   <img id="logo" src="flawil_beavers_logo.png" alt="Flawil Beavers Logo" />
   <div id="mainMenu">
     <h2>Main Menu</h2>
-    
+
     <input type="text" id="ip" value="car2.local" />
     <button onclick="connectWebSocket()">Connect</button>
     <p></p>
     <button onclick="showcolorAdjust()">Color Adjust</button>
+    <button onclick="showFullscreen()">Stream A Fullscreen</button>
 
     <div>
       <h2>Stream A</h2>
@@ -139,18 +177,24 @@
   <div id="colorAdjust" style="display: none;">
     <button onclick="showMainMenu()">Back to Menu</button>
     <h2>Color Adjust</h2>
-      <select name="streamCselect" id="select-c" onchange="selectStream()">
-        <option value="">--</option>
+    <select name="streamCselect" id="select-c" onchange="selectStream()">
+      <option value="">--</option>
     </select>
     <img id="colorAdjustView" src="" alt="Color Adjust" onclick="getColorValues(event)" />
     <p id="colorValues">Click on the image to see RGB values.</p>
+  </div>
+
+  <div id="fullscreenView">
+    <button onclick="showMainMenu()">Back to Menu</button>
+    <img id="fullscreenImage" src="" alt="Fullscreen Stream" />
+
   </div>
 
   <script>
     let ip_input = document.getElementById("ip");
     let selectA = document.getElementById("select-a");
     let selectB = document.getElementById("select-b");
-      let selectC = document.getElementById("select-c");
+    let selectC = document.getElementById("select-c");
     var ws;
 
     var availableStreams = [];
@@ -191,7 +235,7 @@
     function buildSelects() {
       selectA.innerHTML = "";
       selectB.innerHTML = "";
-        selectC.innerHTML = "";
+      selectC.innerHTML = "";
       availableStreams.forEach((stream) => {
         let option = document.createElement("option");
         option.value = stream;
@@ -203,10 +247,10 @@
         option2.text = stream;
         selectB.appendChild(option2);
 
-          let option3 = document.createElement("option");
-          option3.value = stream;
-          option3.text = stream;
-          selectC.appendChild(option3);
+        let option3 = document.createElement("option");
+        option3.value = stream;
+        option3.text = stream;
+        selectC.appendChild(option3);
 
       });
     }
@@ -215,7 +259,7 @@
       ws.send(JSON.stringify({
         streamA: selectA.value,
         streamB: selectB.value,
-            streamC: selectC.value
+        streamC: selectC.value
       }));
 
 
@@ -225,20 +269,21 @@
       document.getElementById("mainMenu").style.display = "none";
       document.getElementById("colorAdjust").style.display = "block";
 
-        // Wähle standardmäßig den ersten Stream in select-c aus
-        const selectC = document.getElementById("select-c");
-        if (selectC.options.length > 0) {
-            selectC.selectedIndex = 5; // Wähle den ersten Eintrag aus
-            const selectedStream = selectC.value;
+      // Wähle standardmäßig den fünften Stream in select-c aus
+      const selectC = document.getElementById("select-c");
+      if (selectC.options.length > 0) {
+        selectC.selectedIndex = 5; // Wähle den ersten Eintrag aus
+        const selectedStream = selectC.value;
 
         // Sende den ausgewählten Stream an den WebSocket-Server
-            if (selectedStream) {
-                ws.send(JSON.stringify({ streamC: selectedStream }));
-            }
+        if (selectedStream) {
+          ws.send(JSON.stringify({ streamC: selectedStream }));
+        }
       }
     }
 
     function showMainMenu() {
+      document.getElementById("fullscreenView").style.display = "none";
       document.getElementById("colorAdjust").style.display = "none";
       document.getElementById("mainMenu").style.display = "block";
     }
@@ -262,6 +307,18 @@
       colorInput.value = rgb;
       document.getElementById("colorValues").innerHTML = "RGB Werte: ";
       document.getElementById("colorValues").appendChild(colorInput);
+    }
+
+    function showFullscreen() {
+      const streamElement = document.getElementById("colorStream");
+      const fullscreenView = document.getElementById("fullscreenView");
+      const fullscreenImage = document.getElementById("fullscreenImage");
+
+      // Setze das Bild im Vollbildmodus
+      fullscreenImage.src = streamElement.src;
+
+      // Zeige die Vollbildansicht an
+      fullscreenView.style.display = "block";
     }
 
     window.onload = function () {

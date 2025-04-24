@@ -86,6 +86,12 @@
       font-size: 14px;
       color: #555;
     }
+    #grayValue {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
 
     #colorAdjust button {
       display: block;
@@ -132,7 +138,6 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 100%;
       background-color: black;
       z-index: 2000;
       /* Ensures it is above other elements */
@@ -140,7 +145,6 @@
 
     #fullscreenView img {
       width: 100%;
-      height: 100%;
       object-fit: cover;
       /* Ensures the image fills the container while maintaining aspect ratio */
     }
@@ -188,8 +192,10 @@
     <select name="streamCselect" id="select-c" onchange="selectStream()">
       <option value="">--</option>
     </select>
-    <img id="colorAdjustView" src="" alt="Color Adjust" onclick="getColorValues(event)" />
+    <img id="colorAdjustView" src="" alt="Color Adjust" onclick="getColorValues(event); getgrayValue(event);" />
     <p id="colorValues">Click on the image to see RGB values.</p>
+    <p id="grayValue">Click on the image to see gray value.</p>
+
   </div>
 
   <!-- Fullscreen View -->
@@ -220,6 +226,7 @@
           // Update Stream A image
           var imageSrc = "data:image/jpeg;base64," + data.a;
           document.getElementById("colorStream").src = imageSrc;
+          document.getElementById("fullscreenImage").src = imageSrc;
         }
 
         if (data.b) {
@@ -286,18 +293,6 @@
     function showcolorAdjust() {
       document.getElementById("mainMenu").style.display = "none";
       document.getElementById("colorAdjust").style.display = "block";
-
-      // Select the fifth stream in select-c by default
-      const selectC = document.getElementById("select-c");
-      if (selectC.options.length > 0) {
-        selectC.selectedIndex = 5; // Select the fifth entry
-        const selectedStream = selectC.value;
-
-        // Send the selected stream to the WebSocket server
-        if (selectedStream) {
-          ws.send(JSON.stringify({ streamC: selectedStream }));
-        }
-      }
     }
 
     // Function to return to the Main Menu
@@ -328,18 +323,32 @@
       document.getElementById("colorValues").innerHTML = "RGB Values: ";
       document.getElementById("colorValues").appendChild(colorInput);
     }
+      // Function to get gray value from the Color Adjust image
+      function getgrayValue(event) {
+      const img = document.getElementById("colorAdjustView");
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+
+      const rect = img.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const rgb = `[${0.299*pixel[0]+0.587*pixel[1] + 0.114 * pixel[2]}]`;
+      const colorInput = document.createElement("input");
+      colorInput.type = "text";
+      colorInput.value = rgb;
+      document.getElementById("grayValue").innerHTML = "Gray Value: ";
+      document.getElementById("grayValue").appendChild(colorInput);
+    }
 
     // Function to show Stream A in fullscreen
     function showFullscreen() {
-      const streamElement = document.getElementById("colorStream");
-      const fullscreenView = document.getElementById("fullscreenView");
-      const fullscreenImage = document.getElementById("fullscreenImage");
-
-      // Set the image in fullscreen mode
-      fullscreenImage.src = streamElement.src;
-
-      // Show the fullscreen view
-      fullscreenView.style.display = "block";
+      document.getElementById("mainMenu").style.display = "none";
+      document.getElementById("fullscreenView").style.display = "block";
     }
 
     // Automatically connect to the WebSocket server on page load

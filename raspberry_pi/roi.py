@@ -310,20 +310,28 @@ if __name__ == "__main__":
   headless = args.headless
   pillars = args.pillars
   shutdown = args.shutdown
+  
 
   if ser:
     print("Connecting to Arduino")
     while True:
+      ser.timeout = 2
       msg = ser.readline().decode('utf-8')
       msg = msg.strip()
       if msg == "Gyro OK":
         break
-      elif msg == "Gyro error":
-        print("Gyro error, closing serial and restarting connection")
-        ser.close()
+      else:
+        if msg == "Gyro error":
+          print("Gyro error, closing serial and restarting connection")
+        else:
+          print("Arduino not available, closing serial and restarting connection")
+        ser.setDTR(False)
         sleep(1)
-        ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
+        ser.setDTR(True)
+        # ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
         continue
+      
+    ser.timeout = None
     print("Gyro initialized successfully")
     while True:
       msg = ser.readline().decode('utf-8')

@@ -26,21 +26,35 @@ configloader = ConfigLoader("config.json")
 pipeline = Pipeline(configloader)
 
 picam2 = Picamera2()
-# picam2.configure(picam2.create_preview_configuration())
-preview_config = picam2.create_preview_configuration()
+
+# Load crop height from config.json
+crop_height = configloader.get_property("camera")["crop_height"]
+image_width = 640  # Assuming the full image width is 640 pixels
+image_height = 480  # Assuming the full image height is 480 pixels
+
+# Define the ROI for AGC/AEC based on the upper part of the image
+roi_upper_half = {
+  "x": 0,  # Start at the left edge
+  "y": 0,  # Start at the top edge
+  "width": image_width,  # Full width of the image
+  "height": crop_height  # Height of the upper part
+}
+
+# Configure the camera to capture only the upper part of the image
+preview_config = picam2.create_preview_configuration(main={"size": (image_width, crop_height)})
 preview_config["transform"] = libcamera.Transform(vflip=True, hflip=True)
 picam2.configure(preview_config)
-picam2.start()
 
+# Enable automatic adjustments
 picam2.set_controls({
-    "AwbEnable": False,
-    # controls.AWB_TEMPERATURE: fixed_temperature
+  "AeEnable": True,  # Enable automatic exposure
+  "AwbEnable": True,  # Enable automatic white balance
 })
 
-
+# Start the camera
+picam2.start()
 
 ports = serial.tools.list_ports.comports()
-
 
 try:
   ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
@@ -48,21 +62,21 @@ except:
   print("Arduino not connected, available devices")
   ser = None
   for port, desc, hwid in sorted(ports):
-        print("{}: {} [{}]".format(port, desc, hwid))
+    print("{}: {} [{}]".format(port, desc, hwid))
 
 def cycle():
   global sm, last_error, kp, kd
 
-  # image reading, usually form camera
+  # Capture the cropped image
   img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR)
-  
-  # undistorted = pipeline.undistort(img)
-  color_image = pipeline.crop(img)
 
-  # copy for webviewer visualization
+  # Process the cropped image
+  color_image = img  # No further cropping needed
+
+  # Copy for webviewer visualization
   viz = color_image.copy()
 
-  # convert to hsv, for color filtering
+  # Convert to HSV for color filtering
   hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
 
   # center region-of-interest for detecting the turn marker lines

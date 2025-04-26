@@ -4,6 +4,7 @@ import json
 import math
 import os
 from time import sleep
+from fftime import time
 import cv2
 import numpy as np
 import serial
@@ -20,8 +21,7 @@ import libcamera
 
 #?: Webviewer controls for tuning colors, pd, and selecting stream
 
-# turn the camera image by 180 degrees
-
+# Load configuration
 configloader = ConfigLoader("config.json")
 pipeline = Pipeline(configloader)
 
@@ -29,27 +29,53 @@ picam2 = Picamera2()
 
 # Load crop height from config.json
 crop_height = configloader.get_property("camera")["crop_height"]
-image_width = 640  # Assuming the full image width is 640 pixels
-image_height = 480  # Assuming the full image height is 480 pixels
+video_width = 507
+video_height = 380
+sensor_width = 4056  # Full sensor width of Raspberry Pi HQ camera
+sensor_height = 3040  # Full sensor height of Raspberry Pi HQ camera
+scaled_crop_height = math.floor(crop_height / 480 * sensor_height)
 
-# Define the ROI for AGC/AEC based on the upper part of the image
+new_crop_height = 1520
+
+# Define the ROI for the upper part of the image
 roi_upper_half = {
   "x": 0,  # Start at the left edge
-  "y": 0,  # Start at the top edge
-  "width": image_width,  # Full width of the image
-  "height": crop_height  # Height of the upper part
+  "y": new_crop_height,  # Start at the top edge
+  "width": sensor_width,  # Full width of the sensor
+  "height": sensor_height-new_crop_height  # Height of the upper part
 }
-
-# Configure the camera to capture only the upper part of the image
-preview_config = picam2.create_preview_configuration(main={"size": (image_width, crop_height)})
+video_height_calculated = int((sensor_height-new_crop_height)*video_height/sensor_height)
+# Configure the camera to capture the upper part of the image
+preview_config = picam2.create_preview_configuration(main={"size": (video_width, int(video_height/2))})#video_height-crop_height+1)})
 preview_config["transform"] = libcamera.Transform(vflip=True, hflip=True)
 picam2.configure(preview_config)
 
-# Enable automatic adjustments
+# full_res = picam2.camera_properties['PixelArraySize']  # Typically (4056, 3040) for HQ Camera
+
+# crop_width = full_res[0]  # 4056
+# crop_height = full_res[1] // 2  # 1520
+# offset_x = 0
+# offset_y = -crop_height//2 # (full_res[1] - crop_height) // 2  # Center the crop vertically
+# scaler_crop = (offset_x, offset_y, crop_width, crop_height)
+
+# output_size = (640, 240)
+# config = picam2.create_still_configuration(main={"size": output_size})
+# picam2.configure(config)
+# picam2.set_controls({"ScalerCrop": scaler_crop})
+
+
+# Apply ScalerCrop to target the upper half of the sensor
 picam2.set_controls({
+  "ScalerCrop": [
+    roi_upper_half["x"],  # Left edge
+    roi_upper_half["y"],  # Top edge
+    roi_upper_half["width"],  # Full width of the sensor
+    roi_upper_half["height"]  # Height of the upper part
+  ],
   "AeEnable": True,  # Enable automatic exposure
   "AwbEnable": True,  # Enable automatic white balance
 })
+# picam2.controls.ScalerCrop = [
 
 # Start the camera
 picam2.start()
@@ -63,9 +89,20 @@ except:
   ser = None
   for port, desc, hwid in sorted(ports):
     print("{}: {} [{}]".format(port, desc, hwid))
+time_beg = time()
 
 def cycle():
   global sm, last_error, kp, kd
+  
+  # current time
+  # current_time = time.time()
+  picam2.controls.ScalerCrop = [
+    roi_upper_half["x"],  # Left edge
+    int((time()-time_beg)*50),  # Top edge
+    roi_upper_half["width"],  # Full width of the sensor
+    roi_upper_half["height"]  # Height of the upper part
+  ]
+
 
   # Capture the cropped image
   img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR)
@@ -97,7 +134,7 @@ def cycle():
   # l and r ROIs used for PD control, to keep the car in the middle of the track and away from walls
   roi_width = 100
   roi_left = extract_ROI(rgbl["black"], [0, 0], [roi_width, 150])
-  roi_right = extract_ROI(rgbl["black"], [640-roi_width, 0], [640, 150])
+  roi_right = extract_ROI(rgbl["black"], [video_width-roi_width, 0], [video_width, 150])
 
   portion_black_l = cv2.countNonZero(roi_left) / (roi_left.shape[0] * roi_left.shape[1])
   portion_black_r = cv2.countNonZero(roi_right) / (roi_right.shape[0] * roi_right.shape[1])

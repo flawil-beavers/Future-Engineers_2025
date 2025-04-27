@@ -262,9 +262,13 @@ def main():
     exit()
 
 def encode_image(image):
-    retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 99])
-    base64_str = base64.b64encode(buffer).decode('utf-8')
-    return base64_str
+  retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 99])
+  base64_str = base64.b64encode(buffer).decode('utf-8')
+  return base64_str
+
+# Load the config file
+with open("config.json", "r") as f:
+  config = json.load(f)
 
 async def img_stream(websocket: WebSocketServerProtocol, path):
   global sm, last_error, kp, kd
@@ -288,9 +292,19 @@ async def img_stream(websocket: WebSocketServerProtocol, path):
       # check if the websocket has sent a stream request, wait at most for 0.05 seconds
       try:
         res = json.loads(await asyncio.wait_for(websocket.recv(), timeout=0.01))
+        if "updateGray" in res:
+          # Update the GRAY value in the config
+          config["filters"]["GRAY"] = res["updateGray"]
+          print(f"Updated GRAY value: {config['filters']['GRAY']}")
+
+          # Save the updated config back to the file
+          with open("config.json", "w") as f:
+            json.dump(config, f, indent=2)
+            
         current_streams[0] = res["streamA"]
         current_streams[1] = res["streamB"]
         current_streams[2] = res["streamC"]
+
       except:
         pass
 

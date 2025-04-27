@@ -21,6 +21,8 @@ class Pipeline:
     """
     Extracts the red, green and black colors from the image -> this is used to detect the pillars and walls
     """
+    # reload config file
+    self.configloader.load_config()
     redMin = tuple(self.configloader.get_property("filters")['REDLO'])
     redMax = tuple(self.configloader.get_property("filters")['REDHI'])
     greenMin = tuple(self.configloader.get_property("filters")['GREENLO'])

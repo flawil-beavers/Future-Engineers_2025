@@ -201,6 +201,20 @@
     <p id="colorValues">Click on the image to see RGB values.</p>
     <p id="grayValue">Click on the image to see gray value.</p>
 
+    <!-- Slider to adjust GRAY value -->
+    <div id="graySliderContainer" style="text-align: center; margin-top: 20px;">
+      <label for="graySlider">Adjust GRAY Value:</label>
+      <input
+        type="range"
+        id="graySlider"
+        min="0"
+        max="255"
+        value="110"
+        style="width: 80%;"
+        oninput="updateGrayValue(this.value)"
+      />
+      <p>Current GRAY Value: <span id="grayValueDisplay">110</span></p>
+    </div>
   </div>
 
   <!-- Fullscreen View -->
@@ -354,6 +368,19 @@
     function showFullscreen() {
       document.getElementById("mainMenu").style.display = "none";
       document.getElementById("fullscreenView").style.display = "block";
+    }
+
+    // Function to update the GRAY value dynamically
+    function updateGrayValue(value) {
+      // Update the displayed GRAY value
+      document.getElementById("grayValueDisplay").innerText = value;
+
+      // Send the updated GRAY value to the server via WebSocket
+      ws.send(
+        JSON.stringify({
+          updateGray: parseInt(value),
+        })
+      );
     }
 
     // Automatically connect to the WebSocket server on page load

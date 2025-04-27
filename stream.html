@@ -223,6 +223,16 @@
     <button onclick="updateScalerCrop()">Update ScalerCrop</button>
   </div>
 
+  <!-- Add Video Size Configuration Section -->
+  <div id="videoSizeConfig">
+    <h2>Video Size Configuration</h2>
+    <label for="videoWidth">Width:</label>
+    <input type="number" id="videoWidth" value="507" />
+    <label for="videoHeight">Height:</label>
+    <input type="number" id="videoHeight" value="380" />
+    <button onclick="updateVideoSize()">Update Video Size</button>
+  </div>
+
   <script>
     // Input field for the WebSocket server IP
     let ip_input = document.getElementById("ip");
@@ -385,6 +395,22 @@
             y: parseInt(scalerY),
             width: parseInt(scalerWidth),
             height: parseInt(scalerHeight),
+          },
+        })
+      );
+    }
+
+    // Function to send video size values to the server
+    function updateVideoSize() {
+      const videoWidth = document.getElementById("videoWidth").value;
+      const videoHeight = document.getElementById("videoHeight").value;
+
+      // Send the video size values to the server via WebSocket
+      ws.send(
+        JSON.stringify({
+          videoSize: {
+            width: parseInt(videoWidth),
+            height: parseInt(videoHeight),
           },
         })
       );

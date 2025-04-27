@@ -85,6 +85,10 @@ scaler_crop_values = {
     "height": 3040,
 }
 
+# Global variables for video size
+video_width = 507
+video_height = 380
+
 def cycle():
   global sm, last_error, kp, kd
   
@@ -306,7 +310,7 @@ def encode_image(image):
     return base64_str
 
 async def img_stream(websocket: WebSocketServerProtocol, path):
-    global scaler_crop_values
+    global scaler_crop_values, video_width, video_height
 
     try:
         while True:
@@ -317,6 +321,21 @@ async def img_stream(websocket: WebSocketServerProtocol, path):
                     # Update ScalerCrop values
                     scaler_crop_values = data["scalerCrop"]
                     print(f"Updated ScalerCrop: {scaler_crop_values}")
+                if "videoSize" in data:
+                    # Update video size
+                    video_width = data["videoSize"]["width"]
+                    video_height = data["videoSize"]["height"]
+                    print(f"Updated Video Size: width={video_width}, height={video_height}")
+                    # stop the camera
+                    picam2.stop()
+                    
+                    # Reconfigure the camera with the new video size
+                    preview_config = picam2.create_preview_configuration(
+                        main={"size": (int(video_width), int(video_height))},
+                        transform=libcamera.Transform(vflip=True, hflip=True)
+                    )
+                    picam2.configure(preview_config)
+                    picam2.start()
             except asyncio.TimeoutError:
                 pass
 

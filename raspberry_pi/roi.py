@@ -56,12 +56,24 @@ except:
 
 def cycle():
   global sm, last_error, kp, kd
+
+  # Send n and g to the Arduino to get the distance and gyro heading
   if ser: # ! inefficient
     if ser.in_waiting > 0 and ser.readline().decode('utf-8').strip() == "enable 0":
       print("Robot paused")
       while ser and not ser.readline().decode('utf-8').strip() == "enable 1":
         sleep(0.1)
       print("Robot resumed")
+    message = "n\n"
+    ser.write(message.encode())
+    # read the distance from the Arduino
+    distance = float(ser.readline().strip())  # Assuming the distance is sent as a float
+    message = "g\n"
+    ser.write(message.encode())
+    # read the gyro heading from the Arduino
+    gyro = float(ser.readline().strip())  # Assuming the gyro heading is sent as a float
+  sm.update_distance(distance) # takes all together 20-35 ms
+  # print_past_time(f"gotten distance {distance} and gyro {gyro}")
 
   # image reading, usually form camera
   img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR) # 5-10ms
@@ -180,13 +192,13 @@ def cycle():
   #   if sm.avoid_big or True:
   #     FIRSTPAHSETIME = 1.2
 
-  if (sm.current_state == "AVOIDING-R" and sm.time_diff < FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-R" and sm.distance_diff < FIRSTPAHSETIME):
     correction = 0.9
-  if (sm.current_state == "AVOIDING-G" and sm.time_diff > FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-G" and sm.distance_diff > FIRSTPAHSETIME):
     correction = 0.9*0.9
-  if (sm.current_state == "AVOIDING-G" and sm.time_diff < FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-G" and sm.distance_diff < FIRSTPAHSETIME):
     correction = -0.9
-  if (sm.current_state == "AVOIDING-R" and sm.time_diff > FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-R" and sm.distance_diff > FIRSTPAHSETIME):
     correction = -0.9*0.9
 
   if sm.current_state == "DONE":

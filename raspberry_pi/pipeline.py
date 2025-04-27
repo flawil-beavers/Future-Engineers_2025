@@ -14,8 +14,8 @@ class Pipeline:
     return cv2.undistort(image, mtx, dist, None, mtx)
 
   def crop(self, image: np.ndarray):
-    crop_height = int(self.configloader.get_property("camera")['crop_height'])
-    return image[crop_height:,:]
+    # scale the image by 0.5 in height. This means that the image will have a height of 240 pixels instead of 480
+    return cv2.resize(image, (int(image.shape[1]), int(image.shape[0] * 0.5)))
 
   def filter_RG_Bl(self, hsv: np.ndarray, color_image: np.ndarray):
     """

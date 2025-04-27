@@ -27,13 +27,19 @@ pipeline = Pipeline(configloader)
 
 picam2 = Picamera2()
 # picam2.configure(picam2.create_preview_configuration())
-preview_config = picam2.create_preview_configuration()
+preview_config = picam2.create_preview_configuration(main={"size": (640, 480)})
 preview_config["transform"] = libcamera.Transform(vflip=True, hflip=True)
 picam2.configure(preview_config)
 picam2.start()
 
 picam2.set_controls({
     "AwbEnable": False,
+    "ScalerCrop": [
+      0,
+      1520,
+      4065,
+      1520
+    ],
     # controls.AWB_TEMPERATURE: fixed_temperature
 })
 

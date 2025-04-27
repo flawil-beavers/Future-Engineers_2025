@@ -209,6 +209,20 @@
     <img id="fullscreenImage" src="" alt="Fullscreen Stream" />
   </div>
 
+  <!-- Add ScalerCrop Configuration Section -->
+  <div id="scalerCropConfig">
+    <h2>ScalerCrop Configuration</h2>
+    <label for="scalerX">X:</label>
+    <input type="number" id="scalerX" value="0" />
+    <label for="scalerY">Y:</label>
+    <input type="number" id="scalerY" value="0" />
+    <label for="scalerWidth">Width:</label>
+    <input type="number" id="scalerWidth" value="4056" />
+    <label for="scalerHeight">Height:</label>
+    <input type="number" id="scalerHeight" value="3040" />
+    <button onclick="updateScalerCrop()">Update ScalerCrop</button>
+  </div>
+
   <script>
     // Input field for the WebSocket server IP
     let ip_input = document.getElementById("ip");
@@ -354,6 +368,26 @@
     function showFullscreen() {
       document.getElementById("mainMenu").style.display = "none";
       document.getElementById("fullscreenView").style.display = "block";
+    }
+
+    // Function to send ScalerCrop values to the server
+    function updateScalerCrop() {
+      const scalerX = document.getElementById("scalerX").value;
+      const scalerY = document.getElementById("scalerY").value;
+      const scalerWidth = document.getElementById("scalerWidth").value;
+      const scalerHeight = document.getElementById("scalerHeight").value;
+
+      // Send the ScalerCrop values to the server via WebSocket
+      ws.send(
+        JSON.stringify({
+          scalerCrop: {
+            x: parseInt(scalerX),
+            y: parseInt(scalerY),
+            width: parseInt(scalerWidth),
+            height: parseInt(scalerHeight),
+          },
+        })
+      );
     }
 
     // Automatically connect to the WebSocket server on page load

@@ -50,20 +50,6 @@ preview_config = picam2.create_preview_configuration(main={"size": (video_width,
 preview_config["transform"] = libcamera.Transform(vflip=True, hflip=True)
 picam2.configure(preview_config)
 
-# full_res = picam2.camera_properties['PixelArraySize']  # Typically (4056, 3040) for HQ Camera
-
-# crop_width = full_res[0]  # 4056
-# crop_height = full_res[1] // 2  # 1520
-# offset_x = 0
-# offset_y = -crop_height//2 # (full_res[1] - crop_height) // 2  # Center the crop vertically
-# scaler_crop = (offset_x, offset_y, crop_width, crop_height)
-
-# output_size = (640, 240)
-# config = picam2.create_still_configuration(main={"size": output_size})
-# picam2.configure(config)
-# picam2.set_controls({"ScalerCrop": scaler_crop})
-
-
 # Apply ScalerCrop to target the upper half of the sensor
 picam2.set_controls({
   "ScalerCrop": [
@@ -90,6 +76,14 @@ except:
   for port, desc, hwid in sorted(ports):
     print("{}: {} [{}]".format(port, desc, hwid))
 time_beg = time()
+
+# Global variable to store ScalerCrop values
+scaler_crop_values = {
+    "x": 0,
+    "y": 0,
+    "width": 4056,
+    "height": 3040,
+}
 
 def cycle():
   global sm, last_error, kp, kd
@@ -312,45 +306,46 @@ def encode_image(image):
     return base64_str
 
 async def img_stream(websocket: WebSocketServerProtocol, path):
-  global sm, last_error, kp, kd
-  sm = StateMachine(isPillarRound=pillars)
-  last_error = 0.0
+    global scaler_crop_values
 
-  kp = configloader.get_property("PD")['kp']
-  kd = configloader.get_property("PD")['kd']
+    try:
+        while True:
+            # Receive data from the WebSocket
+            try:
+                data = json.loads(await asyncio.wait_for(websocket.recv(), timeout=0.01))
+                if "scalerCrop" in data:
+                    # Update ScalerCrop values
+                    scaler_crop_values = data["scalerCrop"]
+                    print(f"Updated ScalerCrop: {scaler_crop_values}")
+            except asyncio.TimeoutError:
+                pass
 
-  has_sent_streams_info = False
-  current_streams = ["viz", "black", "color_image"]
-  try:
-    while True:
-      products = cycle() 
-      if not has_sent_streams_info:
-        has_sent_streams_info = True
-        await websocket.send(json.dumps({
-          "streams": list(products.keys())
-        }))
-      
-      # check if the websocket has sent a stream request, wait at most for 0.05 seconds
-      try:
-        res = json.loads(await asyncio.wait_for(websocket.recv(), timeout=0.01))
-        current_streams[0] = res["streamA"]
-        current_streams[1] = res["streamB"]
-        current_streams[2] = res["streamC"]
-      except:
+            # Apply the updated ScalerCrop values
+            picam2.set_controls({
+                "ScalerCrop": [
+                    scaler_crop_values["x"],
+                    scaler_crop_values["y"],
+                    scaler_crop_values["width"],
+                    scaler_crop_values["height"],
+                ],
+                "AeEnable": True,
+                "AwbEnable": True,
+            })
+
+            # Capture and process the image (as before)
+            img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR)
+            products = {
+                "viz": img,
+                # Add other streams as needed
+            }
+
+            # Send the processed image streams to the WebSocket client
+            await websocket.send(json.dumps({
+                "a": encode_image(products["viz"]),
+                # Add other streams as needed
+            }))
+    except (KeyboardInterrupt, asyncio.CancelledError):
         pass
-
-      data = {
-        "a": encode_image(products[current_streams[0]]),
-        "b": encode_image(products[current_streams[1]]),
-        "c": encode_image(products[current_streams[2]])
-      }
-      await websocket.send(json.dumps(data))
-  except (KeyboardInterrupt):
-    if ser:
-      ser.write("s0\n".encode())
-      ser.write("p\n".encode())
-    exit()
-    
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Check if --headless flag was given.")

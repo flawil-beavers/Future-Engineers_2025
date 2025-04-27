@@ -71,8 +71,9 @@ def cycle():
     message = "g\n"
     ser.write(message.encode())
     # read the gyro heading from the Arduino
-    gyro = float(ser.readline().strip())  # Assuming the gyro heading is sent as a float
+    angle = float(ser.readline().strip())  # Assuming the gyro heading is sent as a float
   sm.update_distance(distance) # takes all together 20-35 ms
+  sm.update_angle(angle)
   # print_past_time(f"gotten distance {distance} and gyro {gyro}")
 
   # image reading, usually form camera
@@ -192,13 +193,13 @@ def cycle():
   #   if sm.avoid_big or True:
   #     FIRSTPAHSETIME = 1.2
 
-  if (sm.current_state == "AVOIDING-R" and sm.distance_diff < FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-R" and sm.diff_distance < FIRSTPAHSETIME):
     correction = 0.9
-  if (sm.current_state == "AVOIDING-G" and sm.distance_diff > FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-G" and sm.diff_distance > FIRSTPAHSETIME):
     correction = 0.9*0.9
-  if (sm.current_state == "AVOIDING-G" and sm.distance_diff < FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-G" and sm.diff_distance < FIRSTPAHSETIME):
     correction = -0.9
-  if (sm.current_state == "AVOIDING-R" and sm.distance_diff > FIRSTPAHSETIME):
+  if (sm.current_state == "AVOIDING-R" and sm.diff_distance > FIRSTPAHSETIME):
     correction = -0.9*0.9
 
   if sm.current_state == "DONE":
@@ -239,15 +240,16 @@ def cycle():
     cv2.rectangle(viz, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
     cv2.rectangle(viz, (0, 0), (roi_width, 150), (255, 0, 0), 2)
     cv2.rectangle(viz, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
-    cv2.putText(viz, f"State: {sm.current_state} {round(sm.distance_diff, 2)}mm", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"State: {sm.current_state} {round(sm.diff_distance)} mm {round(sm.diff_angle, 1)} °", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"Errs: {round(portion_black_l-0.25, 2)} {round(portion_black_l-portion_black_r, 2)} {round(0.25-portion_black_r, 2)}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"Distance: {distance} mm, Angle: {angle}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     for p in pillars:
       cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)
 
   last_error = error
-  print_past_time("finished cycle") # 50 ms
+  # print_past_time("finished cycle") # 50 ms
   return {
       "viz": viz,
       "roi_left": roi_left,

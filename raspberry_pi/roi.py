@@ -10,7 +10,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI
+from helpers import Pillar, extract_ROI, print_past_time
 from pipeline import Pipeline
 from statemachine import StateMachine
 from picamera2 import Picamera2
@@ -43,8 +43,6 @@ picam2.set_controls({
     # controls.AWB_TEMPERATURE: fixed_temperature
 })
 
-
-
 ports = serial.tools.list_ports.comports()
 
 
@@ -66,7 +64,8 @@ def cycle():
       print("Robot resumed")
 
   # image reading, usually form camera
-  img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR)
+  img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR) # 5-10ms
+  # print_past_time("gotten image")
   
   # undistorted = pipeline.undistort(img)
   color_image = pipeline.crop(img)
@@ -80,7 +79,6 @@ def cycle():
   # center region-of-interest for detecting the turn marker lines
   roi_center_w, roi_center_h = 100, 30
   roi_center_x, roi_center_y = 320 - roi_center_w // 2, 180
-  cv2.rectangle(viz, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
   roi_center = extract_ROI(hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
   
   # filter out the orange and blue colors of turn markers
@@ -225,14 +223,19 @@ def cycle():
   # print(error - last_error)
 
   # viz stuff
-  cv2.putText(viz, f"State: {sm.current_state} {round(sm.time_diff, 2)}s", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-  cv2.putText(viz, f"Errs: {round(portion_black_l-0.25, 2)} {round(portion_black_l-portion_black_r, 2)} {round(0.25-portion_black_r, 2)}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-  cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-  cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-  for p in pillars:
-    cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)
+  if not headless:
+    cv2.rectangle(viz, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
+    cv2.rectangle(viz, (0, 0), (roi_width, 150), (255, 0, 0), 2)
+    cv2.rectangle(viz, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
+    cv2.putText(viz, f"State: {sm.current_state} {round(sm.distance_diff, 2)}mm", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"Errs: {round(portion_black_l-0.25, 2)} {round(portion_black_l-portion_black_r, 2)} {round(0.25-portion_black_r, 2)}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    for p in pillars:
+      cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)
 
   last_error = error
+  print_past_time("finished cycle") # 50 ms
   return {
       "viz": viz,
       "roi_left": roi_left,
@@ -310,6 +313,7 @@ async def img_stream(websocket: WebSocketServerProtocol, path):
         current_streams[0] = res["streamA"]
         current_streams[1] = res["streamB"]
         current_streams[2] = res["streamC"]
+        # print_past_time("received streams")
 
       except:
         pass
@@ -318,8 +322,10 @@ async def img_stream(websocket: WebSocketServerProtocol, path):
         "a": encode_image(products[current_streams[0]]),
         "b": encode_image(products[current_streams[1]]),
         "c": encode_image(products[current_streams[2]])
-      }
-      await websocket.send(json.dumps(data))
+      } # takes approximately 20 ms - 40 ms
+      # print_past_time("encoded images")
+      await websocket.send(json.dumps(data)) # takes up to 80ms
+      # print_past_time("sent images")
   except (KeyboardInterrupt):
     if ser:
       ser.write("s0\n".encode())

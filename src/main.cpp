@@ -54,6 +54,7 @@ int degree_min = middle - 30;
 int current_degree = 0;
 int set_degree = 0;
 bool disable_servo = false;
+int last_angle = 0;
 
 // PID
 float target_distance = 0; // target encoder position in mm
@@ -109,6 +110,10 @@ Set the steering angle of the servo
 */
 void steer(int angle)
 {
+  if (angle == last_angle) // to remove unnecessary writes
+  {
+    return;
+  }
   if (disable_servo)
   {
     return;
@@ -123,6 +128,7 @@ void steer(int angle)
     angle = degree_min;
   }
   servo.write(angle);
+  last_angle = angle;
 }
 
 /*
@@ -130,7 +136,7 @@ Function to set the steering angle of the servo
 */
 void set_steering(int angle)
 {
-  disable_servo = false;
+  // disable_servo = false;
   set_degree = angle;
 }
 
@@ -302,8 +308,8 @@ If no speed is given, the last speed is used before the robot was paused
 */
 void set_speed(int speed = last_speed) // todo when setting speed to zero no emergency stop should be called
 {
-  disable_dc = false;
-  disable_servo = false;
+  // disable_dc = false;
+  // disable_servo = false;
   hold_dc = false;
   target_speed = speed;
   last_speed = speed;
@@ -524,6 +530,8 @@ void enable_interrupt()
   en_state = !en_state;
   if (en_state)
   {
+    disable_dc = false;
+    disable_servo = false;
     set_speed();
     Serial.println(en_state_true);
   }
@@ -618,6 +626,15 @@ void setup()
   }
   Serial.println("Gyro OK");
   gyro.enableAutoRange(true);
+
+  for (int i = 0; i < 2; i++) // signal that the robot is ready
+  {
+    servo.write(middle+1);
+    delay(100);
+    servo.write(middle);
+    delay(100);
+  }
+
 }
 
 void loop()

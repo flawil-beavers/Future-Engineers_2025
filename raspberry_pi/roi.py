@@ -58,6 +58,12 @@ except:
 
 def cycle():
   global sm, last_error, kp, kd
+  if ser: # ! inefficient
+    if ser.in_waiting > 0 and ser.readline().decode('utf-8').strip() == "enable 0":
+      print("Robot paused")
+      while ser and not ser.readline().decode('utf-8').strip() == "enable 1":
+        sleep(0.1)
+      print("Robot resumed")
 
   # image reading, usually form camera
   img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR)

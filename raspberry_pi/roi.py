@@ -54,24 +54,37 @@ except:
   for port, desc, hwid in sorted(ports):
         print("{}: {} [{}]".format(port, desc, hwid))
 
+def pause_robot():
+  print("Robot paused")
+  while ser and not ser.readline().decode('utf-8').strip() == "enable 1":
+    sleep(0.1)
+  print("Robot resumed")  
+
 def cycle():
   global sm, last_error, kp, kd
 
   # Send n and g to the Arduino to get the distance and gyro heading
   if ser: # ! inefficient
     if ser.in_waiting > 0 and ser.readline().decode('utf-8').strip() == "enable 0":
-      print("Robot paused")
-      while ser and not ser.readline().decode('utf-8').strip() == "enable 1":
-        sleep(0.1)
-      print("Robot resumed")
+      pause_robot()
     message = "n\n"
     ser.write(message.encode())
     # read the distance from the Arduino
-    distance = float(ser.readline().strip())  # Assuming the distance is sent as a float
+    distance = ser.readline().decode('utf-8').strip()
+    if distance == "enable 0":
+      pause_robot()
+      ser.write(message.encode())
+      distance = ser.readline().decode('utf-8').strip()
+    distance = float(distance)
     message = "g\n"
     ser.write(message.encode())
     # read the gyro heading from the Arduino
-    angle = float(ser.readline().strip())  # Assuming the gyro heading is sent as a float
+    angle = ser.readline().decode('utf-8').strip()
+    if angle == "enable 0":
+      pause_robot()
+      ser.write(message.encode())
+      angle = ser.readline().decode('utf-8').strip()
+    angle = float(angle)
   sm.update_distance(distance) # takes all together 20-35 ms
   sm.update_angle(angle)
   # print_past_time(f"gotten distance {distance} and gyro {gyro}")
@@ -90,7 +103,7 @@ def cycle():
   hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
 
   # center region-of-interest for detecting the turn marker lines
-  roi_center_w, roi_center_h = 100, 30
+  roi_center_w, roi_center_h = 100, 50
   roi_center_x, roi_center_y = 320 - roi_center_w // 2, 180
   roi_center = extract_ROI(hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
   
@@ -143,9 +156,10 @@ def cycle():
   # A state machine is used to model the car's behavior
   # This checks if the car should transition to a new state, and if so, transitions
   # states may be PD-CENTER, PD-RIGHT, PD-LEFT, TURNING-L, TURNING-R, etc.
-  transition_res = sm.shouldTransitionState(portion_orange, portion_blue, pillars)
-  if transition_res:
-    print(f"Transitioning to {sm.current_state}")
+  if not calibrate:
+    transition_res = sm.shouldTransitionState(portion_orange, portion_blue, pillars)
+    if transition_res:
+      print(f"Transitioning to {sm.current_state}")
 
   # PD control
 
@@ -227,7 +241,7 @@ def cycle():
   steering_angle = correction * MAX_STEERING_ANGLE
 
 
-  if ser:
+  if ser and not calibrate:
     message = "d" + str(int(300)) + "\n"
     ser.write(message.encode())
     message = "s " + str(int(steering_angle)) + "\n"
@@ -352,13 +366,16 @@ if __name__ == "__main__":
   parser.add_argument('--headless', action='store_true', help='Run in headless mode')
   parser.add_argument('--pillars', action='store_true', help='Run in pillar mode')
   parser.add_argument('--shutdown', action='store_true', help='Shutdown after run')
+  parser.add_argument('--calibrate', action='store_true', help='Disable driving and moving to next states')
+  parser.add_argument('--skip-arduino', action='store_true', help='Skip Arduino connection')
   args = parser.parse_args()
   headless = args.headless
   pillars = args.pillars
   shutdown = args.shutdown
+  calibrate = args.calibrate
+  skip_arduino = args.skip_arduino
   
-
-  if ser:
+  if ser and not calibrate and not skip_arduino:
     print("Connecting to Arduino")
     while True:
       ser.timeout = 2

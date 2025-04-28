@@ -135,11 +135,11 @@ class StateMachine:
       return False
 
     # Handle turn markers
-    MIN_PORTION = 0.25
+    MIN_PORTION = 0.2
     if portion_blue > MIN_PORTION:
-      if self.current_state != "TURNING-R" and self.round_dir < 0:
+      if self.current_state != "TURNING-R" and self.round_dir < 0 and self._scheduled_state is None:
         self.turns_left -= 1
-        self.scheduleStateTransition("TURNING-L", "distance", 100.0)  # Turn left in 15 mm
+        self.scheduleStateTransition("TURNING-L", "distance", 100.0)  # Turn left in 100 mm
       elif self.current_state != "PD-CENTER":
         self.transitionState("PD-CENTER")
       else:
@@ -147,13 +147,12 @@ class StateMachine:
       return True
 
     if portion_orange > MIN_PORTION:
-      if self.current_state != "TURNING-L" and self.round_dir > 0:
+      if self.current_state != "TURNING-L" and self.round_dir > 0 and self._scheduled_state is None:
         self.turns_left -= 1
-        self.scheduleStateTransition("TURNING-R", "distance", 100.0)  # Turn right in 15 mm
+        self.scheduleStateTransition("TURNING-R", "distance", 100.0)  # Turn right in 100 mm
       elif self.current_state != "PD-CENTER":
         self.transitionState("PD-CENTER")
       else:
         return False
       return True
-
     return False

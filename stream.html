@@ -203,8 +203,12 @@
     <select name="streamCselect" id="select-c" onchange="selectStream()">
       <option value="">--</option>
     </select>
-    <img id="colorAdjustView" src="" alt="Color Adjust"
-      onclick="getColorValues(event); getgrayValue(event); getHueValue(event);" />
+    <img
+      id="colorAdjustView"
+      src=""
+      alt="Color Adjust"
+      onclick="getColorValues(event); getgrayValue(event); getHSVValues(event);"
+    />
     <p id="colorValues">Click on the image to see RGB values.</p>
     <p id="hueValue">Click on the image to see Hue value.</p>
     <p id="grayValue">Click on the image to see gray value.</p>
@@ -405,6 +409,52 @@
       hueInput.value = hue;
       document.getElementById("hueValue").innerHTML = "Hue Value: ";
       document.getElementById("hueValue").appendChild(hueInput);
+    }
+
+    // Function to get HSV values from the Color Adjust image
+    function getHSVValues(event) {
+      const img = document.getElementById("colorAdjustView");
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+
+      const rect = img.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const r = pixel[0] / 255;
+      const g = pixel[1] / 255;
+      const b = pixel[2] / 255;
+
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const delta = max - min;
+
+      // Calculate Hue
+      let hue = 0;
+      if (delta === 0) {
+        hue = 0; // Achromatic
+      } else if (max === r) {
+        hue = ((g - b) / delta + (g < b ? 6 : 0)) * 60;
+      } else if (max === g) {
+        hue = ((b - r) / delta + 2) * 60;
+      } else if (max === b) {
+        hue = ((r - g) / delta + 4) * 60;
+      }
+      hue = Math.round((hue / 360) * 255); // Scale Hue to 0-255
+
+      // Calculate Saturation
+      const saturation = Math.round((max === 0 ? 0 : (delta / max) * 255)); // Scale Saturation to 0-255
+
+      // Calculate Value
+      const value = Math.round(max * 255); // Scale Value to 0-255
+
+      // Display HSV values
+      const hsv = `H: ${hue}, S: ${saturation}, V: ${value}`;
+      document.getElementById("hueValue").innerHTML = `HSV Values: ${hsv}`;
     }
 
     // Function to show Stream A in fullscreen

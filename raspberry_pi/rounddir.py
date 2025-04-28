@@ -11,16 +11,16 @@ def find_round_dir(black_img: np.ndarray):
   # make the bottom row all white, so we don't detect the floor
   edges_img = cv2.line(edges_img, (0, 0), (edges_img.shape[1], 0), 1, 1)
   edges_img = cv2.line(edges_img, (0, edges_img.shape[0]-1), (edges_img.shape[1], edges_img.shape[0]-1), 1, 1)
-  print(edges_img.shape)
+  # print(edges_img.shape)
 
   wall_heights = np.argmax(edges_img, axis=0)
 
   wall_heights = ((wall_heights == 0) * edges_img.shape[1]-1) + wall_heights
 
-  print("wh", wall_heights)
+  # print("wh", wall_heights)
 
   differences = np.diff(wall_heights)
-  print("diff", differences)
+  # print("diff", differences)
 
 
   # count the number of positive and negative jumps in the differences

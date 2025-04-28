@@ -83,6 +83,7 @@ class StateMachine:
       if abs(self.round_dir) > 10:
         self.round_dir = 1 if self.round_dir > 0 else -1
         self.search_for_dir = False
+        print(f"Round direction determined: {'clockwise' if self.round_dir == 1 else 'counter-clockwise'}")
         self.transitionState("PD-CENTER")
         return True
       else:
@@ -135,7 +136,7 @@ class StateMachine:
       return False
 
     # Handle turn markers
-    MIN_PORTION = 0.2
+    MIN_PORTION = 0.15
     if portion_blue > MIN_PORTION:
       if self.current_state != "TURNING-R" and self.round_dir < 0 and self._scheduled_state is None:
         self.turns_left -= 1

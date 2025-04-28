@@ -45,6 +45,9 @@ picam2.set_controls({
 
 ports = serial.tools.list_ports.comports()
 
+# get some frames so camera can adjust
+for i in range(30):
+  picam2.capture_array()
 
 try:
   ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
@@ -242,7 +245,7 @@ def cycle():
 
 
   if ser and not calibrate:
-    message = "d" + str(int(300)) + "\n"
+    message = "d" + str(speed) + "\n"
     ser.write(message.encode())
     message = "s " + str(int(steering_angle)) + "\n"
     ser.write(message.encode())
@@ -374,6 +377,8 @@ if __name__ == "__main__":
   shutdown = args.shutdown
   calibrate = args.calibrate
   skip_arduino = args.skip_arduino
+  
+  speed = 300 if not pillars else 80
   
   if ser and not calibrate and not skip_arduino:
     print("Connecting to Arduino")

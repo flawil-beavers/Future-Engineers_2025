@@ -8,7 +8,7 @@
 Servo servo;
 
 // pin definitions
-const int servoPin = 2;
+const int servoPin = 6;
 const int enaPin = 11;
 const int in1Pin = 5;
 const int in2Pin = 8;

@@ -85,6 +85,14 @@
       font-size: 14px;
       color: #555;
     }
+
+    #hueValue {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
+
     #grayValue {
       text-align: center;
       margin-top: 10px;
@@ -119,7 +127,7 @@
     }
 
     #logo {
-      position:absolute;
+      position: absolute;
       top: 10px;
       right: clamp(0px, 1vw, 60px);
       /* Ensures the center of the image is always at least 10px or 4% of the viewport width away from the right edge */
@@ -151,7 +159,6 @@
       transform: translate(-50%, -50%);
       /* Centers the image vertically and horizontally */
     }
-    
   </style>
 </head>
 
@@ -196,22 +203,18 @@
     <select name="streamCselect" id="select-c" onchange="selectStream()">
       <option value="">--</option>
     </select>
-    <img id="colorAdjustView" src="" alt="Color Adjust" onclick="getColorValues(event); getgrayValue(event);" />
+    <img id="colorAdjustView" src="" alt="Color Adjust"
+      onclick="getColorValues(event); getgrayValue(event); getHueValue(event);" />
     <p id="colorValues">Click on the image to see RGB values.</p>
+    <p id="hueValue">Click on the image to see Hue value.</p>
     <p id="grayValue">Click on the image to see gray value.</p>
+    <!-- Add a new paragraph to display Hue values -->
 
     <!-- Slider to adjust GRAY value -->
     <div id="graySliderContainer" style="text-align: center; margin-top: 20px;">
       <label for="graySlider">Adjust GRAY Value:</label>
-      <input
-        type="range"
-        id="graySlider"
-        min="0"
-        max="255"
-        value="110"
-        style="width: 80%;"
-        oninput="updateGrayValue(this.value)"
-      />
+      <input type="range" id="graySlider" min="0" max="255" value="110" style="width: 80%;"
+        oninput="updateGrayValue(this.value)" />
       <p>Current GRAY Value: <span id="grayValueDisplay">110</span></p>
     </div>
   </div>
@@ -341,8 +344,8 @@
       document.getElementById("colorValues").innerHTML = "RGB Values: ";
       document.getElementById("colorValues").appendChild(colorInput);
     }
-      // Function to get gray value from the Color Adjust image
-      function getgrayValue(event) {
+    // Function to get gray value from the Color Adjust image
+    function getgrayValue(event) {
       const img = document.getElementById("colorAdjustView");
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -355,12 +358,53 @@
       const y = event.clientY - rect.top;
 
       const pixel = ctx.getImageData(x, y, 1, 1).data;
-      const rgb = `[${0.299*pixel[0]+0.587*pixel[1] + 0.114 * pixel[2]}]`;
+      const rgb = `[${0.299 * pixel[0] + 0.587 * pixel[1] + 0.114 * pixel[2]}]`;
       const colorInput = document.createElement("input");
       colorInput.type = "text";
       colorInput.value = rgb;
       document.getElementById("grayValue").innerHTML = "Gray Value: ";
       document.getElementById("grayValue").appendChild(colorInput);
+    }
+
+    // Function to get Hue value from the Color Adjust image
+    function getHueValue(event) {
+      const img = document.getElementById("colorAdjustView");
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+
+      const rect = img.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const r = pixel[0] / 255;
+      const g = pixel[1] / 255;
+      const b = pixel[2] / 255;
+
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      let hue = 0;
+
+      if (max === min) {
+        hue = 0; // Achromatic
+      } else if (max === r) {
+        hue = ((g - b) / (max - min) + (g < b ? 6 : 0)) * 60;
+      } else if (max === g) {
+        hue = ((b - r) / (max - min) + 2) * 60;
+      } else if (max === b) {
+        hue = ((r - g) / (max - min) + 4) * 60;
+      }
+
+      hue = Math.round(hue);
+
+      const hueInput = document.createElement("input");
+      hueInput.type = "text";
+      hueInput.value = hue;
+      document.getElementById("hueValue").innerHTML = "Hue Value: ";
+      document.getElementById("hueValue").appendChild(hueInput);
     }
 
     // Function to show Stream A in fullscreen

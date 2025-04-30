@@ -20,7 +20,8 @@ const int encoderPinB = 4;
 
 // ------ drive settings ------
 // encoder settings
-const int countperrev = 1807;
+const int gear_ratio = 150.58;                                     // gear ratio of the motor
+const int countperrev = gear_ratio * 12;                           // counts per revolution of the motor
 const float counter_to_mm = 20.0 / 28.0 * PI * 62.4 / countperrev; // mm per encoder count
 
 long encoder_pos = 0;
@@ -31,12 +32,12 @@ const char en_state_true[] = "enable 1";
 const char en_state_false[] = "enable 0";
 
 // dc motor settings
-int max_dc = 200;        // max duty cycle for motor driver
-int min_dc = 25;         // min duty cycle for motor driver
-float max_acc_dc = 255;  // max acceleration duty cycle for motor driver (dc/s)
-float current_dc = 0;    // current duty cycle for motor driver
-float acc = 700;         // acceleration speed (mm/s^2)
-bool disable_dc = false; // enable dc motor
+const int max_dc = 200;        // max duty cycle for motor driver
+const int min_dc = 0.25 * 255; // min duty cycle for motor driver
+const float max_acc_dc = 255;  // max acceleration duty cycle for motor driver (dc/s)
+float current_dc = 0;          // current duty cycle for motor driver
+float acc = 700;               // acceleration speed (mm/s^2)
+bool disable_dc = false;       // enable dc motor
 bool hold_dc = false;
 
 // speed settings
@@ -48,9 +49,9 @@ unsigned long last_acc_time = 0;
 float last_speed = 0;
 
 // steering settings
-int middle = 97; // +55 -55
-int degree_max = middle + 30;
-int degree_min = middle - 30;
+const int middle = 97; // +55 -55
+const int degree_max = middle + 30;
+const int degree_min = middle - 30;
 int current_degree = 0;
 int set_degree = 0;
 bool disable_servo = false;
@@ -83,8 +84,8 @@ float degree_calibrated = 0;
 float offset = 0;
 float last_offset = 0;
 // float y = -0.0006x - 0.0034
-float offset_m = -0.0006;
-float offset_b = -0.0034;
+const float offset_m = -0.0006;
+const float offset_b = -0.0034;
 
 unsigned long last_offset_time = 0;
 const float scaling_calibrated = 1800 / 1750.03; // deg measured for 5 rotations
@@ -629,12 +630,11 @@ void setup()
 
   for (int i = 0; i < 2; i++) // signal that the robot is ready
   {
-    servo.write(middle+1);
+    servo.write(middle + 1);
     delay(100);
     servo.write(middle);
     delay(100);
   }
-
 }
 
 void loop()

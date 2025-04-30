@@ -18,9 +18,13 @@ const int enTogglePin = 7;
 const int encoderPinA = 3;
 const int encoderPinB = 4;
 
+const int currentPin = 14; // current sensor pin of motor driver
+
+const int ledPin = 9;
+
 // ------ drive settings ------
 // encoder settings
-const int gear_ratio = 150.58;                                     // gear ratio of the motor
+const int gear_ratio = 297.92;                                     // gear ratio of the motor
 const int countperrev = gear_ratio * 12;                           // counts per revolution of the motor
 const float counter_to_mm = 20.0 / 28.0 * PI * 62.4 / countperrev; // mm per encoder count
 
@@ -39,6 +43,10 @@ float current_dc = 0;          // current duty cycle for motor driver
 float acc = 700;               // acceleration speed (mm/s^2)
 bool disable_dc = false;       // enable dc motor
 bool hold_dc = false;
+
+// current sensor settings
+const float dc_to_current = 5.0 / 1024 * 0.525; // conversion factor from duty cycle to current (A)
+const float max_current = 0.2;   // max current (A)
 
 // speed settings
 float current_speed = 0;
@@ -148,19 +156,16 @@ dc can be a positive or negative value.
 */
 void set_dc(float dc)
 {
-  if (disable_dc)
+  if (disable_dc || fabs(dc) < min_dc)
   {
     digitalWrite(in1Pin, LOW);
     digitalWrite(in2Pin, LOW);
+    current_dc = dc;
     return;
   }
   if (dc != 0 && fabs(dc) > max_dc)
   {
     dc = max_dc * (dc / fabs(dc));
-  }
-  else if (dc != 0 && fabs(dc) < min_dc)
-  {
-    dc = min_dc * (dc / fabs(dc));
   }
   if (dc > current_dc + max_acc_dc * last_loop_time)
   {
@@ -311,6 +316,7 @@ void set_speed(int speed = last_speed) // todo when setting speed to zero no eme
 {
   // disable_dc = false;
   // disable_servo = false;
+  digitalWrite(ledPin, LOW);
   hold_dc = false;
   target_speed = speed;
   last_speed = speed;
@@ -360,8 +366,8 @@ void pid_config_print()
     Serial.print(target_speed);
     Serial.print(" current_speed: ");
     Serial.print(current_speed);
-    Serial.print(" target_distance: ");
-    Serial.print(target_distance);
+    // Serial.print(" target_distance: ");
+    // Serial.print(target_distance);
     // Serial.print(" measured_speed: ");
     // Serial.print(measured_speed);
     Serial.print(" current_dc: ");
@@ -463,6 +469,9 @@ void parseMessage(char *msg)
   case 'r':
     set_speed();
     break;
+  case 'o':
+    digitalWrite(ledPin, HIGH);
+    break;
   }
 }
 
@@ -510,6 +519,20 @@ void check_serial_available()
   }
 }
 
+void check_current()
+{ // probably won't work as the current is too low
+  int dc = analogRead(currentPin);
+  float current = float(dc) * dc_to_current; // convert to current in A
+  // Serial.print("Current: ");
+  // Serial.println(current, 6);
+  if (current > max_current)
+  {
+    stop();
+    Serial.println("Current limit exceeded, stopping robot");
+    // delay(1000);
+  }
+}
+
 /*
 Change enable state based on interrupt
 This is the start stop and pause button
@@ -534,11 +557,13 @@ void enable_interrupt()
     disable_dc = false;
     disable_servo = false;
     set_speed();
+    digitalWrite(ledPin, LOW);
     Serial.println(en_state_true);
   }
   else
   {
     stop();
+    digitalWrite(ledPin, HIGH);
     Serial.println(en_state_false);
   }
 }
@@ -604,6 +629,9 @@ void setup()
 
   pinMode(encoderPinA, INPUT);
   pinMode(encoderPinB, INPUT);
+  pinMode(currentPin, INPUT);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
 
   digitalWrite(in1Pin, LOW);
   digitalWrite(in2Pin, LOW);
@@ -641,6 +669,7 @@ void loop()
 {
   loop_updater();
   check_serial_available();
+  check_current();
   drive_loop();
   // pid_config_print();
   // gyro_config_print();

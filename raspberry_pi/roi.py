@@ -371,7 +371,7 @@ if __name__ == "__main__":
   calibrate = args.calibrate
   skip_arduino = args.skip_arduino
   
-  speed = 300 if not pillars else 100
+  speed = 300 if not pillars else 150
   
   if ser and not calibrate and not skip_arduino:
     print("Connecting to Arduino")
@@ -394,6 +394,7 @@ if __name__ == "__main__":
       
     ser.timeout = None
     print("Gyro initialized successfully")
+    ser.write("o\n".encode())
     while True:
       msg = ser.readline().decode('utf-8')
       msg = msg.strip()

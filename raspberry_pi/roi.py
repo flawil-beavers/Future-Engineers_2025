@@ -175,7 +175,7 @@ def cycle():
   #     pillar_ref = 0.48
     
 
-  REF_PORTION = 0.45 if not sm.isPillarRound else 0.45
+  REF_PORTION = 0.45 if not sm.isPillarRound else 0.28
 
   # error value
   error = 0.0
@@ -204,21 +204,14 @@ def cycle():
     correction = -turn_correction
   if sm.current_state == "TURNING-R":
     correction = turn_correction
-  
-  FIRSTPAHSETIME = 0.95
-  # if len(pillars) > 0:
-  #   if sm.avoid_big or True:
-  #     FIRSTPAHSETIME = 1.2
 
-  if (sm.current_state == "AVOIDING-R" and sm.diff_distance < FIRSTPAHSETIME):
-    correction = 0.9
-  if (sm.current_state == "AVOIDING-G" and sm.diff_distance > FIRSTPAHSETIME):
-    correction = 0.9*0.9
-  if (sm.current_state == "AVOIDING-G" and sm.diff_distance < FIRSTPAHSETIME):
-    correction = -0.9
-  if (sm.current_state == "AVOIDING-R" and sm.diff_distance > FIRSTPAHSETIME):
-    correction = -0.9*0.9
-
+  if sm.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
+    correction = 1
+  if sm.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
+    correction = -1
+  if "-G-" in sm.current_state:
+    correction *= -1
+    
   if sm.current_state == "DONE":
     correction = 0.0
     print("---- DONE ----")
@@ -378,7 +371,7 @@ if __name__ == "__main__":
   calibrate = args.calibrate
   skip_arduino = args.skip_arduino
   
-  speed = 300 if not pillars else 80
+  speed = 300 if not pillars else 100
   
   if ser and not calibrate and not skip_arduino:
     print("Connecting to Arduino")

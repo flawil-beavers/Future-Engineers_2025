@@ -110,7 +110,7 @@ class StateMachine:
           return True
       elif self.current_state == "TRACKING-PILLAR":
         if next_pillar.height * next_pillar.width > 530: # todo: check when last time pillar was avoided
-          self.transitionState(f"AVOIDING-{'R' if next_pillar.color == 'RED' else 'G'}")
+          self.transitionState(f"AVOIDING-{'R' if next_pillar.color == 'RED' else 'G'}-1")
           self.next_pillar = None
           return True
 
@@ -121,11 +121,15 @@ class StateMachine:
       return True
 
     # Handle avoiding states
-    if self.current_state in ["AVOIDING-R", "AVOIDING-G"]:
-      if diff_distance > 20.0:  # Avoid for 20 mm
-        self.transitionState("PD-CENTER") # todo add last avoid distance
-        self.avoid_big = False # probabyl unnecessary
-        return True
+    if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1", "AVOIDING-R-2", "AVOIDING-G-2"]:
+      if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
+        if abs(diff_angle) > 50:
+          self.transitionState(self.current_state.replace("-1", "-2"))
+          return True
+      elif self.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
+        if abs(diff_angle) < 5:
+          self.transitionState("PD-CENTER")
+          return True
 
     # Handle turning states
     TURNING_ANGLE = 70.0  # Angle threshold for turning

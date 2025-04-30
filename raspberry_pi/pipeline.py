@@ -31,15 +31,15 @@ class Pipeline:
 
 
     # red filter
-    # red is at 0 and also 180, accounting for HSV wraparound
+    # First red range
     rMask1 = cv2.inRange(hsv, redMin, redMax)
-    redMinList = list(redMin)
-    redMinList = [180 - redMax[0], redMinList[1], redMinList[2]]
-    redMin2 = tuple(redMinList)
-    redMaxList = list(redMax)
-    redMaxList = [180, redMaxList[1], redMaxList[2]]
-    redMax2 = tuple(redMaxList)
+
+    # Second red range (adjusted for hue wrapping)
+    redMin2 = (180 - redMax[0], redMin[1], redMin[2])
+    redMax2 = (180, redMax[1], redMax[2])
     rMask2 = cv2.inRange(hsv, redMin2, redMax2)
+
+    # Combine both red ranges
     rMask = cv2.bitwise_or(rMask1, rMask2)
     # green filter
     gMask = cv2.inRange(hsv, greenMin, greenMax)

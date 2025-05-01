@@ -4,8 +4,11 @@ After=multi-user.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/program
-ExecStart=/usr/bin/python3 /home/pi/program/roi.py --headless --pillars
+WorkingDirectory=/home/pi/git/Future-Engineers_2025/raspberry_pi
+ExecStart=/usr/bin/python3 /home/pi/git/Future-Engineers_2025/raspberry_pi/roi.py --headless
+StandardOutput=append:/home/pi/git/Future-Engineers_2025/raspberry_pi/logs/roi.log
+StandardError=append:/home/pi/git/Future-Engineers_2025/raspberry_pi/logs/roi_error.log
+User=pi
 
 [Install]
 WantedBy=multi-user.target

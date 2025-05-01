@@ -1,3 +1,4 @@
-sudo cp car.service /lib/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable car.service
+#!/bin/bash
+cp car.service /lib/systemd/system/
+systemctl daemon-reload
+systemctl enable car.service

@@ -33,7 +33,7 @@ picam2.configure(preview_config)
 picam2.start()
 
 picam2.set_controls({
-    "AwbEnable": False,
+    "AwbEnable": True,
     "ScalerCrop": [
       0,
       1520,

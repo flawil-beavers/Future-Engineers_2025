@@ -101,7 +101,7 @@ class StateMachine:
       return False
 
     # Handle pillar tracking and avoidance
-    if len(pillars) > 0 and self.isPillarRound: # todo check if using degree makes more sense here
+    if len(pillars) > 0 and self.isPillarRound:
       next_pillar = pillars[0]
       if self.current_state == "PD-CENTER":
         self.next_pillar = next_pillar
@@ -109,8 +109,9 @@ class StateMachine:
           self.transitionState("TRACKING-PILLAR")
           return True
       elif self.current_state == "TRACKING-PILLAR":
-        if next_pillar.height * next_pillar.width > 530: # todo: check when last time pillar was avoided
+        if next_pillar.height * next_pillar.width > 800 or next_pillar.y >= 180: # todo: check when last time pillar was avoided
           self.transitionState(f"AVOIDING-{'R' if next_pillar.color == 'RED' else 'G'}-1")
+          print(f"transitioning reason area: {next_pillar.height * next_pillar.width > 530} or y: {next_pillar.y >= 200}")
           self.next_pillar = None
           return True
 
@@ -123,7 +124,7 @@ class StateMachine:
     # Handle avoiding states
     if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1", "AVOIDING-R-2", "AVOIDING-G-2"]:
       if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
-        if abs(diff_angle) > 50:
+        if abs(diff_angle) > 40:
           self.transitionState(self.current_state.replace("-1", "-2"))
           return True
       elif self.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:

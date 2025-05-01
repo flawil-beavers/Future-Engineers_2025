@@ -83,9 +83,9 @@ class Pipeline:
     blurredP = cv2.medianBlur(pMask, 5)
     return blurredP
 
-  def get_pillars(self, imgIn: np.ndarray, type = "RED") -> list[Pillar]:
+  def get_pillars(self, imgIn: np.ndarray, type="RED") -> list[Pillar]:
     """
-      Extracts pillars from filtered image
+    Extracts pillars from filtered image.
     """
     minSize = float(self.configloader.get_property("contours")['minSize'])
     edges = cv2.Canny(cv2.medianBlur(cv2.copyMakeBorder(imgIn[:], 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=0), 3), 30, 200)
@@ -101,15 +101,19 @@ class Pipeline:
         if moment["m00"] != 0:
           x = int(moment["m10"] / moment["m00"])
           y = int(moment["m01"] / moment["m00"])
-          # if abs(y-centerheight) > 45:
-          #     continue
 
-          _, _, w, h = cv2.boundingRect(contour)
+          # Get bounding rectangle
+          rect_x, rect_y, w, h = cv2.boundingRect(contour)
           width = math.ceil(w)
           height = math.ceil(h)
 
-          if height * width <= 40.0:
-            continue
+          # Calculate the y-coordinate of the lowest part of the pillar
+          lowest_y = rect_y + h
 
-          processedContours.append(Pillar(x, width, height, type))
+          # Filter out invalid contours
+          if height * width <= 40.0 or height < width * 1.1:
+              continue
+
+          # Pass the lowest_y to the Pillar object
+          processedContours.append(Pillar(x, width, height, type, y=lowest_y))
     return processedContours

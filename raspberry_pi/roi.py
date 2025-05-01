@@ -65,9 +65,11 @@ def pause_robot():
 
 def cycle():
   global sm, last_error, kp, kd
-
+  distance = 0.0
+  angle = 0.0
+  
   # Send n and g to the Arduino to get the distance and gyro heading
-  if ser: # ! inefficient
+  if ser and not calibrate: # ! inefficient
     if ser.in_waiting > 0 and ser.readline().decode('utf-8').strip() == "enable 0":
       pause_robot()
     message = "n\n"
@@ -141,7 +143,7 @@ def cycle():
     next_pillar = pillars[0]
     next_pillar.width = min(next_pillar.width, 5)
     # for this extract a region-of-interest around the pillar
-    roi_pillar_check = extract_ROI(hsv_image, [next_pillar.screen_x - int(next_pillar.width*0.35), 0], [next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]])
+    roi_pillar_check = extract_ROI(hsv_image, [next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y], [next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]])
     # filter out the orange and blue colors
 
     # print("A=", pillars[0].width * pillars[0].height)
@@ -153,6 +155,8 @@ def cycle():
       # check if the pillar is before or after a turn marker
       # print("pillar check", portion_orange_pillar, portion_blue_pillar)
       if portion_orange_pillar > 0.00005 or portion_blue_pillar > 0.00005:
+        if not headless:
+          cv2.rectangle(viz, (next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y), (next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]), (255, 0, 0), 3)
         # print("Pillar is after a turn marker")
         pillars[0].ignore = True
       

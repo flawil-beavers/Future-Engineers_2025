@@ -4,23 +4,34 @@ from time import time
 class Pillar:
   ignore = False
   big_correction = False
-  def __init__(self, screen_x: int, width: int, height: int, color: str):
+
+  def __init__(self, screen_x: int, width: int, height: int, color: str, x: int = 0, y: int = 0):
+    """
+    Initialize a Pillar object.
+
+    Args:
+      screen_x (int): The x-coordinate on the screen.
+      width (int): The width of the pillar.
+      height (int): The height of the pillar.
+      color (str): The color of the pillar.
+      y (int): The y-coordinate of base of the pillar.
+    """
     self.screen_x = screen_x
     self.width = width
     self.height = height
     self.color = color
+    self.y = y
 
 
 def extract_ROI(image: np.ndarray, startxy: list, endxy: list) -> np.ndarray:
   """
-  Extracts the ROIs from the image
+  Extracts the ROIs from the image.
   """
-  
   return image[startxy[1]:endxy[1], startxy[0]:endxy[0]]
 
 def print_past_time(message: str):
   """
-  Prints the message with the current time
+  Prints the message with the current time.
   """
   global last_time
   if 'last_time' not in globals():

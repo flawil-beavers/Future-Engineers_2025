@@ -80,15 +80,30 @@ class StateMachine:
 
     # STARTING state: Wait until the robot determines its direction
     if self.current_state == "STARTING":
-      if abs(self.round_dir) > 10:
+      if abs(self.round_dir) > 5:
         self.round_dir = 1 if self.round_dir > 0 else -1
         self.search_for_dir = False
         print(f"Round direction determined: {'clockwise' if self.round_dir == 1 else 'counter-clockwise'}")
-        self.transitionState("PD-CENTER")
+        self.transitionState("UNPARKING-1")
         return True
       else:
         self.search_for_dir = True
         return False
+
+    if "UNPARKING" in self.current_state:
+      if self.current_state == "UNPARKING-1":
+        if abs(diff_angle) > 60:
+          self.transitionState("UNPARKING-2")
+          return True
+      if self.current_state == "UNPARKING-2": # driving straight to wall, but doesn't account for pillars in the way
+        if diff_distance > 400: # improve to pd to wall and distance to wall
+          self.transitionState("UNPARKING-3")
+          return True
+      if self.current_state == "UNPARKING-3":
+        if abs(diff_angle) > 85:
+          self.transitionState("PD-CENTER")
+          return True
+      
 
     # PD-CENTER state: Transition to DONE if no turns are left
     if self.current_state == "PD-CENTER" and self.turns_left <= 0 and self._scheduled_state is None:
@@ -96,7 +111,7 @@ class StateMachine:
       return True
 
     # Hold the current state for a minimum distance
-    HOLD_STATES = ["TURNING-L", "TURNING-R", "PD-CENTER"]
+    HOLD_STATES = ["PD-CENTER"]
     if self.current_state in HOLD_STATES and diff_distance < 100.0:  # Hold for 100 mm
       return False
 
@@ -124,7 +139,7 @@ class StateMachine:
     # Handle avoiding states
     if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1", "AVOIDING-R-2", "AVOIDING-G-2"]:
       if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
-        if abs(diff_angle) > 40:
+        if abs(diff_angle) > 35:
           self.transitionState(self.current_state.replace("-1", "-2"))
           return True
       elif self.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
@@ -133,30 +148,31 @@ class StateMachine:
           return True
 
     # Handle turning states
-    TURNING_ANGLE = 70.0  # Angle threshold for turning
-    if self.current_state in ["TURNING-L", "TURNING-R"]:
-      if abs(diff_angle) > TURNING_ANGLE:
+    TURNING_ANGLE = 85.0  # Angle threshold for turning
+    if self.current_state in ["TURNING-REVERSE-L", "TURNING-REVERSE-R"]:
+      if abs(self.diff_angle) > TURNING_ANGLE:
         self.transitionState("PD-CENTER")
         return True
       return False
 
     # Handle turn markers
     MIN_PORTION = 0.15
+    EXTRA_DISTANCE = 600.0  # Extra distance to move before reversing
     if portion_blue > MIN_PORTION:
-      if self.current_state != "TURNING-R" and self.round_dir < 0 and self._scheduled_state is None:
+      if self.current_state != "TURNING-REVERSE-R" and self.round_dir < 0 and self._scheduled_state is None:
         self.turns_left -= 1
-        self.scheduleStateTransition("TURNING-L", "distance", 100.0)  # Turn left in 100 mm
-      elif self.current_state != "PD-CENTER":
+        self.scheduleStateTransition("TURNING-REVERSE-L", "distance", EXTRA_DISTANCE)  # Turn left in 100 mm
+      elif "UNPARKING" not in self.current_state and self.current_state != "PD-CENTER":
         self.transitionState("PD-CENTER")
       else:
         return False
       return True
 
     if portion_orange > MIN_PORTION:
-      if self.current_state != "TURNING-L" and self.round_dir > 0 and self._scheduled_state is None:
+      if self.current_state != "TURNING-REVERSE-L" and self.round_dir > 0 and self._scheduled_state is None:
         self.turns_left -= 1
-        self.scheduleStateTransition("TURNING-R", "distance", 100.0)  # Turn right in 100 mm
-      elif self.current_state != "PD-CENTER":
+        self.scheduleStateTransition("TURNING-REVERSE-R", "distance", EXTRA_DISTANCE)  # Turn right in 100 mm
+      elif "UNPARKING" not in self.current_state and self.current_state != "PD-CENTER":
         self.transitionState("PD-CENTER")
       else:
         return False

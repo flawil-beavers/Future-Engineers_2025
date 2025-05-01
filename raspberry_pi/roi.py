@@ -203,11 +203,14 @@ def cycle():
 
   correction = error * kp + (error - last_error) * kd
 
+  driving_speed = speed
   
-  if sm.current_state == "TURNING-L":
-    correction = -turn_correction
-  if sm.current_state == "TURNING-R":
+  if sm.current_state == "TURNING-REVERSE-L":
     correction = turn_correction
+    driving_speed = -speed
+  if sm.current_state == "TURNING-REVERSE-R":
+    correction = -turn_correction
+    driving_speed = -speed
 
   if sm.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
     correction = 1
@@ -229,7 +232,17 @@ def cycle():
     exit()
 
   if sm.search_for_dir and sm.current_state == "STARTING":
-    sm.round_dir += find_round_dir(black_img=rgbl["black"])
+    sm.round_dir += find_round_dir(rgbl["black"], sm.isPillarRound)
+    driving_speed = 0
+    
+  if "UNPARKING" in sm.current_state:
+    if sm.current_state == "UNPARKING-1":
+      correction = 1.2 if sm.round_dir == 1 else -1.2
+    elif sm.current_state == "UNPARKING-2":
+      correction = 0
+    elif sm.current_state == "UNPARKING-3":
+      correction = 1 if sm.round_dir == 1 else -1
+      driving_speed = -speed
 
   
   # else:
@@ -242,7 +255,7 @@ def cycle():
 
 
   if ser and not calibrate:
-    message = "d" + str(speed) + "\n"
+    message = "d" + str(driving_speed) + "\n"
     ser.write(message.encode())
     message = "s " + str(int(steering_angle)) + "\n"
     ser.write(message.encode())

@@ -159,7 +159,7 @@ def cycle():
           cv2.rectangle(viz, (next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y), (next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]), (255, 0, 0), 3)
         # print("Pillar is after a turn marker")
         pillars[0].ignore = True
-      
+
   # A state machine is used to model the car's behavior
   # This checks if the car should transition to a new state, and if so, transitions
   # states may be PD-CENTER, PD-RIGHT, PD-LEFT, TURNING-L, TURNING-R, etc.
@@ -179,7 +179,7 @@ def cycle():
   #     pillar_ref = 0.48
     
 
-  REF_PORTION = 0.45 if not sm.isPillarRound else 0.28
+  REF_PORTION = 0.45 if not sm.isPillarRound else 0.34
 
   # error value
   error = 0.0
@@ -202,6 +202,17 @@ def cycle():
 
 
   correction = error * kp + (error - last_error) * kd
+
+  # ignore PD control if wall is too close to the front of the car
+  if sm.current_state == "PD-CENTER" and sm._scheduled_state is not None and "TURNING" in sm._scheduled_state:
+    roi_top = extract_ROI(rgbl["black"], [640//2-30, 35], [640//2+30, 40])
+    portion_black_top  = cv2.countNonZero(roi_top) / (roi_top.shape[0] * roi_top.shape[1])
+    if portion_black_top > 0.5:
+      if not headless:
+        cv2.rectangle(viz, (640//2-30, 35), (640//2+30, 40), (255, 0, 0), 3)
+      # if the top region-of-interest is black, we stop PD control and just drive straight
+      correction = 0.0
+      sm._allow_pillar_detection = False # stop detecting pillars from now on
 
   driving_speed = speed
   

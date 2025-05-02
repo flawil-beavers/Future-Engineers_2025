@@ -20,6 +20,7 @@ class StateMachine:
   _scheduled_state = None
   _scheduled_state_distance = None  # Distance for scheduled state transition
   _scheduled_state_angle = None  # Angle for scheduled state transition
+  _allow_pillar_detection = True
 
   next_pillar = None
   first_line_found = None
@@ -91,21 +92,21 @@ class StateMachine:
         return False
 
     if "UNPARKING" in self.current_state:
-      if self.current_state == "UNPARKING-1": # drive straight to wall
+      if self.current_state == "UNPARKING-1":
         if abs(self.diff_angle) > 10:
           self.transitionState("UNPARKING-2")
           return True
-      if self.current_state == "UNPARKING-2": # driving straight to wall, but doesn't account for pillars in the way
-        if abs(self.diff_angle) > 75: # improve to pd to wall and distance to wall
+      if self.current_state == "UNPARKING-2":
+        if abs(self.diff_angle) > 75:
           self.transitionState("UNPARKING-3")
           return True
-      if self.current_state == "UNPARKING-3": # driving straight to wall, but doesn't account for pillars in the way
-        if self.diff_distance < -0: # improve to pd to wall and distance to wall
+      if self.current_state == "UNPARKING-3":
+        if self.diff_distance < -0:
           self.transitionState("UNPARKING-4")
           return True
       if self.current_state == "UNPARKING-4":
         if abs(diff_angle) > 90:
-          self.transitionState("DONE")
+          self.transitionState("PD-CENTER") # todo have to ignore markers of the parking lot
           return True
       
 
@@ -118,9 +119,9 @@ class StateMachine:
     HOLD_STATES = ["PD-CENTER"]
     if self.current_state in HOLD_STATES and diff_distance < 100.0:  # Hold for 100 mm
       return False
-
+  
     # Handle pillar tracking and avoidance
-    if len(pillars) > 0 and self.isPillarRound:
+    if len(pillars) > 0 and self.isPillarRound and self._allow_pillar_detection:
       next_pillar = pillars[0]
       if self.current_state == "PD-CENTER":
         self.next_pillar = next_pillar
@@ -128,7 +129,7 @@ class StateMachine:
           self.transitionState("TRACKING-PILLAR")
           return True
       elif self.current_state == "TRACKING-PILLAR":
-        if next_pillar.height * next_pillar.width > 800 or next_pillar.y >= 180: # todo: check when last time pillar was avoided
+        if next_pillar.height * next_pillar.width > 900 or next_pillar.y >= 180: # todo: check when last time pillar was avoided
           self.transitionState(f"AVOIDING-{'R' if next_pillar.color == 'RED' else 'G'}-1")
           print(f"transitioning reason area: {next_pillar.height * next_pillar.width > 530} or y: {next_pillar.y >= 200}")
           self.next_pillar = None

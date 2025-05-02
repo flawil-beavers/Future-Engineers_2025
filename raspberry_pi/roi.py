@@ -235,14 +235,19 @@ def cycle():
     sm.round_dir += find_round_dir(rgbl["black"], sm.isPillarRound)
     driving_speed = 0
     
+  SPEED_UNPARK = 100
   if "UNPARKING" in sm.current_state:
     if sm.current_state == "UNPARKING-1":
-      correction = 1.2 if sm.round_dir == 1 else -1.2
+      correction = 1.2 if sm.round_dir == -1 else -1.2
+      driving_speed = SPEED_UNPARK
     elif sm.current_state == "UNPARKING-2":
-      correction = 0
+      correction = 1.2 if sm.round_dir == 1 else -1.2
+      driving_speed = -SPEED_UNPARK
     elif sm.current_state == "UNPARKING-3":
-      correction = 1 if sm.round_dir == 1 else -1
-      driving_speed = -speed
+      driving_speed = -SPEED_UNPARK
+    elif sm.current_state == "UNPARKING-4":
+      correction = 1 if sm.round_dir == -1 else -1
+      driving_speed = -SPEED_UNPARK
 
   
   # else:

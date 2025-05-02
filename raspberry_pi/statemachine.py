@@ -91,17 +91,21 @@ class StateMachine:
         return False
 
     if "UNPARKING" in self.current_state:
-      if self.current_state == "UNPARKING-1":
-        if abs(diff_angle) > 60:
+      if self.current_state == "UNPARKING-1": # drive straight to wall
+        if abs(self.diff_angle) > 10:
           self.transitionState("UNPARKING-2")
           return True
       if self.current_state == "UNPARKING-2": # driving straight to wall, but doesn't account for pillars in the way
-        if diff_distance > 400: # improve to pd to wall and distance to wall
+        if abs(self.diff_angle) > 75: # improve to pd to wall and distance to wall
           self.transitionState("UNPARKING-3")
           return True
-      if self.current_state == "UNPARKING-3":
-        if abs(diff_angle) > 85:
-          self.transitionState("PD-CENTER")
+      if self.current_state == "UNPARKING-3": # driving straight to wall, but doesn't account for pillars in the way
+        if self.diff_distance < -0: # improve to pd to wall and distance to wall
+          self.transitionState("UNPARKING-4")
+          return True
+      if self.current_state == "UNPARKING-4":
+        if abs(diff_angle) > 90:
+          self.transitionState("DONE")
           return True
       
 

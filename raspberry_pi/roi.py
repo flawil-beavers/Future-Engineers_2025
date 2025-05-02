@@ -10,7 +10,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section
 from pipeline import Pipeline
 from statemachine import StateMachine
 from picamera2 import Picamera2
@@ -64,7 +64,7 @@ def pause_robot():
   print("Robot resumed")  
 
 def cycle():
-  global sm, last_error, kp, kd
+  global sm, last_error, kp, kd, straight_sections
   distance = 0.0
   angle = 0.0
   
@@ -179,7 +179,7 @@ def cycle():
   #     pillar_ref = 0.48
     
 
-  REF_PORTION = 0.45 if not sm.isPillarRound else 0.34
+  REF_PORTION = 0.45 if not sm.isPillarRound else 0.30
 
   # error value
   error = 0.0
@@ -221,6 +221,10 @@ def cycle():
     driving_speed = -speed
   if sm.current_state == "TURNING-REVERSE-R":
     correction = -turn_correction
+    driving_speed = -speed
+
+  if sm.current_state == "REVERSE-EXTRA":
+    correction = 0.0
     driving_speed = -speed
 
   if sm.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
@@ -291,6 +295,39 @@ def cycle():
     for p in pillars:
       cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)
 
+
+  if sm.take_picture and sm.distance_take_picture < distance:
+    sm.take_picture = False
+    pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
+    pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
+    pillars = pillars_r + pillars_g
+
+    pillars.sort(key=lambda x: x.width*x.height, reverse=True)
+    section_index = (12-sm.turns_left) % 4
+    
+    index = None
+    for p in pillars:
+      if p.ignore:
+        continue
+      if p.y > 100:
+        index = 0
+      elif p.y > 32:
+        index = 1
+      else:
+        index = 2
+      if p.screen_x < 320:
+        straight_sections[section_index].l[index] = p.color
+      else:
+        straight_sections[section_index].r[index] = p.color
+      cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
+      cv2.putText(viz, f"{p.color} {int(p.width)}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+    straight_sections[section_index].parking_lot = False
+    straight_sections[section_index].print()
+    cv2.imwrite(f"image{section_index}.jpg", color_image)
+    cv2.imwrite(f"image_viz{section_index}.jpg", viz)
+    print("Image saved")
+
   last_error = error
   # print_past_time("finished cycle") # 50 ms
   return {
@@ -311,12 +348,15 @@ def cycle():
 
 
 def main():
-  global sm, last_error, kp, kd
+  global sm, last_error, kp, kd, straight_sections
   sm = StateMachine(isPillarRound=pillars)
   last_error = 0.0
 
   kp = configloader.get_property("PD")['kp']
   kd = configloader.get_property("PD")['kd']
+  
+  # create a list with four elements of Straight_Section
+  straight_sections = [Straight_Section(i) for i in range(4)]
 
   try:
     while True:
@@ -337,9 +377,12 @@ with open("config.json", "r") as f:
   config = json.load(f)
 
 async def img_stream(websocket: WebSocketServerProtocol, path):
-  global sm, last_error, kp, kd
+  global sm, last_error, kp, kd, straight_sections
   sm = StateMachine(isPillarRound=pillars)
   last_error = 0.0
+
+  # create a list with four elements of Straight_Section
+  straight_sections = [Straight_Section(i) for i in range(4)]
 
   kp = configloader.get_property("PD")['kp']
   kd = configloader.get_property("PD")['kd']

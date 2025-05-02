@@ -22,6 +22,10 @@ class StateMachine:
   _scheduled_state_angle = None  # Angle for scheduled state transition
   _allow_pillar_detection = True
 
+  take_picture = False
+  distance_take_picture = 0.0
+  _took_picture = False
+
   next_pillar = None
   first_line_found = None
 
@@ -97,7 +101,7 @@ class StateMachine:
           self.transitionState("UNPARKING-2")
           return True
       if self.current_state == "UNPARKING-2":
-        if abs(self.diff_angle) > 75:
+        if abs(self.diff_angle) > 65:
           self.transitionState("UNPARKING-3")
           return True
       if self.current_state == "UNPARKING-3":
@@ -105,7 +109,7 @@ class StateMachine:
           self.transitionState("UNPARKING-4")
           return True
       if self.current_state == "UNPARKING-4":
-        if abs(diff_angle) > 90:
+        if abs(diff_angle) > 80:
           self.transitionState("PD-CENTER") # todo have to ignore markers of the parking lot
           return True
       
@@ -156,6 +160,12 @@ class StateMachine:
     TURNING_ANGLE = 85.0  # Angle threshold for turning
     if self.current_state in ["TURNING-REVERSE-L", "TURNING-REVERSE-R"]:
       if abs(self.diff_angle) > TURNING_ANGLE:
+        self.transitionState("REVERSE-EXTRA")
+        return True
+      return False
+    
+    if self.current_state == "REVERSE-EXTRA":
+      if self.diff_distance < -100:
         self.transitionState("PD-CENTER")
         return True
       return False
@@ -163,10 +173,16 @@ class StateMachine:
     # Handle turn markers
     MIN_PORTION = 0.15
     EXTRA_DISTANCE = 600.0  # Extra distance to move before reversing
+    EXTRA_DISTANCE_PICTURE = 200.0  # Extra distance to move before taking a picture
     if portion_blue > MIN_PORTION:
       if self.current_state != "TURNING-REVERSE-R" and self.round_dir < 0 and self._scheduled_state is None:
         self.turns_left -= 1
+        self._took_picture = False
         self.scheduleStateTransition("TURNING-REVERSE-L", "distance", EXTRA_DISTANCE)  # Turn left in 100 mm
+      elif self.round_dir > 0 and self._scheduled_state is None and not self._took_picture:
+        self.take_picture = True
+        self._took_picture = True
+        self.distance_take_picture = self.total_distance + EXTRA_DISTANCE_PICTURE
       elif "UNPARKING" not in self.current_state and self.current_state != "PD-CENTER":
         self.transitionState("PD-CENTER")
       else:
@@ -176,7 +192,12 @@ class StateMachine:
     if portion_orange > MIN_PORTION:
       if self.current_state != "TURNING-REVERSE-L" and self.round_dir > 0 and self._scheduled_state is None:
         self.turns_left -= 1
+        self._took_picture = False
         self.scheduleStateTransition("TURNING-REVERSE-R", "distance", EXTRA_DISTANCE)  # Turn right in 100 mm
+      elif self.round_dir < 0 and self._scheduled_state is None and not self._took_picture:
+        self.take_picture = True
+        self._took_picture = True
+        self.distance_take_picture = self.total_distance + EXTRA_DISTANCE_PICTURE
       elif "UNPARKING" not in self.current_state and self.current_state != "PD-CENTER":
         self.transitionState("PD-CENTER")
       else:

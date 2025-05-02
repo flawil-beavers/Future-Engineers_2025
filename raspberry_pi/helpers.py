@@ -40,3 +40,19 @@ def print_past_time(message: str):
   current_time = time()
   print(f"{(current_time - last_time):.3f}: {message}")
   last_time = current_time
+  
+class Straight_Section:
+  """
+  Class to represent a straight section of the field.
+  """
+  def __init__(self, index: int):
+    self.index = index
+    self.r = [0, 0, 0]
+    self.l = [0, 0, 0]
+    self.parking_lot = False
+
+  def print(self):
+    print(f"Straight section {self.index}:")
+    print(f"    l,    r")
+    for i in range(2, -1, -1):
+      print(f"{i}: {self.l[i]}, {self.r[i]}")

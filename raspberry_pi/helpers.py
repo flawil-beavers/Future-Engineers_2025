@@ -50,9 +50,31 @@ class Straight_Section:
     self.r = [0, 0, 0]
     self.l = [0, 0, 0]
     self.parking_lot = False
+    self.driving_pos = [0, 0]
 
   def print(self):
     print(f"Straight section {self.index}:")
     print(f"    l,    r")
     for i in range(2, -1, -1):
       print(f"{i}: {self.l[i]}, {self.r[i]}")
+    print(f"driving_pos: {self.driving_pos}")
+      
+  def calculate_driving_pos(self) -> list: 
+    """
+    Calculate the driving position of the robot in the straight section.
+    """
+    pillars = [0, 0, 0]
+    for i in range(3):
+      if self.l[i] != 0:
+        pillars[i] = self.l[i]
+      elif self.r[i] != 0:
+        pillars[i] = self.r[i]
+    if pillars[0] != 0 and pillars[2] != 0 and pillars[0] != pillars[2]:
+      self.driving_pos = [pillars[0], pillars[2]]
+    else:
+      for i in pillars:
+        if i != 0:
+          self.driving_pos = [i, i]
+          break      
+    return self.driving_pos
+  

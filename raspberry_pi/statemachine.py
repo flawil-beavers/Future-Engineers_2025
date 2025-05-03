@@ -14,6 +14,7 @@ class StateMachine:
   last_state_angle = 0.0  # Angle at the last state transition
   total_angle = 0.0  # Total angle turned
   diff_angle = 0.0  # Difference in angle for state transition
+  diff_angle_0 = None  # Difference angle at the beginning of just driving straight
   
   search_for_dir = True
 
@@ -25,6 +26,8 @@ class StateMachine:
   take_picture = False
   distance_take_picture = 0.0
   _took_picture = False
+  
+  pillar_driving_pos = [0, 0]  # todo Driving position of the pillar
 
   next_pillar = None
   first_line_found = None
@@ -123,42 +126,64 @@ class StateMachine:
     HOLD_STATES = ["PD-CENTER"]
     if self.current_state in HOLD_STATES and diff_distance < 100.0:  # Hold for 100 mm
       return False
+    
+    # Handle pillar avoidance after determining their position
+    if self.current_state == "PD-CENTER" and self.pillar_driving_pos[0] != 0 and self.pillar_driving_pos[1] != 0:
+      if self.pillar_driving_pos[0] == "RED":
+        self.transitionState("AVOID-R-1")
+        return True
+      elif self.pillar_driving_pos[0] == "GREEN":
+        self.transitionState("AVOID-L-1")
+        return True
+    
+    # Handle side changing if pillars are not the same in front and back
+    if self.current_state in ["AVOID-L-1", "AVOID-R-1"] and self.pillar_driving_pos[0] != 0 and self.pillar_driving_pos[1] != 0 and self.diff_distance > 200:
+      if self.pillar_driving_pos[0] != self.pillar_driving_pos[1]:
+        if self.current_state == "AVOID-R-1":
+          self.transitionState("AVOID-L-2")
+          return True
+        elif self.current_state == "AVOID-L-1":
+          self.transitionState("AVOID-R-2")
+          return True
+        
+    # TODO: Check how turns are detected
   
-    # Handle pillar tracking and avoidance
-    if len(pillars) > 0 and self.isPillarRound and self._allow_pillar_detection:
-      next_pillar = pillars[0]
-      if self.current_state == "PD-CENTER":
-        self.next_pillar = next_pillar
-        if next_pillar.height * next_pillar.width > 190 and not next_pillar.ignore:
-          self.transitionState("TRACKING-PILLAR")
-          return True
-      elif self.current_state == "TRACKING-PILLAR":
-        if next_pillar.height * next_pillar.width > 900 or next_pillar.y >= 180: # todo: check when last time pillar was avoided
-          self.transitionState(f"AVOIDING-{'R' if next_pillar.color == 'RED' else 'G'}-1")
-          print(f"transitioning reason area: {next_pillar.height * next_pillar.width > 530} or y: {next_pillar.y >= 200}")
-          self.next_pillar = None
-          return True
+    # # Handle pillar tracking and avoidance
+    # if len(pillars) > 0 and self.isPillarRound and self._allow_pillar_detection:
+    #   next_pillar = pillars[0]
+    #   if self.current_state == "PD-CENTER":
+    #     self.next_pillar = next_pillar
+    #     if next_pillar.height * next_pillar.width > 190 and not next_pillar.ignore:
+    #       self.transitionState("TRACKING-PILLAR")
+    #       return True
+    #   elif self.current_state == "TRACKING-PILLAR":
+    #     if next_pillar.height * next_pillar.width > 900 or next_pillar.y >= 180: # todo: check when last time pillar was avoided
+    #       self.transitionState(f"AVOIDING-{'R' if next_pillar.color == 'RED' else 'G'}-1")
+    #       print(f"transitioning reason area: {next_pillar.height * next_pillar.width > 530} or y: {next_pillar.y >= 200}")
+    #       self.next_pillar = None
+    #       return True
 
-    # Handle lost pillar
-    if self.current_state == "TRACKING-PILLAR" and len(pillars) == 0:
-      print("Lost the pillar, tracking aborted")
-      self.transitionState("PD-CENTER")
-      return True
+    # # Handle lost pillar
+    # if self.current_state == "TRACKING-PILLAR" and len(pillars) == 0:
+    #   print("Lost the pillar, tracking aborted")
+    #   self.transitionState("PD-CENTER")
+    #   return True
 
-    # Handle avoiding states
-    if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1", "AVOIDING-R-2", "AVOIDING-G-2"]:
-      if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
-        if abs(diff_angle) > 35:
-          self.transitionState(self.current_state.replace("-1", "-2"))
-          return True
-      elif self.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
-        if abs(diff_angle) < 5:
-          self.transitionState("PD-CENTER")
-          return True
+    # # Handle avoiding states
+    # if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1", "AVOIDING-R-2", "AVOIDING-G-2"]:
+    #   if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
+    #     if abs(diff_angle) > 35:
+    #       self.transitionState(self.current_state.replace("-1", "-2"))
+    #       return True
+    #   elif self.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
+    #     if abs(diff_angle) < 5:
+    #       self.transitionState("PD-CENTER")
+    #       return True
 
     # Handle turning states
     TURNING_ANGLE = 85.0  # Angle threshold for turning
     if self.current_state in ["TURNING-REVERSE-L", "TURNING-REVERSE-R"]:
+      self.diff_angle_0 = None
       if abs(self.diff_angle) > TURNING_ANGLE:
         self.transitionState("REVERSE-EXTRA")
         return True
@@ -178,6 +203,9 @@ class StateMachine:
       if self.current_state != "TURNING-REVERSE-R" and self.round_dir < 0 and self._scheduled_state is None:
         self.turns_left -= 1
         self._took_picture = False
+        self.pillar_driving_pos = [0, 0]
+        if "AVOID" in self.current_state:
+          self.transitionState("PD-CENTER")
         self.scheduleStateTransition("TURNING-REVERSE-L", "distance", EXTRA_DISTANCE)  # Turn left in 100 mm
       elif self.round_dir > 0 and self._scheduled_state is None and not self._took_picture:
         self.take_picture = True
@@ -193,6 +221,9 @@ class StateMachine:
       if self.current_state != "TURNING-REVERSE-L" and self.round_dir > 0 and self._scheduled_state is None:
         self.turns_left -= 1
         self._took_picture = False
+        self.pillar_driving_pos = [0, 0]
+        if "AVOID-" in self.current_state:
+          self.transitionState("PD-CENTER")
         self.scheduleStateTransition("TURNING-REVERSE-R", "distance", EXTRA_DISTANCE)  # Turn right in 100 mm
       elif self.round_dir < 0 and self._scheduled_state is None and not self._took_picture:
         self.take_picture = True

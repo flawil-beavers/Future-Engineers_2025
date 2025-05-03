@@ -180,6 +180,7 @@ def cycle():
     
 
   REF_PORTION = 0.45 if not sm.isPillarRound else 0.30
+  REF_PORTION_SIDE = 0.8
 
   # error value
   error = 0.0
@@ -200,8 +201,15 @@ def cycle():
   if sm.current_state in PD_STATES and sm.round_dir == 1:
     error = portion_black_l - REF_PORTION
 
+  if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
+    # follow the left wall, if we're going counter-clockwise
+    error = REF_PORTION_SIDE - portion_black_r
+  
+  if ("AVOID-R" in sm.current_state and sm.round_dir == 1) or ("AVOID-L" in sm.current_state and sm.round_dir == -1):
+    # follow the right wall, if we're going clockwise
+    error = portion_black_l - REF_PORTION_SIDE
 
-  correction = error * kp + (error - last_error) * kd
+  # todo watch out when too near to the short wall and watch out when short wall ends
 
   # ignore PD control if wall is too close to the front of the car
   if sm.current_state == "PD-CENTER" and sm._scheduled_state is not None and "TURNING" in sm._scheduled_state:
@@ -211,8 +219,13 @@ def cycle():
       if not headless:
         cv2.rectangle(viz, (640//2-30, 35), (640//2+30, 40), (255, 0, 0), 3)
       # if the top region-of-interest is black, we stop PD control and just drive straight
-      correction = 0.0
+      if sm.diff_angle_0 == None:
+        sm.diff_angle_0 = sm.diff_angle
+      error = (sm.diff_angle_0 - sm.diff_angle) / 50.0
       sm._allow_pillar_detection = False # stop detecting pillars from now on
+
+  correction = error * kp + (error - last_error) * kd
+
 
   driving_speed = speed
   
@@ -323,10 +336,12 @@ def cycle():
       cv2.putText(viz, f"{p.color} {int(p.width)}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     straight_sections[section_index].parking_lot = False
-    straight_sections[section_index].print()
-    cv2.imwrite(f"image{section_index}.jpg", color_image)
-    cv2.imwrite(f"image_viz{section_index}.jpg", viz)
+    cv2.imwrite(f"logs/image{section_index}.jpg", color_image)
+    cv2.imwrite(f"logs/image_viz{section_index}.jpg", viz)
     print("Image saved")
+    sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+    straight_sections[section_index].print()
+    
 
   last_error = error
   # print_past_time("finished cycle") # 50 ms

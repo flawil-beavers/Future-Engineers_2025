@@ -116,7 +116,7 @@ For driving, we employ a PD-Controller. The input is derived from the black port
 
 Using a small region of interest in the center of the camera feed, we detect the blue and orange lines on the game mat. The color image is converted to HSV for this purpose. Upon encountering such a line, depending on its color, we initiate a turn and decrement the remaining corners counter, allowing us to accurately stop at the end of the round.
 
-![Wall Detection](/media/walls.jpg)
+![Wall Detection](<black wall detection.png>)
 
 The red outlines show the region of interest used for wall detection.
 
@@ -129,19 +129,22 @@ In addition to extracting a black-and-white image, we convert the cropped color 
 
 When handling the HSV color space, special care is needed for colors near the red hue due to the wrap-around effect. The hue value for red is around 0° and 360°, meaning it wraps around the HSV color wheel. To accurately detect red, we create two separate masks: one for the lower range (e.g., 0° to 10°) and another for the upper range (e.g., 350° to 360°). These masks are then combined to form a single mask that accurately captures all red hues. This approach ensures that all shades of red are detected, avoiding issues caused by the hue value wrapping around the color wheel.
 
-![Wall Detection](/media/pillars.jpg)
+![Wall Detection](<detecting pillars.jpg>)
 
 In the image above you can see the robot detecting the red and green pillars. After processing the image, the program returns a list of found pillars, sorted by their distance to the robot. The robot then drives towards the closest pillar, until it is close enough to the pillar to avoid it. The robot then drives around the pillar and continues to the next one. You can also see the center ROI used for detecting turn marking lines.
 
 
-![Behavior Tree](/media/behaviors.jpeg)
-
+![Behavior Tree](Statemaschine.jpg)
 
 ---
 
 ## Own platform for streams
 We created our own HTML file to display the camera image. This is used to send three streams constantly to our connected device in preparation mode. During the competition, we disable the communication so that the raspberry can use all its computational resources for the run. Using the streams limits the performance of the robot as much time of the loop is spent on sending the streams. Therefore, we disable it.
 With our HTML file, we can also read out the color values of the environment and send these changes directly to the robot. We can change the different streams via websocket and thus dis-play images with different filters on them.
+
+
+| ![Stream 1](<Stream 1.png>) | ![Stream 2](<Stream 2.png>) |
+|-----------------------------|-----------------------------|
 
 
 ---

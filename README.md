@@ -43,6 +43,7 @@ We have designed and printed additional parts for the remaining electronics. The
 ![3D objekt 2](<Screenshot 2025-05-03 163730.png>)
 
 The battery is mounted as low as possible again to keep the centre of gravity as low as possible. We used a magnet mount to ensure that we can change the battery easily.
+
 ---
 
 ## Power and Sense Management
@@ -92,6 +93,8 @@ We are now also working with a gyro sensor that monitors the robot's movements, 
 | A Few      | LEGO Technic Bricks                                                       | -               |
 | 4          | LEGO Technic Wheels                                                       | -               |
 | **TOTAL**  |                                                                             | **258.17**      |
+
+All files for the 3D printed parts can be found in the 3D-Printed-Parts folder on GitHub. All parts can be printed without supports at 0.2mm layer height. We recommend using PET-G or nGen for the parts (PLA can also be used). The wiring diagram can be found in the Wiring Diagram file. The instructions for the LEGO chassis can be found in the stud.io file.
 
 ---
 
@@ -143,7 +146,43 @@ With our HTML file, we can also read out the color values of the environment and
 
 ## Enabling Reproducibility
 
-(Add reproducibility details here)
+To enable the reproduction of our robot, we provide the following installation instructions:
+
+1. Install rapsberry pi os on your raspberry pi using the [official guide](https://www.raspberrypi.org/documentation/installation/installing-images/README.md) While the os is installing, you can falsh the arduino code to the arduino nano. The arduino code can be found in the [arduino](/arduino/OutputProxy) folder. The code can be uploaded using platformIO.
+2. After booting up the raspberry pi, connect via ssh, and install the following packages:
+
+```bash
+sudo apt-get update
+sudo apt-get install python3-opencv python3-websockets python3-numpy python3-pyserial
+```
+
+3. Enable the camera using `sudo raspi-config` and reboot the raspberry pi for the changes to take effect. Install the corresponding python module:
+
+```bash
+sudo apt-get installpython3-picamera2
+```
+
+4. Clone the repository and run the main script:
+
+```bash
+git clone https://github.com/robofactory-ch/flawfactory-future-engineers-brescia.git
+```
+
+5. Running the robot in dev mode
+
+Check in the config file, if the correct usb port is set for the arduino. Check the correct port with `ls /dev/tty*` and look for the port that is connected to the arduino. Change the port in the config file to the correct port.
+
+Make sure pillars are enabled/disabled in the config file, and that no fixed round direction is set.
+
+Navigate to the `raspy` directory and run the main script:
+
+```bash
+cd flawfactory-future-engineers-brescia/raspy
+python3 roi.py
+```
+
+To launch the robot, open the web interface in your browser and start the robot by clicking the connect button. The robot will now start driving autonomously. To stop the robot, you can close the web interface, press the stop button on the robot or press `ctrl+c` in the ssh session.
+
 
 
 

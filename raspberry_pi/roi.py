@@ -129,6 +129,35 @@ def cycle():
   portion_black_l = cv2.countNonZero(roi_left) / (roi_left.shape[0] * roi_left.shape[1])
   portion_black_r = cv2.countNonZero(roi_right) / (roi_right.shape[0] * roi_right.shape[1])
 
+  roi_lines = {"L": [], "R": []}
+  for image, key in zip([roi_left, roi_right], ["L", "R"]):
+    # remove the 5 uppest rows from the image just in case the robot sees over the barriers
+    image = image[5:, :]
+    blurredImg = cv2.GaussianBlur(image, (3, 3), 0)
+    lower = 30
+    upper = 90
+    edges_img = cv2.Canny(blurredImg, lower, upper, 3)
+    lines = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=50, maxLineGap=50)
+    if lines is not None:
+      lines = sorted(lines, key=lambda line: ((line[0][2] - line[0][0])**2 + (line[0][3] - line[0][1])**2)**0.5, reverse=True)
+      roi_lines[key].extend(lines)
+      i = 200
+      for line in lines:
+        x1, y1, x2, y2 = line[0]
+        y1 += 5
+        y2 += 5
+        if key == "R":
+          x1 += 640 - roi_width
+          x2 += 640 - roi_width
+        line[0] = (x1, y1, x2, y2)
+        # draw each line with a different color
+        if not headless:
+          color = (i, 100, 0)
+          i *= 0.6
+          cv2.line(viz, (x1, y1), (x2, y2), color, 2)
+          cv2.putText(viz, f"{x1} {y1} {x2} {y2}", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+
   # print("err:", portion_black_l-portion_black_r,"left: ", portion_black_l, "right: ", portion_black_r)
 
   # filter out the red and green colors of the pillars and walls

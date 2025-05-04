@@ -52,6 +52,21 @@ class Pipeline:
     lower = 30
     upper = 90
     blackimg = cv2.inRange(blurredImg, 0, grayThresh)
+    
+    # orangeMin = tuple(self.configloader.get_property("filters")['ORANGELO'])
+    # orangeMax = tuple(self.configloader.get_property("filters")['ORANGEHI'])
+    blueMin = tuple(self.configloader.get_property("filters")['BLUELO'])
+    blueMax = tuple(self.configloader.get_property("filters")['BLUEHI'])
+    # orange filter
+    # oMask = cv2.inRange(hsv, orangeMin, orangeMax)
+    # blue filter
+    bMask = cv2.inRange(hsv, blueMin, blueMax)
+    # blur images to remove noise
+    # blurredO = cv2.medianBlur(oMask, 5)
+    blurredB = cv2.medianBlur(bMask, 5)
+    # subtract blue image from black image and save black image
+    blackimg = cv2.subtract(blackimg, blurredB)
+    
     # edgesImg = cv2.Canny(blackimg, lower, upper, 3)
     # combine images
     # return [edgesImg, blurredG, blurredR, blackimg]

@@ -161,8 +161,18 @@ def cycle():
           cv2.line(viz, (x1, y1), (x2, y2), color, 2)
           cv2.putText(viz, f"{x1} {y1} {x2} {y2}", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
           if i == 0.6 * 200:
-            cv2.putText(viz, f"y={(y2-y1)/(x2-x1):.2f}x+{y1 - (y2-y1)/(x2-x1)*x1:.2f}", (x1, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            if x2 != x1:
+              cv2.putText(viz, f"y={(y2-y1)/(x2-x1):.2f}x+{y1 - (y2-y1)/(x2-x1)*x1:.2f}", (x1, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
+  roi_front_width = 10
+  roi_front = extract_ROI(rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
+  portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
+  sm.distance_front = portion_black_front
+  if not headless:
+    cv2.rectangle(viz, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
+    cv2.putText(viz, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    # cv2.putText(viz, f"left: {portion_black_l:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    # cv2.putText(viz, f"right: {portion_black_r:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
   # print("err:", portion_black_l-portion_black_r,"left: ", portion_black_l, "right: ", portion_black_r)
 
@@ -199,6 +209,8 @@ def cycle():
   # This checks if the car should transition to a new state, and if so, transitions
   # states may be PD-CENTER, PD-RIGHT, PD-LEFT, TURNING-L, TURNING-R, etc.
   if not calibrate:
+    # sm.transitionState("PD-CENTER-2")
+    # sm.round_dir = 1 # direction = 1 for clockwise, -1 for counter-clockwise
     transition_res = sm.shouldTransitionState(portion_orange, portion_blue, pillars)
     if transition_res:
       print(f"Transitioning to {sm.current_state}")
@@ -240,10 +252,13 @@ def cycle():
   if ("AVOID-L" in sm.current_state and sm.round_dir == -1) or ("AVOID-R" in sm.current_state and sm.round_dir == 1):
     # follow the inner wall
     side = "INNER"
-    side += sm.current_state[-2:]
+    side += "-L" if sm.round_dir == -1 else "-R"
   elif ("AVOID-L" in sm.current_state and sm.round_dir == 1) or ("AVOID-R" in sm.current_state and sm.round_dir == -1):
     side = "OUTER"
-    side += sm.current_state[-2:]
+    side += "-L" if sm.round_dir == 1 else "-R"
+  elif sm.current_state == "PD-CENTER-2":
+    side = "MIDDLE"
+    side += "-L" if sm.round_dir == 1 else "-R"
   # if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
   #   # follow the left wall, if we're going counter-clockwise
   #   side += "-R"
@@ -301,7 +316,17 @@ def cycle():
               error = 0
             else:
               error = (intercept - 150) / 250
-          
+        elif "MIDDLE" in side:
+          if sm.round_dir == -1:
+            if slope < 0.05:
+              error = 0
+            else:
+              error = (60 - intercept) / 150
+          else:
+            if slope > -0.05:
+              error = 0
+            else:
+              error = (intercept - 60) / 150
           # error = (slope * 320 + intercept) / 640.0
     else: # todo remove
       # if there are no lines in the image, we should follow the wall
@@ -321,17 +346,17 @@ def cycle():
   # todo watch out when too near to the short wall and watch out when short wall ends
 
   # ignore PD control if wall is too close to the front of the car
-  if sm.current_state == "PD-CENTER" and sm._scheduled_state is not None and "TURNING" in sm._scheduled_state:
-    roi_top = extract_ROI(rgbl["black"], [640//2-30, 35], [640//2+30, 40])
-    portion_black_top  = cv2.countNonZero(roi_top) / (roi_top.shape[0] * roi_top.shape[1])
-    if portion_black_top > 0.5:
-      if not headless:
-        cv2.rectangle(viz, (640//2-30, 35), (640//2+30, 40), (255, 0, 0), 3)
-      # if the top region-of-interest is black, we stop PD control and just drive straight
-      if sm.diff_angle_0 == None:
-        sm.diff_angle_0 = sm.diff_angle
-      error = (sm.diff_angle_0 - sm.diff_angle) / 50.0
-      sm._allow_pillar_detection = False # stop detecting pillars from now on
+  # if sm.current_state == "PD-CENTER" and sm._scheduled_state is not None and "TURNING" in sm._scheduled_state:
+  #   roi_top = extract_ROI(rgbl["black"], [640//2-30, 35], [640//2+30, 40])
+  #   portion_black_top  = cv2.countNonZero(roi_top) / (roi_top.shape[0] * roi_top.shape[1])
+  #   if portion_black_top > 0.5:
+  #     if not headless:
+  #       cv2.rectangle(viz, (640//2-30, 35), (640//2+30, 40), (255, 0, 0), 3)
+  #     # if the top region-of-interest is black, we stop PD control and just drive straight
+  #     if sm.diff_angle_0 == None:
+  #       sm.diff_angle_0 = sm.diff_angle
+  #     error = (sm.diff_angle_0 - sm.diff_angle) / 50.0
+  #     sm._allow_pillar_detection = False # stop detecting pillars from now on    
 
   correction = error * kp + (error - last_error) * kd
 
@@ -431,18 +456,18 @@ def cycle():
     for p in pillars:
       if p.ignore:
         continue
-      if p.y > 100:
+      if p.y > 50:
         index = 0
-      elif p.y > 32:
+      elif p.y > 30:
         index = 1
-      else:
+      elif p.y > 18:
         index = 2
       if p.screen_x < 320:
         straight_sections[section_index].l[index] = p.color
       else:
         straight_sections[section_index].r[index] = p.color
       cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
-      cv2.putText(viz, f"{p.color} {int(p.width)}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+      cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     straight_sections[section_index].parking_lot = False
     cv2.imwrite(f"logs/image{section_index}.jpg", color_image)

@@ -123,14 +123,18 @@ def cycle():
 
   # l and r ROIs used for PD control, to keep the car in the middle of the track and away from walls
   roi_width = 100
-  roi_left = extract_ROI(rgbl["black"], [0, 0], [roi_width, 150])
-  roi_right = extract_ROI(rgbl["black"], [640-roi_width, 0], [640, 150])
+  roi_height = 150
+  roi_left_side = extract_ROI(rgbl["black"], [0, 0], [roi_width, rgbl["black"].shape[0]])
+  roi_right_side = extract_ROI(rgbl["black"], [640-roi_width, 0], [640, rgbl["black"].shape[0]])
+  
+  roi_left = extract_ROI(roi_left_side, [0, 0], [roi_width, roi_height])
+  roi_right = extract_ROI(roi_right_side, [0, 0], [roi_width, roi_height])
 
   portion_black_l = cv2.countNonZero(roi_left) / (roi_left.shape[0] * roi_left.shape[1])
   portion_black_r = cv2.countNonZero(roi_right) / (roi_right.shape[0] * roi_right.shape[1])
 
   roi_lines = {"L": [], "R": []}
-  for image, key in zip([roi_left, roi_right], ["L", "R"]):
+  for image, key in zip([roi_left_side, roi_right_side], ["L", "R"]):
     # remove the 5 uppest rows from the image just in case the robot sees over the barriers
     image = image[5:, :]
     blurredImg = cv2.GaussianBlur(image, (3, 3), 0)
@@ -156,6 +160,8 @@ def cycle():
           i *= 0.6
           cv2.line(viz, (x1, y1), (x2, y2), color, 2)
           cv2.putText(viz, f"{x1} {y1} {x2} {y2}", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+          if i == 0.6 * 200:
+            cv2.putText(viz, f"y={(y2-y1)/(x2-x1):.2f}x+{y1 - (y2-y1)/(x2-x1)*x1:.2f}", (x1, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
 
   # print("err:", portion_black_l-portion_black_r,"left: ", portion_black_l, "right: ", portion_black_r)
@@ -229,14 +235,88 @@ def cycle():
   # follow the right wall, if we're going clockwise
   if sm.current_state in PD_STATES and sm.round_dir == 1:
     error = portion_black_l - REF_PORTION
-
-  if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
-    # follow the left wall, if we're going counter-clockwise
-    error = REF_PORTION_SIDE - portion_black_r
   
-  if ("AVOID-R" in sm.current_state and sm.round_dir == 1) or ("AVOID-L" in sm.current_state and sm.round_dir == -1):
-    # follow the right wall, if we're going clockwise
-    error = portion_black_l - REF_PORTION_SIDE
+  side = None
+  if ("AVOID-L" in sm.current_state and sm.round_dir == -1) or ("AVOID-R" in sm.current_state and sm.round_dir == 1):
+    # follow the inner wall
+    side = "INNER"
+    side += sm.current_state[-2:]
+  elif ("AVOID-L" in sm.current_state and sm.round_dir == 1) or ("AVOID-R" in sm.current_state and sm.round_dir == -1):
+    side = "OUTER"
+    side += sm.current_state[-2:]
+  # if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
+  #   # follow the left wall, if we're going counter-clockwise
+  #   side += "-R"
+  #   error = REF_PORTION_SIDE - portion_black_r
+  # elif ("AVOID-R" in sm.current_state and sm.round_dir == 1) or ("AVOID-L" in sm.current_state and sm.round_dir == -1):
+  #   # follow the right wall, if we're going clockwise
+  #   side += "-L"
+  #   error = portion_black_l - REF_PORTION_SIDE
+  
+  
+  if side != None:
+    if sm.round_dir == -1 and portion_black_r > 0.99:
+      # if the right side is black, we should follow the left wall
+      error = REF_PORTION - portion_black_r
+    elif sm.round_dir == 1 and portion_black_l > 0.99:
+      # if the left side is black, we should follow the right wall
+      error = portion_black_l - REF_PORTION
+    elif roi_lines[side[-1]].__len__() > 0:
+      # if there are lines in the image, we should follow them      
+      # this is a bit of a hack, but it works
+      line = roi_lines[side[-1]][0][0]
+      x1, y1, x2, y2 = line
+      if "-R" in side:
+        x1 -= 640 - roi_width
+        x2 -= 640 - roi_width
+      # calculate the slope and intercept of the line
+      if x1 == x2:
+        # vertical line
+        error = 0.0
+      else:
+        slope = (y2 - y1) / (x2 - x1)
+        intercept = y1 - slope * x1
+        # todo watch out of the first inner pillar
+        # calculate the error based on the slope and intercept
+        # error = (slope - 0.5) + intercept - 160
+        if "INNER" in side:
+          if sm.round_dir == -1:
+            if slope > -0.02:
+              error = 0
+            else:
+              error = (intercept - 160) / 250
+          else:
+            if slope < 0.02:
+              error = 0
+            else:
+              error = (160 - intercept) / 250
+        elif "OUTER" in side:
+          if sm.round_dir == -1:
+            if slope < 0.05:
+              error = 0
+            else:
+              error = (150 - intercept) / 250
+          else:
+            if slope > -0.05:
+              error = 0
+            else:
+              error = (intercept - 150) / 250
+          
+          # error = (slope * 320 + intercept) / 640.0
+    else: # todo remove
+      # if there are no lines in the image, we should follow the wall
+      if "R" in side:
+        error = REF_PORTION_SIDE - portion_black_r
+      else:
+        error = portion_black_l - REF_PORTION_SIDE
+
+  # if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
+  #   # follow the left wall, if we're going counter-clockwise
+  #   error = REF_PORTION_SIDE - portion_black_r
+  
+  # if ("AVOID-R" in sm.current_state and sm.round_dir == 1) or ("AVOID-L" in sm.current_state and sm.round_dir == -1):
+  #   # follow the right wall, if we're going clockwise
+  #   error = portion_black_l - REF_PORTION_SIDE
 
   # todo watch out when too near to the short wall and watch out when short wall ends
 

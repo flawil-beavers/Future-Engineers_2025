@@ -163,6 +163,7 @@ With our HTML file, we can also read out the color values of the environment and
 ## Videos
 <!-- The performance videos must demonstrate the performance of the vehicle from start to finish for each challenge. The videos could include an overlay of commentary, titles or animations. The video could also include aspects of section 1, 2 or 3 -->
 
+[![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Watch_Video-df3e3e?logo=youtube)](https://youtu.be/BgnNJaQTD8U)
 [![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Watch_Video-df3e3e?logo=youtube)](https://youtu.be/AOWf1q8zvfM)
 
 ---

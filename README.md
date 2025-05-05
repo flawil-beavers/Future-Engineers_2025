@@ -4,6 +4,7 @@
 
 ![Flawil Beavers Logo](media/flawil_beavers_logo.png)
 
+[![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Watch_Video-df3e3e?logo=youtube)](https://youtu.be/BgnNJaQTD8U)
 [![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Watch_Video-df3e3e?logo=youtube)](https://youtu.be/AOWf1q8zvfM)
 
 **This is the GitHub repository for team Flawil Beavers for WRO 2025. You'll find our documentation in this README.**

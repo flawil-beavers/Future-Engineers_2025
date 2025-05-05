@@ -175,7 +175,7 @@ With our HTML file, we can also read out the color values of the environment and
 
 To enable the reproduction of our robot, we provide the following installation instructions:
 
-1. Install rapsberry pi os on your raspberry pi using the [official guide](https://www.raspberrypi.org/documentation/installation/installing-images/README.md) While the os is installing, you can falsh the arduino code to the arduino nano. The arduino code can be found in the [arduino](/arduino/OutputProxy) folder. The code can be uploaded using platformIO.
+1. Install rapsberry pi os on your raspberry pi using the [official guide](https://www.raspberrypi.org/documentation/installation/installing-images/README.md) While the os is installing, you can falsh the arduino code to the arduino nano. The arduino code can be found in the [src](/src) folder. The code can be uploaded using platformIO.
 2. After booting up the raspberry pi, connect via ssh, and install the following packages:
 
 ```bash
@@ -186,13 +186,13 @@ sudo apt-get install python3-opencv python3-websockets python3-numpy python3-pys
 3. Enable the camera using `sudo raspi-config` and reboot the raspberry pi for the changes to take effect. Install the corresponding python module:
 
 ```bash
-sudo apt-get installpython3-picamera2
+sudo apt-get install python3-picamera2
 ```
 
 4. Clone the repository and run the main script:
 
 ```bash
-git clone https://github.com/robofactory-ch/flawfactory-future-engineers-brescia.git
+git clone https://github.com/flawil-beavers/Future-Engineers_2025.git
 ```
 
 5. Running the robot in dev mode
@@ -201,10 +201,10 @@ Check in the config file, if the correct usb port is set for the arduino. Check 
 
 Make sure pillars are enabled/disabled in the config file, and that no fixed round direction is set.
 
-Navigate to the `raspy` directory and run the main script:
+Navigate to the `raspberry_pi` directory and run the main script:
 
 ```bash
-cd flawfactory-future-engineers-brescia/raspy
+cd Future-Engineers_2025/raspberry_pi
 python3 roi.py
 ```
 

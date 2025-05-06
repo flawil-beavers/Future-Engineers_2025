@@ -295,7 +295,9 @@ def cycle():
         # calculate the error based on the slope and intercept
         # error = (slope - 0.5) + intercept - 160
         if "INNER" in side:
-          if sm.round_dir == -1:
+          if abs(sm.diff_angle) > 40:
+            error = 1 if sm.round_dir == -1 else -1
+          elif sm.round_dir == -1:
             if slope > -0.02:
               error = 0
             else:
@@ -321,12 +323,12 @@ def cycle():
             if slope < 0.05:
               error = 0
             else:
-              error = (60 - intercept) / 150
+              error = (45 - intercept) / 150
           else:
             if slope > -0.05:
               error = 0
             else:
-              error = (intercept - 60) / 150
+              error = (intercept - 45) / 150
           # error = (slope * 320 + intercept) / 640.0
     else: # todo remove
       # if there are no lines in the image, we should follow the wall

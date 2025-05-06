@@ -43,10 +43,12 @@ class StateMachine:
   def update_distance(self, distance: float):
     """Update the total distance traveled."""
     self.total_distance = distance
+    self.diff_distance = self.total_distance - self.last_state_distance
   
   def update_angle(self, angle: float):
     """Update the total angle turned."""
     self.total_angle = angle
+    self.diff_angle = self.total_angle - self.last_state_angle
 
   def transitionState(self, new_state: str):
     """Transition to a new state and reset the last state distance."""
@@ -67,11 +69,6 @@ class StateMachine:
 
   def shouldTransitionState(self, portion_orange: float, portion_blue: float, pillars: list[Pillar]):
     """Determine if the state should transition based on distance and other conditions."""
-    diff_distance = self.total_distance - self.last_state_distance
-    self.diff_distance = diff_distance
-    
-    diff_angle = self.total_angle - self.last_state_angle
-    self.diff_angle = diff_angle
 
     # Handle scheduled state transitions
     if self._scheduled_state is not None:
@@ -114,7 +111,7 @@ class StateMachine:
           self.transitionState("UNPARKING-4")
           return True
       if self.current_state == "UNPARKING-4":
-        if abs(diff_angle) > 80:
+        if abs(self.diff_angle) > 80:
           self.transitionState("PD-CENTER-2") # todo have to ignore markers of the parking lot
           return True
       

@@ -10,7 +10,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, bound
 from pipeline import Pipeline
 from statemachine import StateMachine
 from picamera2 import Picamera2
@@ -270,10 +270,10 @@ def cycle():
   
   
   if side != None:
-    if sm.round_dir == -1 and portion_black_r > 0.99:
+    if sm.round_dir == -1 and portion_black_r > 0.99 and "INNER" in side:
       # if the right side is black, we should follow the left wall
       error = REF_PORTION - portion_black_r
-    elif sm.round_dir == 1 and portion_black_l > 0.99:
+    elif sm.round_dir == 1 and portion_black_l > 0.99 and "INNER" in side:
       # if the left side is black, we should follow the right wall
       error = portion_black_l - REF_PORTION
     elif roi_lines[side[-1]].__len__() > 0:
@@ -295,40 +295,23 @@ def cycle():
         # calculate the error based on the slope and intercept
         # error = (slope - 0.5) + intercept - 160
         if "INNER" in side:
-          if abs(sm.diff_angle) > 40:
-            error = 1 if sm.round_dir == -1 else -1
-          elif sm.round_dir == -1:
-            if slope > -0.02:
-              error = 0
-            else:
-              error = (intercept - 160) / 250
+          if sm.round_dir == -1:
+            error = (intercept - 160) / 250
           else:
-            if slope < 0.02:
-              error = 0
-            else:
-              error = (160 - intercept) / 250
+            error = (160 - intercept) / 250
+          # increase the bounded error quadratically if the angle is too high
+          error = bound(error) + (sm.diff_angle / 80) ** 2 * -sm.round_dir
         elif "OUTER" in side:
           if sm.round_dir == -1:
-            if slope < 0.05:
-              error = 0
-            else:
-              error = (150 - intercept) / 250
+            error = (150 - intercept) / 250
           else:
-            if slope > -0.05:
-              error = 0
-            else:
-              error = (intercept - 150) / 250
+            error = (intercept - 150) / 250
+          error = bound(error) + (sm.diff_angle / 80) ** 2 * sm.round_dir
         elif "MIDDLE" in side:
           if sm.round_dir == -1:
-            if slope < 0.05:
-              error = 0
-            else:
-              error = (45 - intercept) / 150
+            error = (48 - intercept) / 150
           else:
-            if slope > -0.05:
-              error = 0
-            else:
-              error = (intercept - 45) / 150
+            error = (intercept - 48) / 150
           # error = (slope * 320 + intercept) / 640.0
     else: # todo remove
       # if there are no lines in the image, we should follow the wall
@@ -439,7 +422,7 @@ def cycle():
     cv2.putText(viz, f"State: {sm.current_state} {round(sm.diff_distance)} mm {round(sm.diff_angle, 1)} °", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"Errs: {round(portion_black_l-0.25, 2)} {round(portion_black_l-portion_black_r, 2)} {round(0.25-portion_black_r, 2)}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    cv2.putText(viz, f"Distance: {distance} mm, Angle: {angle}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"dffDistance: {sm.diff_distance} mm, dffAngle: {sm.diff_angle}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     for p in pillars:
       cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)

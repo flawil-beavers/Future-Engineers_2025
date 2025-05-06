@@ -22,6 +22,19 @@ class Pillar:
     self.color = color
     self.y = y
 
+def bound(value: float, min_value: float = -1, max_value: float = 1) -> float:
+  """
+  Bound the value to be within the min and max values.
+
+  Args:
+    value (float): The value to be bounded.
+    min_value (float, optional): The minimum value. Defaults to -1.
+    max_value (float, optional): The maximum value. Defaults to 1.
+
+  Returns:
+    float: The bounded value.
+  """
+  return max(min(value, max_value), min_value)
 
 def extract_ROI(image: np.ndarray, startxy: list, endxy: list) -> np.ndarray:
   """

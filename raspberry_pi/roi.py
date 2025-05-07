@@ -10,7 +10,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, bound
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound
 from pipeline import Pipeline
 from statemachine import StateMachine
 from picamera2 import Picamera2
@@ -141,28 +141,22 @@ def cycle():
     lower = 30
     upper = 90
     edges_img = cv2.Canny(blurredImg, lower, upper, 3)
-    lines = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=50, maxLineGap=50)
-    if lines is not None:
-      lines = sorted(lines, key=lambda line: ((line[0][2] - line[0][0])**2 + (line[0][3] - line[0][1])**2)**0.5, reverse=True)
-      roi_lines[key].extend(lines)
-      i = 200
-      for line in lines:
-        x1, y1, x2, y2 = line[0]
-        y1 += 5
-        y2 += 5
-        if key == "R":
-          x1 += 640 - roi_width
-          x2 += 640 - roi_width
-        line[0] = (x1, y1, x2, y2)
-        # draw each line with a different color
+    roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=50, maxLineGap=50)
+  border_lines = {"L": Lines(roi_lines["L"], (0, 5)), "R": Lines(roi_lines["R"], (640-roi_width, 5))}
+
+  for line_group in border_lines.values():
+    if line_group is not None:
+      b = 200
+      for line in line_group.lines:
         if not headless:
-          color = (i, 100, 0)
-          i *= 0.6
-          cv2.line(viz, (x1, y1), (x2, y2), color, 2)
-          cv2.putText(viz, f"{x1} {y1} {x2} {y2}", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-          if i == 0.6 * 200:
-            if x2 != x1:
-              cv2.putText(viz, f"y={(y2-y1)/(x2-x1):.2f}x+{y1 - (y2-y1)/(x2-x1)*x1:.2f}", (x1, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+          cv2.line(viz, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 
+                (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), (b, 100, 0), 2)
+          cv2.putText(viz, f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
+                (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+          if b == 200:
+            cv2.putText(viz, f"y={line['m']:.2f}x+{line['b']:.2f}", 
+                  (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+          b *= 0.6
 
   roi_front_width = 10
   roi_front = extract_ROI(rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
@@ -171,8 +165,10 @@ def cycle():
   if not headless:
     cv2.rectangle(viz, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
     cv2.putText(viz, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    # cv2.putText(viz, f"left: {portion_black_l:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    # cv2.putText(viz, f"right: {portion_black_r:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"{portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"{portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"o: {portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"b: {portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
   # print("err:", portion_black_l-portion_black_r,"left: ", portion_black_l, "right: ", portion_black_r)
 
@@ -276,24 +272,19 @@ def cycle():
     elif sm.round_dir == 1 and portion_black_l > 0.99 and "INNER" in side:
       # if the left side is black, we should follow the right wall
       error = portion_black_l - REF_PORTION
-    elif roi_lines[side[-1]].__len__() > 0:
+    elif len(border_lines[side[-1]].lines) > 0:
       # if there are lines in the image, we should follow them      
       # this is a bit of a hack, but it works
-      line = roi_lines[side[-1]][0][0]
-      x1, y1, x2, y2 = line
-      if "-R" in side:
-        x1 -= 640 - roi_width
-        x2 -= 640 - roi_width
+      line = border_lines[side[-1]].lines[0]
       # calculate the slope and intercept of the line
-      if x1 == x2:
+      if line["m"] == float('inf'):
         # vertical line
         error = 0.0
       else:
-        slope = (y2 - y1) / (x2 - x1)
-        intercept = y1 - slope * x1
+        slope = line["m"]
+        intercept = line["b"]
         # todo watch out of the first inner pillar
         # calculate the error based on the slope and intercept
-        # error = (slope - 0.5) + intercept - 160
         if "INNER" in side:
           if sm.round_dir == -1:
             error = (intercept - 160) / 250
@@ -312,7 +303,6 @@ def cycle():
             error = (48 - intercept) / 150
           else:
             error = (intercept - 48) / 150
-          # error = (slope * 320 + intercept) / 640.0
     else: # todo remove
       # if there are no lines in the image, we should follow the wall
       if "R" in side:

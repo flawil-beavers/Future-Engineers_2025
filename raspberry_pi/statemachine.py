@@ -56,7 +56,7 @@ class StateMachine:
 
   def determineSide(self):
     """Determine the side of the wall that the robot is following."""
-    if ("AVOID-L" in self.current_state and self.round_dir == -1) or ("AVOID-R" in self.current_state and self.round_dir == 1)
+    if ("AVOID-L" in self.current_state and self.round_dir == -1) or ("AVOID-R" in self.current_state and self.round_dir == 1):
       self.side = "INNER"
       self.side += "-L" if self.round_dir == -1 else "-R"
     elif ("AVOID-L" in self.current_state and self.round_dir == 1) or ("AVOID-R" in self.current_state and self.round_dir == -1):
@@ -143,18 +143,26 @@ class StateMachine:
 
     # Hold the current state for a minimum distance
     HOLD_STATES = ["PD-CENTER"]
-    if self.current_state in HOLD_STATES and diff_distance < 100.0:  # Hold for 100 mm
+    if self.current_state in HOLD_STATES and self.diff_distance < 100.0:  # Hold for 100 mm
       return False
     
     # Handle pillar avoidance after determining their position
     if self.current_state == "PD-CENTER" and self.pillar_driving_pos[0] != 0 and self.pillar_driving_pos[1] != 0:
       if self.pillar_driving_pos[0] == "RED":
-        self.transitionState("AVOID-R-1")
+        self.transitionState("TURN-R-1")
         return True
       elif self.pillar_driving_pos[0] == "GREEN":
-        self.transitionState("AVOID-L-1")
+        self.transitionState("TURN-L-1")
         return True
     
+    if "TURN-" in self.current_state and "-1" in self.current_state and abs(self.diff_angle) > 50:
+      self.transitionState(self.current_state.replace("-1", "-2"))
+      return True
+
+    if "TURN-" in self.current_state and "-2" in self.current_state and abs(self.diff_angle) > 50:
+      self.transitionState(self.current_state.replace("TURN-", "AVOID-"))
+      return True
+      
     # Handle side changing if pillars are not the same in front and back
     if self.current_state in ["AVOID-L-1", "AVOID-R-1"] and self.pillar_driving_pos[0] != 0 and self.pillar_driving_pos[1] != 0 and self.diff_distance > 550:
       if self.pillar_driving_pos[0] != self.pillar_driving_pos[1]:
@@ -174,7 +182,7 @@ class StateMachine:
       return True
         
     if self.current_state == "PD-CENTER-2":
-      if self.distance_front > 0.8 and self.diff_distance > 200:
+      if self.distance_front > 0.6 and self.diff_distance > 200:
         self._took_picture = False
         if self.round_dir > 0:
           self.transitionState("TURNING-REVERSE-R")

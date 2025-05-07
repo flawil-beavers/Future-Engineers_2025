@@ -358,6 +358,12 @@ def cycle():
     correction = 1
   if sm.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
     correction = -1
+  
+  if sm.current_state in ["TURN-R-1", "TURN-L-2"]:
+    correction = 1
+  elif sm.current_state in ["TURN-L-1", "TURN-R-2"]:
+    correction = -1
+  
   if "-G-" in sm.current_state:
     correction *= -1
     

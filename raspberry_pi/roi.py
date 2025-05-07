@@ -247,20 +247,8 @@ def cycle():
   if sm.current_state in PD_STATES and sm.round_dir == 1:
     error = portion_black_l - REF_PORTION
   
-  side = None
-  if ("AVOID-L" in sm.current_state and sm.round_dir == -1) or ("AVOID-R" in sm.current_state and sm.round_dir == 1):
-    # follow the inner wall
-    side = "INNER"
-    side += "-L" if sm.round_dir == -1 else "-R"
-  elif ("AVOID-L" in sm.current_state and sm.round_dir == 1) or ("AVOID-R" in sm.current_state and sm.round_dir == -1):
-    side = "OUTER"
-    side += "-L" if sm.round_dir == 1 else "-R"
-  elif sm.current_state == "PD-CENTER-2":
-    side = "MIDDLE"
-    side += "-L" if sm.round_dir == 1 else "-R"
-  
-  
-  if side != None:
+  if sm.side != None:
+    side = sm.side
     if sm.following_angle == True:
       error = -sm.diff_angle / 80
     elif sm.round_dir == -1 and portion_black_r > 0.99 and "INNER" in side:

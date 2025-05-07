@@ -22,6 +22,8 @@ class StateMachine:
   
   search_for_dir = True
 
+  side = None # Side of the wall that the robot is following
+
   _scheduled_state = None
   _scheduled_state_distance = None  # Distance for scheduled state transition
   _scheduled_state_angle = None  # Angle for scheduled state transition
@@ -52,12 +54,27 @@ class StateMachine:
     self.total_angle = angle
     self.diff_angle = self.total_angle - self.last_state_angle
 
+  def determineSide(self):
+    """Determine the side of the wall that the robot is following."""
+    if ("AVOID-L" in self.current_state and self.round_dir == -1) or ("AVOID-R" in self.current_state and self.round_dir == 1)
+      self.side = "INNER"
+      self.side += "-L" if self.round_dir == -1 else "-R"
+    elif ("AVOID-L" in self.current_state and self.round_dir == 1) or ("AVOID-R" in self.current_state and self.round_dir == -1):
+      self.side = "OUTER"
+      self.side += "-L" if self.round_dir == 1 else "-R"
+    elif self.current_state == "PD-CENTER-2":
+      self.side = "MIDDLE"
+      self.side += "-L" if self.round_dir == 1 else "-R"
+    else:
+      self.side = None
+
   def transitionState(self, new_state: str):
     """Transition to a new state and reset the last state distance."""
     self.current_state = new_state
     self.last_state_distance = self.total_distance
     self.last_state_angle = self.total_angle
     self.following_angle = False
+    self.determineSide()
     print(f"Transitioned to state: {new_state}, total distance: {self.total_distance}, total angle: {self.total_angle}")
 
   def scheduleStateTransition(self, new_state: str, method: str, diff: float):
@@ -69,7 +86,7 @@ class StateMachine:
       self._scheduled_state_angle = self.total_angle + diff
     else:
       raise ValueError("Invalid method for scheduling state transition. Use 'distance' or 'angle'.")
-
+    
   def shouldTransitionState(self, portion_orange: float, portion_blue: float, pillars: list[Pillar]):
     """Determine if the state should transition based on distance and other conditions."""
 

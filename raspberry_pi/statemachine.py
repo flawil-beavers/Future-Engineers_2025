@@ -16,6 +16,8 @@ class StateMachine:
   diff_angle = 0.0  # Difference in angle for state transition
   diff_angle_0 = None  # Difference angle at the beginning of just driving straight
   
+  following_angle = False  # True if the robot is following an angle
+  
   distance_front = 0.0  # Distance to the black wall in front of the robot
   
   search_for_dir = True
@@ -55,6 +57,7 @@ class StateMachine:
     self.current_state = new_state
     self.last_state_distance = self.total_distance
     self.last_state_angle = self.total_angle
+    self.following_angle = False
     print(f"Transitioned to state: {new_state}, total distance: {self.total_distance}, total angle: {self.total_angle}")
 
   def scheduleStateTransition(self, new_state: str, method: str, diff: float):

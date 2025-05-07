@@ -64,7 +64,7 @@ def pause_robot():
   print("Robot resumed")  
 
 def cycle():
-  global sm, last_error, kp, kd, straight_sections
+  global sm, last_error, kp, kd, straight_sections, angle_following
   distance = 0.0
   angle = 0.0
   
@@ -141,7 +141,7 @@ def cycle():
     lower = 30
     upper = 90
     edges_img = cv2.Canny(blurredImg, lower, upper, 3)
-    roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=50, maxLineGap=50)
+    roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
   border_lines = {"L": Lines(roi_lines["L"], (0, 5)), "R": Lines(roi_lines["R"], (640-roi_width, 5))}
 
   for line_group in border_lines.values():
@@ -153,6 +153,9 @@ def cycle():
                 (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), (b, 100, 0), 2)
           cv2.putText(viz, f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
                 (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+          # create a green dot for x1 y1 and a red dot for x2 y2
+          cv2.circle(viz, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 3, (0, 255, 0), -1)
+          cv2.circle(viz, (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 3, (0, 0, 255), -1)
           if b == 200:
             cv2.putText(viz, f"y={line['m']:.2f}x+{line['b']:.2f}", 
                   (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
@@ -255,18 +258,12 @@ def cycle():
   elif sm.current_state == "PD-CENTER-2":
     side = "MIDDLE"
     side += "-L" if sm.round_dir == 1 else "-R"
-  # if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
-  #   # follow the left wall, if we're going counter-clockwise
-  #   side += "-R"
-  #   error = REF_PORTION_SIDE - portion_black_r
-  # elif ("AVOID-R" in sm.current_state and sm.round_dir == 1) or ("AVOID-L" in sm.current_state and sm.round_dir == -1):
-  #   # follow the right wall, if we're going clockwise
-  #   side += "-L"
-  #   error = portion_black_l - REF_PORTION_SIDE
   
   
   if side != None:
-    if sm.round_dir == -1 and portion_black_r > 0.99 and "INNER" in side:
+    if sm.following_angle == True:
+      error = -sm.diff_angle / 80
+    elif sm.round_dir == -1 and portion_black_r > 0.99 and "INNER" in side:
       # if the right side is black, we should follow the left wall
       error = REF_PORTION - portion_black_r
     elif sm.round_dir == 1 and portion_black_l > 0.99 and "INNER" in side:
@@ -275,34 +272,54 @@ def cycle():
     elif len(border_lines[side[-1]].lines) > 0:
       # if there are lines in the image, we should follow them      
       # this is a bit of a hack, but it works
-      line = border_lines[side[-1]].lines[0]
+      lines = border_lines[side[-1]].lines
       # calculate the slope and intercept of the line
-      if line["m"] == float('inf'):
-        # vertical line
-        error = 0.0
-      else:
-        slope = line["m"]
-        intercept = line["b"]
-        # todo watch out of the first inner pillar
-        # calculate the error based on the slope and intercept
-        if "INNER" in side:
-          if sm.round_dir == -1:
-            error = (intercept - 160) / 250
-          else:
-            error = (160 - intercept) / 250
+      slope = lines[0]["m"]
+      intercept = lines[0]["b"]
+      detected_corner = None
+      for line in lines: # todo detect when the first line isn't the correct one
+        # detect if any line forms a corner with the first line
+        max_diff = 300
+        different_slopes = line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])
+        if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
+          detected_corner = ((line["x2"] + lines[0]["x1"]) // 2, (line["y2"] + lines[0]["y1"]) // 2, lines.index(line), "different")
+          break
+        elif (line["x1"] - lines[0]["x2"]) ** 2 + (line["y1"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
+          detected_corner = ((line["x1"] + lines[0]["x2"]) // 2, (line["y1"] + lines[0]["y2"]) // 2, lines.index(line), "different")
+          break
+        elif (line["x2"] - lines[0]["x2"]) ** 2 + (line["y2"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
+          detected_corner = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "ends")
+          break
+      # todo watch out of the first inner pillar
+      # calculate the error based on the slope and intercept
+      if "INNER" in side:
+        if detected_corner != None:
+          # if we detected a corner, we should aim at the corner
+          # calculate the error based on the corner
+          if sm.round_dir == 1: # ! to be tested
+            # if we are going clockwise, we should move the detected corner to the left
+            detected_corner = (roi_width - detected_corner[0], detected_corner[1], detected_corner[2], detected_corner[3])
+          if not headless:
+            cv2.circle(viz, (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
+            cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        if detected_corner != None:
+          if abs(slope) > 3 or lines[detected_corner[2]]["m"] > 3 or detected_corner[1] > 150 or detected_corner[3] == "ends":
+            # if we reach the end of the wall or the corner is too far away
+            if detected_corner[3] == "ends": # reached the end of the wall
+              sm.following_angle = True
+            error = (sm.diff_angle / 80) ** 2
+          elif detected_corner[1] < 100:
+          # only if the corner is near enough we should follow it
+            error = (detected_corner[0] - 50) / 50 * sm.round_dir
+        else:
+          error = (160 - intercept) / 250 * sm.round_dir
           # increase the bounded error quadratically if the angle is too high
-          error = bound(error) + (sm.diff_angle / 80) ** 2 * -sm.round_dir
-        elif "OUTER" in side:
-          if sm.round_dir == -1:
-            error = (150 - intercept) / 250
-          else:
-            error = (intercept - 150) / 250
-          error = bound(error) + (sm.diff_angle / 80) ** 2 * sm.round_dir
-        elif "MIDDLE" in side:
-          if sm.round_dir == -1:
-            error = (48 - intercept) / 150
-          else:
-            error = (intercept - 48) / 150
+          error = bound(error) + (sm.diff_angle / 80) ** 2 #* -sm.round_dir
+      elif "OUTER" in side:
+        error = (intercept - 150) / 250 * sm.round_dir
+        error = bound(error) + (sm.diff_angle / 80) ** 2 #* sm.round_dir
+      elif "MIDDLE" in side:
+        error = (intercept - 48) / 150
     else: # todo remove
       # if there are no lines in the image, we should follow the wall
       if "R" in side:

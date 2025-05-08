@@ -206,8 +206,9 @@ def cycle():
         pillars[0].ignore = True
         
   if sm.take_picture and sm.distance_take_picture < distance:
-    print(f"distances: {sm.distance_take_picture}, {distance}")
+    # print(f"distances: {sm.distance_take_picture}, {distance}")
     sm.take_picture = False
+    sm._took_picture = True
     # pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
     # pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
     # pillars = pillars_r + pillars_g
@@ -247,11 +248,7 @@ def cycle():
   # This checks if the car should transition to a new state, and if so, transitions
   # states may be PD-CENTER, PD-RIGHT, PD-LEFT, TURNING-L, TURNING-R, etc.
   if not calibrate:
-    # sm.transitionState("PD-CENTER-2")
-    # sm.round_dir = 1 # direction = 1 for clockwise, -1 for counter-clockwise
-    transition_res = sm.shouldTransitionState(portion_orange, portion_blue, pillars)
-    if transition_res:
-      print(f"Transitioning to {sm.current_state}")
+    sm.shouldTransitionState(portion_orange, portion_blue, pillars)
 
   # PD control
 
@@ -283,11 +280,11 @@ def cycle():
 
   # follow the left wall, if we're going counter-clockwise
   if sm.current_state in PD_STATES and sm.round_dir == -1:
-    error = REF_PORTION - portion_black_r
+    error = (REF_PORTION - portion_black_r) * 1.2
 
   # follow the right wall, if we're going clockwise
   if sm.current_state in PD_STATES and sm.round_dir == 1:
-    error = portion_black_l - REF_PORTION
+    error = (portion_black_l - REF_PORTION) * 1.2
   
   if sm.side != None:
     side = sm.side
@@ -309,7 +306,7 @@ def cycle():
       detected_corner = None
       for line in lines: # todo detect when the first line isn't the correct one
         # detect if any line forms a corner with the first line
-        max_diff = 300 # max difference squared of the two points to be the same point
+        max_diff = 400 # max difference squared of the two points to be the same point
         different_slopes = line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])
         if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
           detected_corner = ((line["x2"] + lines[0]["x1"]) // 2, (line["y2"] + lines[0]["y1"]) // 2, lines.index(line), "different")
@@ -327,6 +324,7 @@ def cycle():
         if not headless:
           cv2.circle(viz, (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
           cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+          cv2.imwrite(f"logs/image_corner_{12-sm.turns_left}.jpg", color_image)
       # todo watch out of the first inner pillar
       # calculate the error based on the slope and intercept
       if "INNER" in side:
@@ -412,9 +410,9 @@ def cycle():
     correction = -1
   
   if sm.current_state in ["TURN-R-1", "TURN-L-2", "TURN-R-3", "TURN-L-4"]:
-    correction = 0.7
+    correction = 1
   elif sm.current_state in ["TURN-L-1", "TURN-R-2", "TURN-L-3", "TURN-R-4"]:
-    correction = -0.7
+    correction = -1
   
   if "-G-" in sm.current_state:
     correction *= -1
@@ -501,6 +499,7 @@ def cycle():
 def main():
   global sm, last_error, kp, kd, straight_sections
   sm = StateMachine(isPillarRound=pillars)
+  # sm.transitionState("AVOID-L")
   last_error = 0.0
 
   kp = configloader.get_property("PD")['kp']
@@ -530,6 +529,8 @@ with open("config.json", "r") as f:
 async def img_stream(websocket: WebSocketServerProtocol, path):
   global sm, last_error, kp, kd, straight_sections
   sm = StateMachine(isPillarRound=pillars)
+  # sm.round_dir = 1
+  # sm.transitionState("AVOID-R-1")
   last_error = 0.0
 
   # create a list with four elements of Straight_Section

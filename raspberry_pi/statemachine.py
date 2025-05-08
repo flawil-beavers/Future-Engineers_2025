@@ -75,7 +75,7 @@ class StateMachine:
     self.last_state_angle = self.total_angle
     self.following_angle = False
     self.determineSide()
-    print(f"Transitioned to state: {new_state}, total distance: {self.total_distance}, total angle: {self.total_angle}")
+    print(f"Transitioning to state: {new_state}")
 
   def scheduleStateTransition(self, new_state: str, method: str, diff: float):
     """Schedule a state transition based on distance."""
@@ -148,24 +148,31 @@ class StateMachine:
       return False
     
     # Handle pillar avoidance after determining their position
-    if self.current_state == "PD-CENTER" and self.pillar_driving_pos[0] != 0 and self.pillar_driving_pos[1] != 0:
+    if self.current_state == "PD-CENTER" and self._took_picture:
+      self._took_picture = False
       if self.pillar_driving_pos[0] == "RED":
         self.transitionState("TURN-R-1")
         return True
       elif self.pillar_driving_pos[0] == "GREEN":
         self.transitionState("TURN-L-1")
         return True
-    
-    if "TURN-" in self.current_state and "-1" in self.current_state and abs(self.diff_angle) > 55:
+      else: # ! error
+        print("Error: Pillar driving position is not RED or GREEN.")
+        self.transitionState("TURN-R-1")
+        return True
+
+    DOUBLE_TURN_ANGLE = 65
+
+    if "TURN-" in self.current_state and "-1" in self.current_state and abs(self.diff_angle) > DOUBLE_TURN_ANGLE:
       self.transitionState(self.current_state.replace("-1", "-2"))
       return True
 
-    if "TURN-" in self.current_state and "-2" in self.current_state and abs(self.diff_angle) > 55:
-      self.transitionState(self.current_state.replace("TURN-", "AVOID-"))
+    if "TURN-" in self.current_state and "-2" in self.current_state and abs(self.diff_angle) > DOUBLE_TURN_ANGLE:
+      self.transitionState(self.current_state.replace("TURN-", "AVOID-").replace("-2", "-1"))
       return True
     
     # Handle side changing if pillars are not the same in front and back
-    if self.current_state in ["AVOID-L-1", "AVOID-R-1"] and self.pillar_driving_pos[0] != 0 and self.pillar_driving_pos[1] != 0 and self.diff_distance > 550:
+    if self.current_state in ["AVOID-L-1", "AVOID-R-1"] and self.diff_distance > 50:
       if not pillars_same:
         if self.current_state == "AVOID-R-1":
           self.transitionState("AVOID-L-2")
@@ -184,15 +191,15 @@ class StateMachine:
       return True
     
     # Handle return to middle after avoiding pillars
-    if "TURN-" in self.current_state and "-3" in self.current_state and abs(self.diff_angle) > 55:
+    if "TURN-" in self.current_state and "-3" in self.current_state and abs(self.diff_angle) > DOUBLE_TURN_ANGLE:
       self.transitionState(self.current_state.replace("-3", "-4"))
       return True
 
-    if "TURN-" in self.current_state and "-4" in self.current_state and abs(self.diff_angle) > 55:
+    if "TURN-" in self.current_state and "-4" in self.current_state and abs(self.diff_angle) > DOUBLE_TURN_ANGLE:
       self.transitionState("GYRO")
       return True
     
-    DISTANCE_TO_WALL = 0.8  # Distance to the wall for state transition
+    DISTANCE_TO_WALL = 0.99  # Distance to the wall for state transition
     
     if self.current_state == "GYRO" and self.distance_front > DISTANCE_TO_WALL:
       self.transitionState("TURNING-REVERSE-R" if self.round_dir > 0 else "TURNING-REVERSE-L")
@@ -205,8 +212,6 @@ class StateMachine:
     # Handle turning states
     TURNING_ANGLE = 85.0  # Angle threshold for turning
     if self.current_state in ["TURNING-REVERSE-L", "TURNING-REVERSE-R"]:
-      self._took_picture = False
-      self.diff_angle_0 = None
       if abs(self.diff_angle) > TURNING_ANGLE:
         self.transitionState("REVERSE-EXTRA")
         self.turns_left -= 1
@@ -217,7 +222,6 @@ class StateMachine:
       if self.diff_distance < -200:
         self.transitionState("PD-CENTER")
         self.take_picture = True
-        self._took_picture = True
-        self.distance_take_picture = self.total_distance + 400
+        self.distance_take_picture = self.total_distance + 500
         return True
       return False

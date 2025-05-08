@@ -174,8 +174,6 @@ def cycle():
     cv2.putText(viz, f"o: {portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"b: {portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
-  # print("err:", portion_black_l-portion_black_r,"left: ", portion_black_l, "right: ", portion_black_r)
-
   # filter out the red and green colors of the pillars and walls
   pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
   pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
@@ -190,30 +188,19 @@ def cycle():
     # for this extract a region-of-interest around the pillar
     roi_pillar_check = extract_ROI(hsv_image, [next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y], [next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]])
     # filter out the orange and blue colors
-
-    # print("A=", pillars[0].width * pillars[0].height)
-
     if not roi_pillar_check.shape[0] == 0 and not roi_pillar_check.shape[1] == 0:
       orange_blue_pillar = pipeline.filter_OB(roi_pillar_check)
       portion_orange_pillar = cv2.countNonZero(orange_blue_pillar["orange"]) / (orange_blue_pillar["orange"].shape[0] * orange_blue_pillar["orange"].shape[1])
       portion_blue_pillar = cv2.countNonZero(orange_blue_pillar["blue"]) / (orange_blue_pillar["blue"].shape[0] * orange_blue_pillar["blue"].shape[1])
       # check if the pillar is before or after a turn marker
-      # print("pillar check", portion_orange_pillar, portion_blue_pillar)
       if portion_orange_pillar > 0.00005 or portion_blue_pillar > 0.00005:
         if not headless:
           cv2.rectangle(viz, (next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y), (next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]), (255, 0, 0), 3)
-        # print("Pillar is after a turn marker")
         pillars[0].ignore = True
         
   if sm.take_picture and sm.distance_take_picture < distance:
-    # print(f"distances: {sm.distance_take_picture}, {distance}")
     sm.take_picture = False
     sm._took_picture = True
-    # pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
-    # pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
-    # pillars = pillars_r + pillars_g
-
-    # pillars.sort(key=lambda x: x.width*x.height, reverse=True)
     section_index = (11-sm.turns_left) % 4
     
     index = None
@@ -227,7 +214,7 @@ def cycle():
         index = 0
       elif p.y > 35:
         index = 1
-      elif p.y > 20:
+      elif p.y > 24:
         index = 2
       else:
         print(f"--Pillar {p.color} is too low, y={p.y}")
@@ -258,12 +245,6 @@ def cycle():
   # This is the reference value for the single side PD control, 
   # eg. how much black should be on the left side when the car follows the left outer wall
 
-  # pillar_ref = 0.35
-  # if sm.next_pillar:
-  #   if sm.next_pillar.ignore:
-  #     pillar_ref = 0.48
-    
-
   REF_PORTION = 0.45 if not sm.isPillarRound else 0.30
   REF_PORTION_SIDE = 0.8
 
@@ -276,10 +257,6 @@ def cycle():
   turn_correction = 0.75 if not sm.isPillarRound else 1.0
 
   PD_STATES = ["PD-CENTER", "PD-CENTER-START"]
-
-  if sm.current_state == "TRACKING-PILLAR" and len(pillars) > 0:
-    # attempt to keep the pillar in the center of the image
-    error = float(pillars[0].screen_x - 320) / 640.0
 
   # follow the left wall, if we're going counter-clockwise
   if sm.current_state in PD_STATES and sm.round_dir == -1:
@@ -345,7 +322,6 @@ def cycle():
             error = (sm.diff_angle / 80) ** 2
           # elif detected_corner[1] < 100:
           # # only if the corner is near enough we should follow it
-          #   error = (detected_corner[0] - 50) / 50 * sm.round_dir
         else:
           error = (160 - intercept) / 250 * sm.round_dir
           # increase the bounded error quadratically if the angle is too high
@@ -362,15 +338,17 @@ def cycle():
         else:
           error = (intercept - 48) / 150 * sm.round_dir
     else: # todo remove
-      print("Following the wall without lines")
+      print("ERROR: Following the wall without lines")
       # if there are no lines in the image, we should follow the wall
       if "R" in side:
         error = REF_PORTION_SIDE - portion_black_r
       else:
         error = portion_black_l - REF_PORTION_SIDE
 
-  if sm.current_state == "GYRO":
+  if sm.current_state in ["GYRO", "REVERSE-EXTRA"]:
     error = -sm.diff_angle / 80
+    if sm.current_state == "REVERSE-EXTRA":
+      error *= -1
 
   # if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
   #   # follow the left wall, if we're going counter-clockwise
@@ -408,7 +386,6 @@ def cycle():
     driving_speed = -speed
 
   if sm.current_state == "REVERSE-EXTRA":
-    correction = 0.0
     driving_speed = -speed
 
   if sm.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:

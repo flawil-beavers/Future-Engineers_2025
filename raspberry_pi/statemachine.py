@@ -139,8 +139,8 @@ class StateMachine:
           return True
 
     # PD-CENTER state: Transition to DONE if no turns are left
-    if self.current_state == "PD-CENTER" and self.turns_left <= 0 and self._scheduled_state is None:
-      self.scheduleStateTransition("DONE", "distance", 700.0)  # Transition after 50 mm
+    if "AVOID" in self.current_state and self.turns_left <= 0 and self._scheduled_state is None:
+      self.scheduleStateTransition("DONE", "distance", 500.0)  # Transition after 50 mm
       return True
 
     # Hold the current state for a minimum distance
@@ -158,7 +158,7 @@ class StateMachine:
         self.transitionState("TURN-L-1")
         return True
       else: # ! error
-        print("Error: Pillar driving position is not RED or GREEN.")
+        print("ERROR: Pillar driving position is not RED or GREEN.")
         self.transitionState("TURN-R-1")
         return True
 
@@ -173,7 +173,7 @@ class StateMachine:
       return True
     
     # Handle side changing if pillars are not the same in front and back
-    if self.current_state in ["AVOID-L-1", "AVOID-R-1"] and self.diff_distance > 50:
+    if self.current_state in ["AVOID-L-1", "AVOID-R-1"]:
       if not pillars_same:
         if self.current_state == "AVOID-R-1":
           self.transitionState("AVOID-L-2", reset_angle=False)
@@ -200,7 +200,7 @@ class StateMachine:
       self.transitionState("GYRO")
       return True
     
-    DISTANCE_TO_WALL = 0.99  # Distance to the wall for state transition
+    DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
     
     if self.current_state == "GYRO" and self.distance_front > DISTANCE_TO_WALL:
       self.transitionState("TURNING-REVERSE-R" if self.round_dir > 0 else "TURNING-REVERSE-L")
@@ -221,7 +221,7 @@ class StateMachine:
     
     if self.current_state == "REVERSE-EXTRA":
       if self.diff_distance < -200:
-        self.transitionState("PD-CENTER")
+        self.transitionState("PD-CENTER") # todo probably better to use PD-CENTER-2 here (the one with edges)
         self.take_picture = True
         self.distance_take_picture = self.total_distance + 500
         return True

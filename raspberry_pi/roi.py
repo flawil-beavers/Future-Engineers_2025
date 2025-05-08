@@ -204,6 +204,44 @@ def cycle():
           cv2.rectangle(viz, (next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y), (next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]), (255, 0, 0), 3)
         # print("Pillar is after a turn marker")
         pillars[0].ignore = True
+        
+  if sm.take_picture and sm.distance_take_picture < distance:
+    print(f"distances: {sm.distance_take_picture}, {distance}")
+    sm.take_picture = False
+    # pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
+    # pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
+    # pillars = pillars_r + pillars_g
+
+    # pillars.sort(key=lambda x: x.width*x.height, reverse=True)
+    section_index = (12-sm.turns_left) % 4
+    
+    index = None
+    for p in pillars:
+      if p.ignore:
+        continue
+      if p.y > 50:
+        index = 0
+      elif p.y > 30:
+        index = 1
+      elif p.y > 18:
+        index = 2
+      else:
+        print(f"--Pillar {p.color} is too low, y={p.y}")
+        continue
+      if p.screen_x < 320:
+        straight_sections[section_index].l[index] = p.color
+      else:
+        straight_sections[section_index].r[index] = p.color
+      cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
+      cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+    straight_sections[section_index].parking_lot = False
+    cv2.imwrite(f"logs/image{section_index}.jpg", color_image)
+    cv2.imwrite(f"logs/image_viz{section_index}.jpg", viz)
+    print("Image saved")
+    sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+    straight_sections[section_index].print()
+
 
   # A state machine is used to model the car's behavior
   # This checks if the car should transition to a new state, and if so, transitions
@@ -326,6 +364,9 @@ def cycle():
       else:
         error = portion_black_l - REF_PORTION_SIDE
 
+  if sm.current_state == "GYRO":
+    error = -sm.diff_angle / 80
+
   # if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
   #   # follow the left wall, if we're going counter-clockwise
   #   error = REF_PORTION_SIDE - portion_black_r
@@ -370,9 +411,9 @@ def cycle():
   if sm.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
     correction = -1
   
-  if sm.current_state in ["TURN-R-1", "TURN-L-2"]:
+  if sm.current_state in ["TURN-R-1", "TURN-L-2", "TURN-R-3", "TURN-L-4"]:
     correction = 0.7
-  elif sm.current_state in ["TURN-L-1", "TURN-R-2"]:
+  elif sm.current_state in ["TURN-L-1", "TURN-R-2", "TURN-L-3", "TURN-R-4"]:
     correction = -0.7
   
   if "-G-" in sm.current_state:
@@ -436,42 +477,7 @@ def cycle():
     cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     for p in pillars:
-      cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)
-
-
-  if sm.take_picture and sm.distance_take_picture < distance:
-    sm.take_picture = False
-    pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
-    pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
-    pillars = pillars_r + pillars_g
-
-    pillars.sort(key=lambda x: x.width*x.height, reverse=True)
-    section_index = (12-sm.turns_left) % 4
-    
-    index = None
-    for p in pillars:
-      if p.ignore:
-        continue
-      if p.y > 50:
-        index = 0
-      elif p.y > 30:
-        index = 1
-      elif p.y > 18:
-        index = 2
-      if p.screen_x < 320:
-        straight_sections[section_index].l[index] = p.color
-      else:
-        straight_sections[section_index].r[index] = p.color
-      cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
-      cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-    straight_sections[section_index].parking_lot = False
-    cv2.imwrite(f"logs/image{section_index}.jpg", color_image)
-    cv2.imwrite(f"logs/image_viz{section_index}.jpg", viz)
-    print("Image saved")
-    sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
-    straight_sections[section_index].print()
-    
+      cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)    
 
   last_error = error
   # print_past_time("finished cycle") # 50 ms

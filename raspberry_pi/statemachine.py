@@ -90,6 +90,8 @@ class StateMachine:
   def shouldTransitionState(self, portion_orange: float, portion_blue: float, pillars: list[Pillar]):
     """Determine if the state should transition based on distance and other conditions."""
 
+    pillars_same = self.pillar_driving_pos[0] == self.pillar_driving_pos[1] # are both pillars in the current section same?
+
     # Handle scheduled state transitions
     if self._scheduled_state is not None:
       if self._scheduled_state_distance is not None and self.total_distance >= self._scheduled_state_distance:
@@ -104,7 +106,7 @@ class StateMachine:
         self._scheduled_state = None
         self._scheduled_state_angle = None
         return True
-
+    
     # STARTING state: Wait until the robot determines its direction
     if self.current_state == "STARTING":
       if abs(self.round_dir) > 5:
@@ -134,7 +136,6 @@ class StateMachine:
         if abs(self.diff_angle) > 80:
           self.transitionState("PD-CENTER-START") # todo have to ignore markers of the parking lot
           return True
-      
 
     # PD-CENTER state: Transition to DONE if no turns are left
     if self.current_state == "PD-CENTER" and self.turns_left <= 0 and self._scheduled_state is None:
@@ -162,10 +163,10 @@ class StateMachine:
     if "TURN-" in self.current_state and "-2" in self.current_state and abs(self.diff_angle) > 55:
       self.transitionState(self.current_state.replace("TURN-", "AVOID-"))
       return True
-      
+    
     # Handle side changing if pillars are not the same in front and back
     if self.current_state in ["AVOID-L-1", "AVOID-R-1"] and self.pillar_driving_pos[0] != 0 and self.pillar_driving_pos[1] != 0 and self.diff_distance > 550:
-      if self.pillar_driving_pos[0] != self.pillar_driving_pos[1]:
+      if not pillars_same:
         if self.current_state == "AVOID-R-1":
           self.transitionState("AVOID-L-2")
           return True
@@ -177,60 +178,34 @@ class StateMachine:
         return True
     
     # Handle finishing avoidance
-    if self.current_state in ["AVOID-L-2", "AVOID-R-2"] and ((self.diff_distance > 1200 and (self.pillar_driving_pos[0] != self.pillar_driving_pos[1])) or (self.diff_distance > 800 and (self.pillar_driving_pos[0] == self.pillar_driving_pos[1]))) and self.distance_front > 0.22:
-      self.transitionState("PD-CENTER-2")
+    if self.current_state in ["AVOID-L-2", "AVOID-R-2"] and ((self.diff_distance > 1200 and not pillars_same) or (self.diff_distance > 900 and pillars_same)) and self.distance_front > 0.22:
+      # if avoiding on the right turn left first and then right otherwise other way round
+      self.transitionState("TURN-R-3" if self.current_state == "AVOID-L-2" else "TURN-L-3")
       return True
-        
+    
+    # Handle return to middle after avoiding pillars
+    if "TURN-" in self.current_state and "-3" in self.current_state and abs(self.diff_angle) > 55:
+      self.transitionState(self.current_state.replace("-3", "-4"))
+      return True
+
+    if "TURN-" in self.current_state and "-4" in self.current_state and abs(self.diff_angle) > 55:
+      self.transitionState("GYRO")
+      return True
+    
+    DISTANCE_TO_WALL = 0.8  # Distance to the wall for state transition
+    
+    if self.current_state == "GYRO" and self.distance_front > DISTANCE_TO_WALL:
+      self.transitionState("TURNING-REVERSE-R" if self.round_dir > 0 else "TURNING-REVERSE-L")
+      return True
+    
     if self.current_state in ["PD-CENTER-2", "PD-CENTER-START"] and self.diff_distance > 200 and self.distance_front > 0.6:
-      self._took_picture = False
-      if self.round_dir > 0:
-        self.transitionState("TURNING-REVERSE-R")
-      else:
-        self.transitionState("TURNING-REVERSE-L")
+      self.transitionState("GYRO")
       return True
-
-    # if self.current_state == "PD-CENTER" and self.diff_distance > 200:
-    #   self.take_picture = True
-    #   self._took_picture = True
-    #   self.distance_take_picture = self.total_distance
-    #   return True
-    # TODO: Check how turns are detected
-  
-    # # Handle pillar tracking and avoidance
-    # if len(pillars) > 0 and self.isPillarRound and self._allow_pillar_detection:
-    #   next_pillar = pillars[0]
-    #   if self.current_state == "PD-CENTER":
-    #     self.next_pillar = next_pillar
-    #     if next_pillar.height * next_pillar.width > 190 and not next_pillar.ignore:
-    #       self.transitionState("TRACKING-PILLAR")
-    #       return True
-    #   elif self.current_state == "TRACKING-PILLAR":
-    #     if next_pillar.height * next_pillar.width > 900 or next_pillar.y >= 180: # todo: check when last time pillar was avoided
-    #       self.transitionState(f"AVOIDING-{'R' if next_pillar.color == 'RED' else 'G'}-1")
-    #       print(f"transitioning reason area: {next_pillar.height * next_pillar.width > 530} or y: {next_pillar.y >= 200}")
-    #       self.next_pillar = None
-    #       return True
-
-    # # Handle lost pillar
-    # if self.current_state == "TRACKING-PILLAR" and len(pillars) == 0:
-    #   print("Lost the pillar, tracking aborted")
-    #   self.transitionState("PD-CENTER")
-    #   return True
-
-    # # Handle avoiding states
-    # if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1", "AVOIDING-R-2", "AVOIDING-G-2"]:
-    #   if self.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
-    #     if abs(diff_angle) > 35:
-    #       self.transitionState(self.current_state.replace("-1", "-2"))
-    #       return True
-    #   elif self.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
-    #     if abs(diff_angle) < 5:
-    #       self.transitionState("PD-CENTER")
-    #       return True
 
     # Handle turning states
     TURNING_ANGLE = 85.0  # Angle threshold for turning
     if self.current_state in ["TURNING-REVERSE-L", "TURNING-REVERSE-R"]:
+      self._took_picture = False
       self.diff_angle_0 = None
       if abs(self.diff_angle) > TURNING_ANGLE:
         self.transitionState("REVERSE-EXTRA")
@@ -239,51 +214,10 @@ class StateMachine:
       return False
     
     if self.current_state == "REVERSE-EXTRA":
-      if self.diff_distance < -100:
+      if self.diff_distance < -200:
         self.transitionState("PD-CENTER")
         self.take_picture = True
         self._took_picture = True
-        self.distance_take_picture = self.total_distance + 300
+        self.distance_take_picture = self.total_distance + 400
         return True
       return False
-
-    # # Handle turn markers
-    # MIN_PORTION = 0.15
-    # EXTRA_DISTANCE = 600.0  # Extra distance to move before reversing
-    # EXTRA_DISTANCE_PICTURE = 200.0  # Extra distance to move before taking a picture
-    # if portion_blue > MIN_PORTION:
-    #   if self.current_state != "TURNING-REVERSE-R" and self.round_dir < 0 and self._scheduled_state is None:
-    #     self.turns_left -= 1
-    #     self._took_picture = False
-    #     self.pillar_driving_pos = [0, 0]
-    #     if "AVOID" in self.current_state:
-    #       self.transitionState("PD-CENTER")
-    #     self.scheduleStateTransition("TURNING-REVERSE-L", "distance", EXTRA_DISTANCE)  # Turn left in 100 mm
-    #   elif self.round_dir > 0 and self._scheduled_state is None and not self._took_picture:
-    #     self.take_picture = True
-    #     self._took_picture = True
-    #     self.distance_take_picture = self.total_distance + EXTRA_DISTANCE_PICTURE
-    #   elif "UNPARKING" not in self.current_state and self.current_state != "PD-CENTER":
-    #     self.transitionState("PD-CENTER")
-    #   else:
-    #     return False
-    #   return True
-
-    # if portion_orange > MIN_PORTION:
-    #   if self.current_state != "TURNING-REVERSE-L" and self.round_dir > 0 and self._scheduled_state is None:
-    #     self.turns_left -= 1
-    #     self._took_picture = False
-    #     self.pillar_driving_pos = [0, 0]
-    #     if "AVOID-" in self.current_state:
-    #       self.transitionState("PD-CENTER")
-    #     self.scheduleStateTransition("TURNING-REVERSE-R", "distance", EXTRA_DISTANCE)  # Turn right in 100 mm
-    #   elif self.round_dir < 0 and self._scheduled_state is None and not self._took_picture:
-    #     self.take_picture = True
-    #     self._took_picture = True
-    #     self.distance_take_picture = self.total_distance + EXTRA_DISTANCE_PICTURE
-    #   elif "UNPARKING" not in self.current_state and self.current_state != "PD-CENTER":
-    #     self.transitionState("PD-CENTER")
-    #   else:
-    #     return False
-    #   return True
-    # return False

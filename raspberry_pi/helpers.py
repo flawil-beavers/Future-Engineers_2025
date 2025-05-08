@@ -89,10 +89,11 @@ class Lines:
 
   Attributes:
     lines (list): A list of dictionaries, where each dictionary contains the coordinates
-                  (x1, y1, x2, y2), slope (m), y-intercept (b), and length of a line.
+                  (x1, y1, x2, y2) of a line, its offset (x_offset, y_offset),
+                  slope (m), y-intercept (b), and length.
   """
 
-  def __init__(self, lines: np.ndarray, xy_offset: tuple = (0, 0)):
+  def __init__(self, lines: np.ndarray, xy_offset: tuple = (0, 0), calc_offset: tuple = (0, 0)):
     """
     Initialize the Lines object.
 
@@ -100,6 +101,7 @@ class Lines:
       lines (np.ndarray): The array of line coordinates, where each line is represented
                           as [[x1, y1, x2, y2]].
       xy_offset (tuple, optional): A tuple (x_offset, y_offset) for the purpose of drawing the lines
+      cal_offset (tuple, optional): A tuple (x_offset, y_offset) for the purpose of calculating the slope and intercept.
     """
     self.lines = []  # List to store processed line data
     x_offset, y_offset = xy_offset
@@ -110,12 +112,12 @@ class Lines:
       for line in lines:
         # Extract line coordinates and apply the offset
         line_data = {
-          "x1": line[0][0],
-          "y1": line[0][1],
-          "x2": line[0][2],
-          "y2": line[0][3],
-          "x_offset": x_offset,
-          "y_offset": y_offset
+          "x1": line[0][0] - calc_offset[0],
+          "y1": line[0][1] - calc_offset[1],
+          "x2": line[0][2] - calc_offset[0],
+          "y2": line[0][3] - calc_offset[1],
+          "x_offset": x_offset + calc_offset[0],
+          "y_offset": y_offset + calc_offset[1]
         }
         self.lines.append(line_data)
     self.compute_slope_form()  # Compute slope and intercept for each line

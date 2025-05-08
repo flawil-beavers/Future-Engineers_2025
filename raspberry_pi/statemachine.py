@@ -68,11 +68,12 @@ class StateMachine:
     else:
       self.side = None
 
-  def transitionState(self, new_state: str):
+  def transitionState(self, new_state: str, reset_angle: bool = True):
     """Transition to a new state and reset the last state distance."""
     self.current_state = new_state
     self.last_state_distance = self.total_distance
-    self.last_state_angle = self.total_angle
+    if reset_angle:
+      self.last_state_angle = self.total_angle
     self.following_angle = False
     self.determineSide()
     print(f"Transitioning to state: {new_state}")
@@ -175,10 +176,10 @@ class StateMachine:
     if self.current_state in ["AVOID-L-1", "AVOID-R-1"] and self.diff_distance > 50:
       if not pillars_same:
         if self.current_state == "AVOID-R-1":
-          self.transitionState("AVOID-L-2")
+          self.transitionState("AVOID-L-2", reset_angle=False)
           return True
         elif self.current_state == "AVOID-L-1":
-          self.transitionState("AVOID-R-2")
+          self.transitionState("AVOID-R-2", reset_angle=False)
           return True
       else:
         self.transitionState(self.current_state.replace("-1", "-2"))

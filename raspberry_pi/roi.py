@@ -143,7 +143,7 @@ def cycle():
     upper = 90
     edges_img = cv2.Canny(blurredImg, lower, upper, 3)
     roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
-  border_lines = {"L": Lines(roi_lines["L"], (0, 5)), "R": Lines(roi_lines["R"], (640-roi_width, 5))}
+  border_lines = {"L": Lines(roi_lines["L"], (0, 5), (0, 0)), "R": Lines(roi_lines["R"], (640-roi_width, 5), (roi_width, 0))}
 
   for line_group in border_lines.values():
     if line_group is not None:
@@ -214,17 +214,20 @@ def cycle():
     # pillars = pillars_r + pillars_g
 
     # pillars.sort(key=lambda x: x.width*x.height, reverse=True)
-    section_index = (12-sm.turns_left) % 4
+    section_index = (11-sm.turns_left) % 4
     
     index = None
     for p in pillars:
       if p.ignore:
         continue
+      if p.y > 130:
+        print(f"--Pillar {p.color} is too high, y={p.y}")
+        continue
       if p.y > 50:
         index = 0
-      elif p.y > 30:
+      elif p.y > 35:
         index = 1
-      elif p.y > 18:
+      elif p.y > 20:
         index = 2
       else:
         print(f"--Pillar {p.color} is too low, y={p.y}")
@@ -304,7 +307,7 @@ def cycle():
       slope = lines[0]["m"]
       intercept = lines[0]["b"]
       detected_corner = None
-      for line in lines: # todo detect when the first line isn't the correct one
+      for line in lines:
         # detect if any line forms a corner with the first line
         max_diff = 400 # max difference squared of the two points to be the same point
         different_slopes = line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])
@@ -315,26 +318,30 @@ def cycle():
           detected_corner = ((line["x1"] + lines[0]["x2"]) // 2, (line["y1"] + lines[0]["y2"]) // 2, lines.index(line), "different")
           break
         elif (line["x2"] - lines[0]["x2"]) ** 2 + (line["y2"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
-          detected_corner = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "ends")
+          detected_corner = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "same")
+          break
+        elif (line["x1"] - lines[0]["x1"]) ** 2 + (line["y1"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
+          detected_corner = ((line["x1"] + lines[0]["x1"]) // 2, (line["y1"] + lines[0]["y1"]) // 2, lines.index(line), "same")
           break
       if detected_corner != None:
-        if "-R" in side: # ! to be tested
-          # if we are going clockwise, we should move the detected corner to the left
-          detected_corner = (roi_width - detected_corner[0], detected_corner[1], detected_corner[2], detected_corner[3])
-        if not headless:
-          cv2.circle(viz, (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
-          cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-          cv2.imwrite(f"logs/image_corner_{12-sm.turns_left}.jpg", color_image)
-      # todo watch out of the first inner pillar
+        # if not headless:
+        # Determine the correct x position for the detected corner based on round_dir
+        if sm.round_dir == -1:
+            corner_x = detected_corner[0]
+        else:
+            corner_x = roi_width + detected_corner[0]
+        cv2.circle(viz, (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
+        cv2.putText(viz, f"{corner_x} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
       # calculate the error based on the slope and intercept
       if "INNER" in side:
           # if we detected a corner, we should aim at the corner
           # calculate the error based on the corner
         if detected_corner != None:
-          if abs(slope) > 3 or lines[detected_corner[2]]["m"] > 3 or detected_corner[1] > 150 or detected_corner[3] == "ends":
+          if abs(slope) > 3 or lines[detected_corner[2]]["m"] > 3 or detected_corner[1] > 150 or detected_corner[3] == "same":
             # if we reach the end of the wall or the corner is too far away
-            if detected_corner[3] == "ends": # reached the end of the wall
+            if detected_corner[3] == "same": # reached the end of the wall
               sm.following_angle = True
+              cv2.imwrite(f"logs/image_corner_{12-sm.turns_left}.jpg", viz)
             error = (sm.diff_angle / 80) ** 2
           # elif detected_corner[1] < 100:
           # # only if the corner is near enough we should follow it

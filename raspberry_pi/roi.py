@@ -229,12 +229,15 @@ def cycle():
   REF_PORTION = 0.45 if not sm.isPillarRound else 0.30
   REF_PORTION_SIDE = 0.8
 
+  if sm.current_state == "PD-CENTER-START":
+    REF_PORTION = 0.4
+  
   # error value
   error = 0.0
 
   turn_correction = 0.75 if not sm.isPillarRound else 1.0
 
-  PD_STATES = ["PD-CENTER", "PD-RIGHT", "PD-LEFT"]
+  PD_STATES = ["PD-CENTER", "PD-CENTER-START"]
 
   if sm.current_state == "TRACKING-PILLAR" and len(pillars) > 0:
     # attempt to keep the pillar in the center of the image
@@ -268,7 +271,7 @@ def cycle():
       detected_corner = None
       for line in lines: # todo detect when the first line isn't the correct one
         # detect if any line forms a corner with the first line
-        max_diff = 300
+        max_diff = 300 # max difference squared of the two points to be the same point
         different_slopes = line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])
         if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
           detected_corner = ((line["x2"] + lines[0]["x1"]) // 2, (line["y2"] + lines[0]["y1"]) // 2, lines.index(line), "different")
@@ -279,37 +282,44 @@ def cycle():
         elif (line["x2"] - lines[0]["x2"]) ** 2 + (line["y2"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
           detected_corner = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "ends")
           break
+      if detected_corner != None:
+        if "-R" in side: # ! to be tested
+          # if we are going clockwise, we should move the detected corner to the left
+          detected_corner = (roi_width - detected_corner[0], detected_corner[1], detected_corner[2], detected_corner[3])
+        if not headless:
+          cv2.circle(viz, (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
+          cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
       # todo watch out of the first inner pillar
       # calculate the error based on the slope and intercept
       if "INNER" in side:
-        if detected_corner != None:
           # if we detected a corner, we should aim at the corner
           # calculate the error based on the corner
-          if sm.round_dir == 1: # ! to be tested
-            # if we are going clockwise, we should move the detected corner to the left
-            detected_corner = (roi_width - detected_corner[0], detected_corner[1], detected_corner[2], detected_corner[3])
-          if not headless:
-            cv2.circle(viz, (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
-            cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (detected_corner[0] if sm.round_dir == -1 else roi_width - detected_corner[0], roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         if detected_corner != None:
           if abs(slope) > 3 or lines[detected_corner[2]]["m"] > 3 or detected_corner[1] > 150 or detected_corner[3] == "ends":
             # if we reach the end of the wall or the corner is too far away
             if detected_corner[3] == "ends": # reached the end of the wall
               sm.following_angle = True
             error = (sm.diff_angle / 80) ** 2
-          elif detected_corner[1] < 100:
-          # only if the corner is near enough we should follow it
-            error = (detected_corner[0] - 50) / 50 * sm.round_dir
+          # elif detected_corner[1] < 100:
+          # # only if the corner is near enough we should follow it
+          #   error = (detected_corner[0] - 50) / 50 * sm.round_dir
         else:
           error = (160 - intercept) / 250 * sm.round_dir
           # increase the bounded error quadratically if the angle is too high
-          error = bound(error) + (sm.diff_angle / 80) ** 2 #* -sm.round_dir
+          if sm.diff_angle != 0:
+            error = bound(error) - (sm.diff_angle / 80) ** 2 * sm.diff_angle / abs(sm.diff_angle)
       elif "OUTER" in side:
         error = (intercept - 150) / 250 * sm.round_dir
-        error = bound(error) + (sm.diff_angle / 80) ** 2 #* sm.round_dir
+        if sm.diff_angle != 0:
+          error = bound(error) - (sm.diff_angle / 80) ** 2 * sm.diff_angle / abs(sm.diff_angle)
       elif "MIDDLE" in side:
-        error = (intercept - 48) / 150
+        if detected_corner != None and detected_corner[1] < 60:
+          # if we detected a corner, we should stop following the wall and use the gyro instead
+          sm.following_angle = True
+        else:
+          error = (intercept - 48) / 150 * sm.round_dir
     else: # todo remove
+      print("Following the wall without lines")
       # if there are no lines in the image, we should follow the wall
       if "R" in side:
         error = REF_PORTION_SIDE - portion_black_r
@@ -361,9 +371,9 @@ def cycle():
     correction = -1
   
   if sm.current_state in ["TURN-R-1", "TURN-L-2"]:
-    correction = 1
+    correction = 0.7
   elif sm.current_state in ["TURN-L-1", "TURN-R-2"]:
-    correction = -1
+    correction = -0.7
   
   if "-G-" in sm.current_state:
     correction *= -1
@@ -422,9 +432,8 @@ def cycle():
     cv2.rectangle(viz, (0, 0), (roi_width, 150), (255, 0, 0), 2)
     cv2.rectangle(viz, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
     cv2.putText(viz, f"State: {sm.current_state} {round(sm.diff_distance)} mm {round(sm.diff_angle, 1)} °", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    cv2.putText(viz, f"Errs: {round(portion_black_l-0.25, 2)} {round(portion_black_l-portion_black_r, 2)} {round(0.25-portion_black_r, 2)}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    cv2.putText(viz, f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    cv2.putText(viz, f"dffDistance: {sm.diff_distance} mm, dffAngle: {sm.diff_angle}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     for p in pillars:
       cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)

@@ -132,7 +132,7 @@ class StateMachine:
           return True
       if self.current_state == "UNPARKING-4":
         if abs(self.diff_angle) > 80:
-          self.transitionState("PD-CENTER-2") # todo have to ignore markers of the parking lot
+          self.transitionState("PD-CENTER-START") # todo have to ignore markers of the parking lot
           return True
       
 
@@ -155,11 +155,11 @@ class StateMachine:
         self.transitionState("TURN-L-1")
         return True
     
-    if "TURN-" in self.current_state and "-1" in self.current_state and abs(self.diff_angle) > 50:
+    if "TURN-" in self.current_state and "-1" in self.current_state and abs(self.diff_angle) > 55:
       self.transitionState(self.current_state.replace("-1", "-2"))
       return True
 
-    if "TURN-" in self.current_state and "-2" in self.current_state and abs(self.diff_angle) > 50:
+    if "TURN-" in self.current_state and "-2" in self.current_state and abs(self.diff_angle) > 55:
       self.transitionState(self.current_state.replace("TURN-", "AVOID-"))
       return True
       
@@ -181,14 +181,13 @@ class StateMachine:
       self.transitionState("PD-CENTER-2")
       return True
         
-    if self.current_state == "PD-CENTER-2":
-      if self.distance_front > 0.6 and self.diff_distance > 200:
-        self._took_picture = False
-        if self.round_dir > 0:
-          self.transitionState("TURNING-REVERSE-R")
-        else:
-          self.transitionState("TURNING-REVERSE-L")
-        return True
+    if self.current_state in ["PD-CENTER-2", "PD-CENTER-START"] and self.diff_distance > 200 and self.distance_front > 0.6:
+      self._took_picture = False
+      if self.round_dir > 0:
+        self.transitionState("TURNING-REVERSE-R")
+      else:
+        self.transitionState("TURNING-REVERSE-L")
+      return True
 
     # if self.current_state == "PD-CENTER" and self.diff_distance > 200:
     #   self.take_picture = True

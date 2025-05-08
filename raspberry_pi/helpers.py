@@ -105,7 +105,6 @@ class Lines:
     x_offset, y_offset = xy_offset
     # check if lines is a list of lines and not None
     if lines is None or len(lines) == 0:
-      print("No lines detected")
       return
     else:
       for line in lines:

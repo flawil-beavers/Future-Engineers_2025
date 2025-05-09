@@ -226,6 +226,7 @@
   <!-- Fullscreen View -->
   <div id="fullscreenView">
     <button onclick="showMainMenu()">Back to Menu</button>
+    <button onclick="connectWebSocket()">Connect</button>
     <img id="fullscreenImage" src="" alt="Fullscreen Stream" />
   </div>
 
@@ -425,9 +426,9 @@
       const y = event.clientY - rect.top;
 
       const pixel = ctx.getImageData(x, y, 1, 1).data;
-      const r = pixel[0] / 255;
-      const g = pixel[1] / 255;
-      const b = pixel[2] / 255;
+      const r = pixel[0] / 255; // Normalize to [0, 1]
+      const g = pixel[1] / 255; // Normalize to [0, 1]
+      const b = pixel[2] / 255; // Normalize to [0, 1]
 
       const max = Math.max(r, g, b);
       const min = Math.min(r, g, b);
@@ -444,16 +445,21 @@
       } else if (max === b) {
         hue = ((r - g) / delta + 4) * 60;
       }
-      hue = Math.round((hue / 360) * 255); // Scale Hue to 0-255
+      hue = Math.round(hue); // Hue is in degrees (0–360)
 
       // Calculate Saturation
-      const saturation = Math.round((max === 0 ? 0 : (delta / max) * 255)); // Scale Saturation to 0-255
+      const saturation = max === 0 ? 0 : (delta / max) * 100; // Saturation as a percentage (0–100)
 
       // Calculate Value
-      const value = Math.round(max * 255); // Scale Value to 0-255
+      const value = max * 100; // Value as a percentage (0–100)
+      
+      // round the values to the nearest integer
+      const scaledHue = Math.round(hue);
+      const scaledSaturation = Math.round(saturation);
+      const scaledValue = Math.round(value);
 
       // Display HSV values
-      const hsv = `H: ${hue}, S: ${saturation}, V: ${value}`;
+      const hsv = `H: ${scaledHue}, S: ${scaledSaturation}%, V: ${scaledValue}%`;
       document.getElementById("hueValue").innerHTML = `HSV Values: ${hsv}`;
     }
 

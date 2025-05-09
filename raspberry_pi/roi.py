@@ -200,7 +200,7 @@ def cycle():
       if p.ignore:
         continue
       if sm.current_state == "PD-CENTER-START":
-        if p.y > 130: # todo have to adjust these values
+        if p.y > 130:
           print(f"--Pillar {p.color} is too high, y={p.y}")
           continue
         if abs(p.screen_x - 320) > 170:
@@ -371,19 +371,13 @@ def cycle():
   if sm.current_state == "REVERSE-EXTRA":
     driving_speed = -speed
 
-  if sm.current_state in ["AVOIDING-R-1", "AVOIDING-G-1"]:
+  if (("TURN-L-" in sm.current_state and int(sm.current_state[-1]) % 2 == 0) or
+      ("TURN-R-" in sm.current_state and int(sm.current_state[-1]) % 2 == 1)):
     correction = 1
-  if sm.current_state in ["AVOIDING-R-2", "AVOIDING-G-2"]:
+  elif (("TURN-L-" in sm.current_state and int(sm.current_state[-1]) % 2 == 1) or
+        ("TURN-R-" in sm.current_state and int(sm.current_state[-1]) % 2 == 0)):
     correction = -1
   
-  if sm.current_state in ["TURN-R-1", "TURN-L-2", "TURN-R-3", "TURN-L-4"]:
-    correction = 1
-  elif sm.current_state in ["TURN-L-1", "TURN-R-2", "TURN-L-3", "TURN-R-4"]:
-    correction = -1
-  
-  if "-G-" in sm.current_state:
-    correction *= -1
-    
   if sm.current_state == "DONE":
     correction = 0.0
     print("---- DONE ----")
@@ -414,6 +408,8 @@ def cycle():
       correction = 1 if sm.round_dir == -1 else -1
       driving_speed = -SPEED_UNPARK
 
+  if "AVOID" in sm.current_state and "-3" in sm.current_state:
+    driving_speed = SPEED_UNPARK # can probably be removed again later on
 
   correction = bound(correction)
   MAX_STEERING_ANGLE = 25.0

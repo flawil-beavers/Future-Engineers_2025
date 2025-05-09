@@ -10,6 +10,7 @@ class StateMachine:
   last_state_distance = 0.0  # Distance at the last state transition
   total_distance = 0.0  # Total distance traveled
   diff_distance = 0.0  # Difference in distance for state transition
+  _last_distance = 0.0  # Last distance traveled
   
   last_state_angle = 0.0  # Angle at the last state transition
   total_angle = 0.0  # Total angle turned
@@ -27,13 +28,14 @@ class StateMachine:
   _scheduled_state = None
   _scheduled_state_distance = None  # Distance for scheduled state transition
   _scheduled_state_angle = None  # Angle for scheduled state transition
+  _scheduled_state_reset_angle = True
   _allow_pillar_detection = True
 
   take_picture = False
   distance_take_picture = 0.0
   _took_picture = False
   
-  pillar_driving_pos = [0, 0]  # todo Driving position of the pillar
+  pillar_driving_pos = [0, 0]
 
   next_pillar = None
   first_line_found = None
@@ -46,6 +48,7 @@ class StateMachine:
 
   def update_distance(self, distance: float):
     """Update the total distance traveled."""
+    self._last_distance = self.diff_distance
     self.total_distance = distance
     self.diff_distance = self.total_distance - self.last_state_distance
   
@@ -78,9 +81,10 @@ class StateMachine:
     self.determineSide()
     print(f"Transitioning to state: {new_state}")
 
-  def scheduleStateTransition(self, new_state: str, method: str, diff: float):
+  def scheduleStateTransition(self, new_state: str, method: str, diff: float, reset_angle: bool = True):
     """Schedule a state transition based on distance."""
     self._scheduled_state = new_state
+    self._scheduled_state_reset_angle = reset_angle
     if method == "distance":
       self._scheduled_state_distance = self.total_distance + diff
     elif method == "angle":
@@ -97,13 +101,13 @@ class StateMachine:
     if self._scheduled_state is not None:
       if self._scheduled_state_distance is not None and self.total_distance >= self._scheduled_state_distance:
         print(f"Scheduled state transition to {self._scheduled_state}")
-        self.transitionState(self._scheduled_state)
+        self.transitionState(self._scheduled_state, reset_angle=self._scheduled_state_reset_angle)
         self._scheduled_state = None
         self._scheduled_state_distance = None
         return True
       elif self._scheduled_state_angle is not None and self.total_angle >= self._scheduled_state_angle:
         print(f"Scheduled state transition to {self._scheduled_state}")
-        self.transitionState(self._scheduled_state)
+        self.transitionState(self._scheduled_state, reset_angle=self._scheduled_state_reset_angle)
         self._scheduled_state = None
         self._scheduled_state_angle = None
         return True
@@ -135,7 +139,7 @@ class StateMachine:
           return True
       if self.current_state == "UNPARKING-4":
         if abs(self.diff_angle) > 80:
-          self.transitionState("PD-CENTER-START") # todo have to ignore markers of the parking lot
+          self.transitionState("PD-CENTER-START")
           self.take_picture = True
           self.distance_take_picture = self.total_distance
           return True
@@ -208,7 +212,34 @@ class StateMachine:
       self.transitionState("TURNING-REVERSE-R" if self.round_dir > 0 else "TURNING-REVERSE-L")
       return True
     
-    if self.current_state in ["PD-CENTER-2", "PD-CENTER-START"] and self.diff_distance > 200 and self.distance_front > 0.6:
+    if self.current_state == "PD-CENTER-START" and self._took_picture:
+      if self.round_dir == 1: # clockwise
+        inner_colour = "RED"
+      else: # counter-clockwise
+        inner_colour = "GREEN"
+      for i in range(2):
+        if self.pillar_driving_pos[i] == inner_colour:
+          self.transitionState(f"TURN-{'R' if inner_colour == 'RED' else 'L'}-5")
+          self._took_picture = False
+          return True
+    
+    if "TURN-" in self.current_state and "-5" in self.current_state and abs(self.diff_angle) > DOUBLE_TURN_ANGLE:
+      self.transitionState(self.current_state.replace("-5", "-6"), reset_angle=False)
+      return True
+    
+    if "TURN-" in self.current_state and "-6" in self.current_state and abs(self.diff_angle) < 20:
+      self.transitionState(f"AVOID-{self.current_state[5]}-3", reset_angle=False)
+      return True
+    
+    if "AVOID-" in self.current_state and "-3" in self.current_state and self.following_angle:
+      if abs(self.diff_angle) < 20: # todo: Maybe unnecessary
+        self.transitionState(self.current_state.replace("-3", "-4"), reset_angle=False)
+        self.scheduleStateTransition(f"TURN-{'L' if self.current_state[6] == 'R' else 'R'}-3", "distance", 200.0)
+        # self.transitionState(f"TURN-{'L' if self.current_state[6] == 'R' else 'R'}-3", reset_angle=False)
+        return True
+      return False
+    
+    if self.current_state in ["PD-CENTER-2", "PD-CENTER-START"] and self.diff_distance > 200 and self.distance_front > 0.4:
       self.transitionState("GYRO")
       self._took_picture = False
       return True
@@ -223,9 +254,12 @@ class StateMachine:
       return False
     
     if self.current_state == "REVERSE-EXTRA":
-      if self.diff_distance < -200:
-        self.transitionState("PD-CENTER-2") # todo probably better to use PD-CENTER-2 here (the one with edges)
+      if self.diff_distance < -300 or abs(self.diff_distance - self._last_distance) < 2:
+        if abs(self.diff_distance - self._last_distance) < 5:
+          print(f"Diff distance is lower then 5 mm: abs({self.diff_distance} - {self._last_distance}) = {abs(self.diff_distance - self._last_distance)}")
+        self.transitionState("PD-CENTER-2")
         self.take_picture = True
         self.distance_take_picture = self.total_distance + 500
         return True
       return False
+    return False

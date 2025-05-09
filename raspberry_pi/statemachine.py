@@ -96,6 +96,10 @@ class StateMachine:
     """Determine if the state should transition based on distance and other conditions."""
 
     pillars_same = self.pillar_driving_pos[0] == self.pillar_driving_pos[1] # are both pillars in the current section same?
+    if self.round_dir == 1: # clockwise
+      inner_colour = "RED"
+    else: # counter-clockwise
+      inner_colour = "GREEN"
 
     # Handle scheduled state transitions
     if self._scheduled_state is not None:
@@ -157,6 +161,12 @@ class StateMachine:
     # Handle pillar avoidance after determining their position
     if self.current_state == "PD-CENTER-2" and self._took_picture:
       self._took_picture = False
+      if self.turns_left % 4 == 0: # at the parking place
+        if self.pillar_driving_pos[0] == inner_colour:
+          self.transitionState(f"TURN-{'R' if inner_colour == 'RED' else 'L'}-1")
+        else:
+          self.transitionState(f"PD-CENTER-PARKING-1")
+        return True
       if self.pillar_driving_pos[0] == "RED":
         self.transitionState("TURN-R-1")
         return True
@@ -181,6 +191,12 @@ class StateMachine:
     # Handle side changing if pillars are not the same in front and back
     if self.current_state in ["AVOID-L-1", "AVOID-R-1"]:
       if not pillars_same:
+        if self.turns_left % 4 == 0: # at the parking place
+          if self.pillar_driving_pos[1] == inner_colour:
+            self.transitionState(f"TURN-{'R' if inner_colour == 'RED' else 'L'}-2")
+          else:
+            self.transitionState(f"PD-CENTER-PARKING-2")
+          return True
         if self.current_state == "AVOID-R-1":
           self.transitionState("AVOID-L-2", reset_angle=False)
           return True
@@ -213,10 +229,6 @@ class StateMachine:
       return True
     
     if self.current_state == "PD-CENTER-START" and self._took_picture:
-      if self.round_dir == 1: # clockwise
-        inner_colour = "RED"
-      else: # counter-clockwise
-        inner_colour = "GREEN"
       for i in range(2):
         if self.pillar_driving_pos[i] == inner_colour:
           self.transitionState(f"TURN-{'R' if inner_colour == 'RED' else 'L'}-5")

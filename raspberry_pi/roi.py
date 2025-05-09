@@ -263,7 +263,7 @@ def cycle():
   REF_PORTION = 0.45 if not sm.isPillarRound else 0.30
   REF_PORTION_SIDE = 0.8
 
-  if sm.current_state == "PD-CENTER-START":
+  if "PD-CENTER-" in sm.current_state:
     REF_PORTION = 0.4
   
   # error value
@@ -271,7 +271,7 @@ def cycle():
 
   turn_correction = 0.75 if not sm.isPillarRound else 1.0
 
-  PD_STATES = ["PD-CENTER", "PD-CENTER-START"]
+  PD_STATES = ["PD-CENTER", "PD-CENTER-START", "PD-CENTER-PARKING-1", "PD-CENTER-PARKING-2"]
 
   # follow the left wall, if we're going counter-clockwise
   if sm.current_state in PD_STATES and sm.round_dir == -1:

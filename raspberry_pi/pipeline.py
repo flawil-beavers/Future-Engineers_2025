@@ -53,26 +53,12 @@ class Pipeline:
     upper = 90
     blackimg = cv2.inRange(blurredImg, 0, grayThresh)
     
-    # orangeMin = tuple(self.configloader.get_property("filters")['ORANGELO'])
-    # orangeMax = tuple(self.configloader.get_property("filters")['ORANGEHI'])
-    blueMin = tuple(self.configloader.get_property("filters")['BLUELO'])
-    blueMax = tuple(self.configloader.get_property("filters")['BLUEHI'])
-    # orange filter
-    # oMask = cv2.inRange(hsv, orangeMin, orangeMax)
-    # blue filter
-    bMask = cv2.inRange(hsv, blueMin, blueMax)
-    # blur images to remove noise
-    # blurredO = cv2.medianBlur(oMask, 5)
-    blurredB = cv2.medianBlur(bMask, 5)
-    # subtract blue image from black image and save black image
-    blackimg = cv2.subtract(blackimg, blurredB)
-    
-    # edgesImg = cv2.Canny(blackimg, lower, upper, 3)
+    ob_image = self.filter_OB(hsv)
     # combine images
-    # return [edgesImg, blurredG, blurredR, blackimg]
-    return {"green": blurredG, "red": blurredR, "black": blackimg}
-
-
+    combined = cv2.bitwise_or(ob_image["orange"], ob_image["blue"])
+    blackimg = cv2.subtract(blackimg, combined)
+    return {"green": blurredG, "red": blurredR, "black": blackimg, "orange": ob_image["orange"], "blue": ob_image["blue"]}
+    
   def filter_OB(self, hsv: np.ndarray):
     """
     Extracts the orange and blue colors from the image -> this is used to detect the turn markers

@@ -182,6 +182,22 @@ class Straight_Section:
     self.parking_lot = False
     self.driving_pos = [0, 0]
 
+  def validate(self, direction: int = 1):
+    """
+    Validate the straight section and fixes small errors related to the parking lot.
+    
+    Args:
+        direction (int): The direction of the robot. 1 for clockwise, -1 for counter-clockwise.
+    """
+    if self.parking_lot:
+      for i in range(3):
+        if self.l[i] != 0 and direction == 1:
+          self.r[i] = self.l[i]
+          print(f"Fixing parking lot pillar: l[{i}] = {self.l[i]} -> r[{i}] = {self.r[i]}")
+        elif self.r[i] != 0 and direction == -1:
+          self.l[i] = self.r[i]
+          print(f"Fixing parking lot pillar: l[{i}] = {self.l[i]} <- r[{i}] = {self.r[i]}")
+
   def print(self):
     """
     Print the details of the straight section.

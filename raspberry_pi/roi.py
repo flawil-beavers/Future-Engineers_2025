@@ -114,13 +114,7 @@ def cycle():
   roi_center = extract_ROI(hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
   
   # filter out the orange and blue colors of turn markers
-  orange_blue = pipeline.filter_OB(roi_center)
   rgbl = pipeline.filter_RG_Bl(hsv_image, color_image)
-
-  # how much orange/blue is in the center region-of-interest?
-  portion_orange = cv2.countNonZero(orange_blue["orange"]) / (orange_blue["orange"].shape[0] * orange_blue["orange"].shape[1])
-  portion_blue = cv2.countNonZero(orange_blue["blue"]) / (orange_blue["blue"].shape[0] * orange_blue["blue"].shape[1])
-
 
   # l and r ROIs used for PD control, to keep the car in the middle of the track and away from walls
   roi_width = 100
@@ -171,8 +165,8 @@ def cycle():
     cv2.putText(viz, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    cv2.putText(viz, f"o: {portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    cv2.putText(viz, f"b: {portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    # cv2.putText(viz, f"o: {portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    # cv2.putText(viz, f"b: {portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
   # filter out the red and green colors of the pillars and walls
   pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
@@ -202,23 +196,44 @@ def cycle():
     sm.take_picture = False
     sm._took_picture = True
     section_index = (11-sm.turns_left) % 4
-    
     index = None
     for p in pillars:
       if p.ignore:
         continue
-      if p.y > 130:
-        print(f"--Pillar {p.color} is too high, y={p.y}")
-        continue
-      if p.y > 50:
-        index = 0
-      elif p.y > 35:
-        index = 1
-      elif p.y > 24:
-        index = 2
+      if sm.current_state == "PD-CENTER-START":
+        if p.y > 130: # todo have to adjust these values
+          print(f"--Pillar {p.color} is too high, y={p.y}")
+          continue
+        if abs(p.screen_x - 320) > 170:
+          print(f"--Pillar {p.color} is too far from the center, x={p.screen_x}")
+          continue
+        if p.y > 50:
+          index = 0
+        elif p.y > 35:
+          index = 1
+        elif p.y > 24:
+          index = 2
+        else:
+          print(f"--Pillar {p.color} is too low, y={p.y}")
+          continue
       else:
-        print(f"--Pillar {p.color} is too low, y={p.y}")
-        continue
+        if straight_sections[section_index].parking_lot:
+           # rescan the parking lot
+          for i in range(3):
+            straight_sections[section_index].l[i] = 0
+            straight_sections[section_index].r[i] = 0
+        if p.y > 130:
+          print(f"--Pillar {p.color} is too high, y={p.y}")
+          continue
+        if p.y > 50:
+          index = 0
+        elif p.y > 35:
+          index = 1
+        elif p.y > 24:
+          index = 2
+        else:
+          print(f"--Pillar {p.color} is too low, y={p.y}")
+          continue
       if p.screen_x < 320:
         straight_sections[section_index].l[index] = p.color
       else:
@@ -226,9 +241,10 @@ def cycle():
       cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
       cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
-    straight_sections[section_index].parking_lot = False
-    cv2.imwrite(f"logs/image{section_index}.jpg", color_image)
-    cv2.imwrite(f"logs/image_viz{section_index}.jpg", viz)
+    straight_sections[section_index].parking_lot = True if section_index == 4 else False
+    straight_sections[section_index].validate(sm.round_dir)
+    cv2.imwrite(f"logs/image{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", color_image)
+    cv2.imwrite(f"logs/image_viz{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", viz)
     print("Image saved")
     sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
     straight_sections[section_index].print()
@@ -238,7 +254,7 @@ def cycle():
   # This checks if the car should transition to a new state, and if so, transitions
   # states may be PD-CENTER, PD-RIGHT, PD-LEFT, TURNING-L, TURNING-R, etc.
   if not calibrate:
-    sm.shouldTransitionState(portion_orange, portion_blue, pillars)
+    sm.shouldTransitionState()
 
   # PD control
 
@@ -278,7 +294,6 @@ def cycle():
       error = portion_black_l - REF_PORTION
     elif len(border_lines[side[-1]].lines) > 0:
       # if there are lines in the image, we should follow them      
-      # this is a bit of a hack, but it works
       lines = border_lines[side[-1]].lines
       # calculate the slope and intercept of the line
       slope = lines[0]["m"]
@@ -306,22 +321,19 @@ def cycle():
         if sm.round_dir == -1:
             corner_x = detected_corner[0]
         else:
-            corner_x = roi_width + detected_corner[0]
+            corner_x = 640 + detected_corner[0]
         cv2.circle(viz, (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
-        cv2.putText(viz, f"{corner_x} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
       # calculate the error based on the slope and intercept
       if "INNER" in side:
-          # if we detected a corner, we should aim at the corner
-          # calculate the error based on the corner
+          # if we detected a corner, we should start gyro following
         if detected_corner != None:
-          if abs(slope) > 3 or lines[detected_corner[2]]["m"] > 3 or detected_corner[1] > 150 or detected_corner[3] == "same":
-            # if we reach the end of the wall or the corner is too far away
-            if detected_corner[3] == "same": # reached the end of the wall
-              sm.following_angle = True
-              cv2.imwrite(f"logs/image_corner_{12-sm.turns_left}.jpg", viz)
+          slope_2 = lines[detected_corner[2]]["m"]
+          if (abs(slope) > 3 or abs(slope_2) > 3) and detected_corner[1] > 100 and detected_corner[3] == "same":
+            # if we reach the end of the wall
+            sm.following_angle = True
+            cv2.imwrite(f"logs/image_corner_{12-sm.turns_left}.jpg", viz)
             error = (sm.diff_angle / 80) ** 2
-          # elif detected_corner[1] < 100:
-          # # only if the corner is near enough we should follow it
         else:
           error = (160 - intercept) / 250 * sm.round_dir
           # increase the bounded error quadratically if the angle is too high
@@ -331,12 +343,8 @@ def cycle():
         error = (intercept - 150) / 250 * sm.round_dir
         if sm.diff_angle != 0:
           error = bound(error) - (sm.diff_angle / 80) ** 2 * sm.diff_angle / abs(sm.diff_angle)
-      elif "MIDDLE" in side:
-        if detected_corner != None and detected_corner[1] < 60:
-          # if we detected a corner, we should stop following the wall and use the gyro instead
-          sm.following_angle = True
-        else:
-          error = (intercept - 48) / 150 * sm.round_dir
+      elif "MIDDLE" in side: # todo: watch out of blue lines triggering black contour
+        error = (intercept - 53) / 100 * sm.round_dir
     else: # todo remove
       print("ERROR: Following the wall without lines")
       # if there are no lines in the image, we should follow the wall
@@ -350,31 +358,7 @@ def cycle():
     if sm.current_state == "REVERSE-EXTRA":
       error *= -1
 
-  # if ("AVOID-R" in sm.current_state and sm.round_dir == -1) or ("AVOID-L" in sm.current_state and sm.round_dir == 1):
-  #   # follow the left wall, if we're going counter-clockwise
-  #   error = REF_PORTION_SIDE - portion_black_r
-  
-  # if ("AVOID-R" in sm.current_state and sm.round_dir == 1) or ("AVOID-L" in sm.current_state and sm.round_dir == -1):
-  #   # follow the right wall, if we're going clockwise
-  #   error = portion_black_l - REF_PORTION_SIDE
-
-  # todo watch out when too near to the short wall and watch out when short wall ends
-
-  # ignore PD control if wall is too close to the front of the car
-  # if sm.current_state == "PD-CENTER" and sm._scheduled_state is not None and "TURNING" in sm._scheduled_state:
-  #   roi_top = extract_ROI(rgbl["black"], [640//2-30, 35], [640//2+30, 40])
-  #   portion_black_top  = cv2.countNonZero(roi_top) / (roi_top.shape[0] * roi_top.shape[1])
-  #   if portion_black_top > 0.5:
-  #     if not headless:
-  #       cv2.rectangle(viz, (640//2-30, 35), (640//2+30, 40), (255, 0, 0), 3)
-  #     # if the top region-of-interest is black, we stop PD control and just drive straight
-  #     if sm.diff_angle_0 == None:
-  #       sm.diff_angle_0 = sm.diff_angle
-  #     error = (sm.diff_angle_0 - sm.diff_angle) / 50.0
-  #     sm._allow_pillar_detection = False # stop detecting pillars from now on    
-
   correction = error * kp + (error - last_error) * kd
-
 
   driving_speed = speed
   
@@ -431,12 +415,8 @@ def cycle():
       correction = 1 if sm.round_dir == -1 else -1
       driving_speed = -SPEED_UNPARK
 
-  
-  # else:
-  #   correction = 0.0
-  
 
-  correction = max(-1.0, min(1.0, correction))
+  correction = bound(correction)
   MAX_STEERING_ANGLE = 25.0
   steering_angle = correction * MAX_STEERING_ANGLE
 
@@ -447,8 +427,6 @@ def cycle():
     message = "s " + str(int(steering_angle)) + "\n"
     ser.write(message.encode())
   
-  # print(error - last_error)
-
   # viz stuff
   if not headless:
     cv2.rectangle(viz, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
@@ -471,8 +449,8 @@ def cycle():
       "red": rgbl["red"],
       "green": rgbl["green"],
       "black": rgbl["black"],
-      "orange": orange_blue["orange"],
-      "blue": orange_blue["blue"],
+      "orange": rgbl["orange"],
+      "blue": rgbl["blue"],
       "hsv_image": hsv_image,
       "color_image": color_image,
       # "lines": pipeline.filter_OB(hsv_image)['orange'],
@@ -601,7 +579,6 @@ if __name__ == "__main__":
         ser.setDTR(False)
         sleep(1)
         ser.setDTR(True)
-        # ser = serial.Serial(configloader.get_property("ArduinoSerialPort"), configloader.get_property("ArduinoBaudRate"))
         continue
       
     ser.timeout = None

@@ -88,7 +88,7 @@ class StateMachine:
     else:
       raise ValueError("Invalid method for scheduling state transition. Use 'distance' or 'angle'.")
     
-  def shouldTransitionState(self, portion_orange: float, portion_blue: float, pillars: list[Pillar]):
+  def shouldTransitionState(self):
     """Determine if the state should transition based on distance and other conditions."""
 
     pillars_same = self.pillar_driving_pos[0] == self.pillar_driving_pos[1] # are both pillars in the current section same?
@@ -136,6 +136,8 @@ class StateMachine:
       if self.current_state == "UNPARKING-4":
         if abs(self.diff_angle) > 80:
           self.transitionState("PD-CENTER-START") # todo have to ignore markers of the parking lot
+          self.take_picture = True
+          self.distance_take_picture = self.total_distance
           return True
 
     # PD-CENTER state: Transition to DONE if no turns are left
@@ -149,7 +151,7 @@ class StateMachine:
       return False
     
     # Handle pillar avoidance after determining their position
-    if self.current_state == "PD-CENTER" and self._took_picture:
+    if self.current_state == "PD-CENTER-2" and self._took_picture:
       self._took_picture = False
       if self.pillar_driving_pos[0] == "RED":
         self.transitionState("TURN-R-1")
@@ -208,6 +210,7 @@ class StateMachine:
     
     if self.current_state in ["PD-CENTER-2", "PD-CENTER-START"] and self.diff_distance > 200 and self.distance_front > 0.6:
       self.transitionState("GYRO")
+      self._took_picture = False
       return True
 
     # Handle turning states
@@ -221,7 +224,7 @@ class StateMachine:
     
     if self.current_state == "REVERSE-EXTRA":
       if self.diff_distance < -200:
-        self.transitionState("PD-CENTER") # todo probably better to use PD-CENTER-2 here (the one with edges)
+        self.transitionState("PD-CENTER-2") # todo probably better to use PD-CENTER-2 here (the one with edges)
         self.take_picture = True
         self.distance_take_picture = self.total_distance + 500
         return True

@@ -18,6 +18,7 @@ from picamera2 import Picamera2
 from rounddir import find_round_dir
 import argparse
 import libcamera
+import sys
 
 #?: Webviewer controls for tuning colors, pd, and selecting stream
 
@@ -222,7 +223,7 @@ def cycle():
           for i in range(3):
             straight_sections[section_index].l[i] = 0
             straight_sections[section_index].r[i] = 0
-        if p.y > 130:
+        if p.y > 180:
           print(f"--Pillar {p.color} is too high, y={p.y}")
           continue
         if p.y > 50:
@@ -560,6 +561,24 @@ if __name__ == "__main__":
   shutdown = args.shutdown
   calibrate = args.calibrate
   skip_arduino = args.skip_arduino
+  
+  # Open a file for logging
+  log_file = open("logs/robot_log.txt", "a")
+
+  # Redirect print statements to the log file
+  class Logger:
+    def __init__(self, file):
+      self.file = file
+
+    def write(self, message):
+      self.file.write(message)
+      self.file.flush()
+
+    def flush(self):
+      pass
+
+  sys.stdout = Logger(log_file)
+  sys.stderr = Logger(log_file)
   
   speed = 300 if not pillars else 150
   

@@ -672,7 +672,7 @@ void loop()
 {
   loop_updater();
   check_serial_available();
-  check_current();
+  // check_current();
   drive_loop();
   // pid_config_print();
   // gyro_config_print();

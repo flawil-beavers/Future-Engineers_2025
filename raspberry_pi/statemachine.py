@@ -266,9 +266,9 @@ class StateMachine:
       return False
     
     if self.current_state == "REVERSE-EXTRA":
-      if self.diff_distance < -300 or abs(self.diff_distance - self._last_distance) < 2:
-        if abs(self.diff_distance - self._last_distance) < 2:
-          print(f"Diff distance is lower then 5 mm: abs({self.diff_distance} - {self._last_distance}) = {abs(self.diff_distance - self._last_distance)}")
+      if self.diff_distance < -300 or abs(self.diff_distance - self._last_distance) < 5:
+        if abs(self.diff_distance - self._last_distance) < 5:
+          print(f"Diff distance is lower then 5 mm: abs({self.diff_distance} - {self._last_distance}) = {abs(self.diff_distance - self._last_distance)}, total distance: {self.total_distance}")
         self.transitionState("PD-CENTER-2")
         if self.turns_left >= 8:
           self.take_picture = True

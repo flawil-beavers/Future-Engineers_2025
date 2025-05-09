@@ -157,7 +157,7 @@ class StateMachine:
     HOLD_STATES = ["PD-CENTER"]
     if self.current_state in HOLD_STATES and self.diff_distance < 100.0:  # Hold for 100 mm
       return False
-    
+
     # Handle pillar avoidance after determining their position
     if self.current_state == "PD-CENTER-2" and self._took_picture:
       self._took_picture = False
@@ -251,7 +251,7 @@ class StateMachine:
         return True
       return False
     
-    if self.current_state in ["PD-CENTER-2", "PD-CENTER-START"] and self.diff_distance > 200 and self.distance_front > 0.4:
+    if self.current_state in ["PD-CENTER-2", "PD-CENTER-START", "PD-CENTER-PARKING-2"] and self.diff_distance > 200 and self.distance_front > 0.4:
       self.transitionState("GYRO")
       self._took_picture = False
       return True
@@ -267,10 +267,11 @@ class StateMachine:
     
     if self.current_state == "REVERSE-EXTRA":
       if self.diff_distance < -300 or abs(self.diff_distance - self._last_distance) < 2:
-        if abs(self.diff_distance - self._last_distance) < 5:
+        if abs(self.diff_distance - self._last_distance) < 2:
           print(f"Diff distance is lower then 5 mm: abs({self.diff_distance} - {self._last_distance}) = {abs(self.diff_distance - self._last_distance)}")
         self.transitionState("PD-CENTER-2")
-        self.take_picture = True
+        if self.turns_left >= 8:
+          self.take_picture = True
         self.distance_take_picture = self.total_distance + 500
         return True
       return False

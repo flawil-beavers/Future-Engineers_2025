@@ -206,6 +206,7 @@ class Straight_Section:
     print(f"    l,    r")
     for i in range(2, -1, -1):
       print(f"{i}: {self.l[i]}, {self.r[i]}")
+    print(f"parking_lot: {self.parking_lot}")
     print(f"driving_pos: {self.driving_pos}")
 
   def calculate_driving_pos(self) -> list:

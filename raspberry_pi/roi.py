@@ -174,27 +174,10 @@ def cycle():
 
   pillars.sort(key=lambda x: x.width*x.height, reverse=True)
 
-  # check if the next pillar is before or after a turn marker
-  if len(pillars) > 0:
-    next_pillar = pillars[0]
-    next_pillar.width = min(next_pillar.width, 5)
-    # for this extract a region-of-interest around the pillar
-    roi_pillar_check = extract_ROI(hsv_image, [next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y], [next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]])
-    # filter out the orange and blue colors
-    if not roi_pillar_check.shape[0] == 0 and not roi_pillar_check.shape[1] == 0:
-      orange_blue_pillar = pipeline.filter_OB(roi_pillar_check)
-      portion_orange_pillar = cv2.countNonZero(orange_blue_pillar["orange"]) / (orange_blue_pillar["orange"].shape[0] * orange_blue_pillar["orange"].shape[1])
-      portion_blue_pillar = cv2.countNonZero(orange_blue_pillar["blue"]) / (orange_blue_pillar["blue"].shape[0] * orange_blue_pillar["blue"].shape[1])
-      # check if the pillar is before or after a turn marker
-      if portion_orange_pillar > 0.00005 or portion_blue_pillar > 0.00005:
-        if not headless:
-          cv2.rectangle(viz, (next_pillar.screen_x - int(next_pillar.width*0.35), next_pillar.y), (next_pillar.screen_x + int(next_pillar.width*0.35), hsv_image.shape[1]), (255, 0, 0), 3)
-        pillars[0].ignore = True
-        
+  section_index = (11-sm.turns_left) % 4
   if sm.take_picture and sm.distance_take_picture < distance:
     sm.take_picture = False
     sm._took_picture = True
-    section_index = (11-sm.turns_left) % 4
     index = None
     for p in pillars:
       if p.ignore:
@@ -240,7 +223,7 @@ def cycle():
       cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
       cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
-    straight_sections[section_index].parking_lot = True if section_index == 4 else False
+    straight_sections[section_index].parking_lot = True if section_index == 3 else False
     straight_sections[section_index].validate(sm.round_dir)
     cv2.imwrite(f"logs/image{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", color_image)
     cv2.imwrite(f"logs/image_viz{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", viz)
@@ -248,6 +231,11 @@ def cycle():
     sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
     straight_sections[section_index].print()
 
+  if sm.current_state == "PD-CENTER-2" and not sm._took_picture:
+    if sm.distance_take_picture < sm.total_distance:
+      sm._took_picture = True
+      sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+      print(f"Picture would be taken now")
 
   # A state machine is used to model the car's behavior
   # This checks if the car should transition to a new state, and if so, transitions
@@ -408,8 +396,8 @@ def cycle():
       correction = 1 if sm.round_dir == -1 else -1
       driving_speed = -SPEED_UNPARK
 
-  if "AVOID" in sm.current_state and "-3" in sm.current_state:
-    driving_speed = SPEED_UNPARK # can probably be removed again later on
+  # if "AVOID" in sm.current_state and "-3" in sm.current_state:
+  #   driving_speed = SPEED_UNPARK # can probably be removed again later on
 
   correction = bound(correction)
   MAX_STEERING_ANGLE = 25.0

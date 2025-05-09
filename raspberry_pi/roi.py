@@ -74,7 +74,7 @@ def cycle():
   if ser and not calibrate: # ! inefficient
     if ser.in_waiting > 0 and ser.readline().decode('utf-8').strip() == "enable 0":
       pause_robot()
-    message = "n\n"
+    message = "z\n"
     ser.write(message.encode())
     # read the distance from the Arduino
     distance = ser.readline().decode('utf-8').strip()
@@ -83,8 +83,6 @@ def cycle():
       ser.write(message.encode())
       distance = ser.readline().decode('utf-8').strip()
     distance = float(distance)
-    message = "g\n"
-    ser.write(message.encode())
     # read the gyro heading from the Arduino
     angle = ser.readline().decode('utf-8').strip()
     if angle == "enable 0":

@@ -472,6 +472,9 @@ void parseMessage(char *msg)
   case 'o':
     digitalWrite(ledPin, HIGH);
     break;
+  case 'z':
+    Serial.println(get_distance(encoder_pos));
+    Serial.println(degree_calibrated * 180 / PI);
   }
 }
 

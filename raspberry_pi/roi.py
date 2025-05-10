@@ -179,7 +179,7 @@ def cycle():
   #     pillar_ref = 0.48
     
 
-  REF_PORTION = 0.45 if not sm.isPillarRound else 0.28
+  REF_PORTION = 0.5 if not sm.isPillarRound else 0.28
 
   # error value
   error = 0.0

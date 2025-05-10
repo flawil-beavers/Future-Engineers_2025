@@ -149,8 +149,8 @@ class StateMachine:
           return True
 
     # PD-CENTER state: Transition to DONE if no turns are left
-    if "AVOID" in self.current_state and self.turns_left <= 0 and self._scheduled_state is None:
-      self.scheduleStateTransition("DONE", "distance", 500.0)  # Transition after 50 mm
+    if "PD-CENTER-2" in self.current_state and self.turns_left <= 0 and self._scheduled_state is None:
+      self.scheduleStateTransition("DONE", "distance", 1000.0)  # Transition after 50 mm
       return True
 
     # Hold the current state for a minimum distance
@@ -163,7 +163,7 @@ class StateMachine:
       self._took_picture = False
       if self.turns_left % 4 == 0: # at the parking place
         if self.pillar_driving_pos[0] == inner_colour:
-          self.transitionState(f"TURN-{'R' if inner_colour == 'RED' else 'L'}-1")
+          self.transitionState(f"TURN-{'R' if inner_colour == 'RED' else 'L'}-1") # todo probably wrong state
         else:
           self.transitionState(f"PD-CENTER-PARKING-1")
         return True
@@ -193,7 +193,7 @@ class StateMachine:
       if not pillars_same:
         if self.turns_left % 4 == 0: # at the parking place
           if self.pillar_driving_pos[1] == inner_colour:
-            self.transitionState(f"TURN-{'R' if inner_colour == 'RED' else 'L'}-2")
+            self.transitionState(f"AVOID-{'R' if inner_colour == 'RED' else 'L'}-2")
           else:
             self.transitionState(f"PD-CENTER-PARKING-2")
           return True
@@ -251,7 +251,7 @@ class StateMachine:
         return True
       return False
     
-    if self.current_state in ["PD-CENTER-2", "PD-CENTER-START", "PD-CENTER-PARKING-2"] and self.diff_distance > 200 and self.distance_front > 0.4:
+    if self.current_state in ["PD-CENTER-START", "PD-CENTER-PARKING-1", "PD-CENTER-PARKING-2"] and self.diff_distance > 200 and self.distance_front > 0.4:
       self.transitionState("GYRO")
       self._took_picture = False
       return True
@@ -266,9 +266,9 @@ class StateMachine:
       return False
     
     if self.current_state == "REVERSE-EXTRA":
-      if self.diff_distance < -300 or abs(self.diff_distance - self._last_distance) < 5:
-        if abs(self.diff_distance - self._last_distance) < 5:
-          print(f"Diff distance is lower then 5 mm: abs({self.diff_distance} - {self._last_distance}) = {abs(self.diff_distance - self._last_distance)}, total distance: {self.total_distance}")
+      if self.diff_distance < -300 or abs(self.diff_distance - self._last_distance) < 1:
+        if abs(self.diff_distance - self._last_distance) < 1:
+          print(f"Diff distance is lower then 1 mm: abs({self.diff_distance} - {self._last_distance}) = {abs(self.diff_distance - self._last_distance)}, total distance: {self.total_distance}")
         self.transitionState("PD-CENTER-2")
         if self.turns_left >= 8:
           self.take_picture = True

@@ -179,6 +179,14 @@ def cycle():
     sm.take_picture = False
     sm._took_picture = True
     index = None
+    if straight_sections[section_index].parking_lot:
+      print(f"parking lot in section, resetting pillars")
+      # rescan the parking lot
+      for i in range(3):
+        straight_sections[section_index].l[i] = 0
+        straight_sections[section_index].r[i] = 0
+      print(f"pillars reset and printing now")
+      straight_sections[section_index].print()
     for p in pillars:
       if p.ignore:
         continue
@@ -193,17 +201,12 @@ def cycle():
           index = 0
         elif p.y > 35:
           index = 1
-        elif p.y > 24:
-          index = 2
+        # elif p.y > 24:
+        #   index = 2
         else:
           print(f"--Pillar {p.color} is too low, y={p.y}")
           continue
       else:
-        if straight_sections[section_index].parking_lot:
-           # rescan the parking lot
-          for i in range(3):
-            straight_sections[section_index].l[i] = 0
-            straight_sections[section_index].r[i] = 0
         if p.y > 180:
           print(f"--Pillar {p.color} is too high, y={p.y}")
           continue
@@ -228,7 +231,7 @@ def cycle():
     cv2.imwrite(f"logs/image{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", color_image)
     cv2.imwrite(f"logs/image_viz{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", viz)
     print("Image saved")
-    sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+    sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
     straight_sections[section_index].print()
 
   if sm.current_state == "PD-CENTER-2" and not sm._took_picture:

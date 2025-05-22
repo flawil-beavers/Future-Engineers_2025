@@ -199,7 +199,7 @@ def cycle():
           continue
         if p.y > 50:
           index = 0
-        elif p.y > 35:
+        elif p.y > 28:
           index = 1
         # elif p.y > 24:
         #   index = 2
@@ -565,7 +565,7 @@ if __name__ == "__main__":
   sys.stdout = Logger(log_file)
   sys.stderr = Logger(log_file)
   
-  speed = 300 if not pillars else 150
+  speed = 300 if not pillars else 200
   
   if ser and not calibrate and not skip_arduino:
     print("Connecting to Arduino")

@@ -150,7 +150,7 @@ class StateMachine:
 
     # PD-CENTER state: Transition to DONE if no turns are left
     if "PD-CENTER-2" in self.current_state and self.turns_left <= 0 and self._scheduled_state is None:
-      self.scheduleStateTransition("DONE", "distance", 1000.0)  # Transition after 50 mm
+      self.scheduleStateTransition("DONE", "distance", 1200.0)  # Transition after 50 mm
       return True
 
     # Hold the current state for a minimum distance
@@ -189,9 +189,9 @@ class StateMachine:
       return True
     
     # Handle side changing if pillars are not the same in front and back
-    if self.current_state in ["AVOID-L-1", "AVOID-R-1"]:
+    if self.current_state in ["AVOID-L-1", "AVOID-R-1", "PD-CENTER-PARKING-1"]:
       if not pillars_same:
-        if self.turns_left % 4 == 0: # at the parking place
+        if self.turns_left % 4 == 0 and self.diff_distance > 500: # at the parking place
           if self.pillar_driving_pos[1] == inner_colour:
             self.transitionState(f"AVOID-{'R' if inner_colour == 'RED' else 'L'}-2")
           else:
@@ -251,7 +251,7 @@ class StateMachine:
         return True
       return False
     
-    if self.current_state in ["PD-CENTER-START", "PD-CENTER-PARKING-1", "PD-CENTER-PARKING-2"] and self.diff_distance > 200 and self.distance_front > 0.4:
+    if self.current_state in ["PD-CENTER-START", "PD-CENTER-PARKING-2"] and self.diff_distance > 200 and self.distance_front > 0.4:
       self.transitionState("GYRO")
       self._took_picture = False
       return True
@@ -272,7 +272,7 @@ class StateMachine:
         self.transitionState("PD-CENTER-2")
         if self.turns_left >= 8:
           self.take_picture = True
-        self.distance_take_picture = self.total_distance + 500
+        self.distance_take_picture = self.total_distance + 490
         return True
       return False
     return False

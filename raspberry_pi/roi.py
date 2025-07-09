@@ -251,6 +251,12 @@ def cycle():
   # This is the reference value for the single side PD control, 
   # eg. how much black should be on the left side when the car follows the left outer wall
 
+  # pillar_ref = 0.35
+  # if sm.next_pillar:
+  #   if sm.next_pillar.ignore:
+  #     pillar_ref = 0.48
+    
+
   REF_PORTION = 0.45 if not sm.isPillarRound else 0.30
   REF_PORTION_SIDE = 0.8
 

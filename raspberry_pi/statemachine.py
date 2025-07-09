@@ -92,7 +92,7 @@ class StateMachine:
     else:
       raise ValueError("Invalid method for scheduling state transition. Use 'distance' or 'angle'.")
     
-  def shouldTransitionState(self):
+  def shouldTransitionState(self, portion_orange: float = 0, portion_blue: float = 0) -> bool:
     """Determine if the state should transition based on distance and other conditions."""
 
     pillars_same = self.pillar_driving_pos[0] == self.pillar_driving_pos[1] # are both pillars in the current section same?
@@ -122,7 +122,10 @@ class StateMachine:
         self.round_dir = 1 if self.round_dir > 0 else -1
         self.search_for_dir = False
         print(f"Round direction determined: {'clockwise' if self.round_dir == 1 else 'counter-clockwise'}")
-        self.transitionState("UNPARKING-1")
+        if self.isPillarRound:
+          self.transitionState("UNPARKING-1")
+        else:
+          self.transitionState("PD-CENTER")
         return True
       else:
         self.search_for_dir = True
@@ -151,6 +154,10 @@ class StateMachine:
     # PD-CENTER state: Transition to DONE if no turns are left
     if "PD-CENTER-2" in self.current_state and self.turns_left <= 0 and self._scheduled_state is None:
       self.scheduleStateTransition("DONE", "distance", 1200.0)  # Transition after 50 mm
+      return True
+
+    if self.current_state == "PD-CENTER" and self.turns_left <= 0 and self._scheduled_state is None:
+      self.scheduleStateTransition("DONE", "distance", 700.0)  # Transition after 50 mm
       return True
 
     # Hold the current state for a minimum distance
@@ -275,4 +282,37 @@ class StateMachine:
         self.distance_take_picture = self.total_distance + 490
         return True
       return False
+
+    if not self.isPillarRound:
+      # Handle turning states
+      TURNING_ANGLE = 70.0  # Angle threshold for turning
+      if self.current_state in ["TURNING-L", "TURNING-R"]:
+        if abs(diff_angle) > TURNING_ANGLE:
+          self.transitionState("PD-CENTER")
+          return True
+        return False
+
+      # Handle turn markers
+      MIN_PORTION = 0.15
+      if portion_blue > MIN_PORTION:
+        if self.current_state != "TURNING-R" and self.round_dir < 0 and self._scheduled_state is None:
+          self.turns_left -= 1
+          self.scheduleStateTransition("TURNING-L", "distance", 100.0)  # Turn left in 100 mm
+        elif self.current_state != "PD-CENTER":
+          self.transitionState("PD-CENTER")
+        else:
+          return False
+        return True
+
+      if portion_orange > MIN_PORTION:
+        if self.current_state != "TURNING-L" and self.round_dir > 0 and self._scheduled_state is None:
+          self.turns_left -= 1
+          self.scheduleStateTransition("TURNING-R", "distance", 100.0)  # Turn right in 100 mm
+        elif self.current_state != "PD-CENTER":
+          self.transitionState("PD-CENTER")
+        else:
+          return False
+        return True
+      return False
+    
     return False

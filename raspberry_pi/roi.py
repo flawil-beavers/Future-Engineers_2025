@@ -127,124 +127,128 @@ def cycle():
   portion_black_l = cv2.countNonZero(roi_left) / (roi_left.shape[0] * roi_left.shape[1])
   portion_black_r = cv2.countNonZero(roi_right) / (roi_right.shape[0] * roi_right.shape[1])
 
-  roi_lines = {"L": [], "R": []}
-  for image, key in zip([roi_left_side, roi_right_side], ["L", "R"]):
-    # remove the 5 uppest rows from the image just in case the robot sees over the barriers
-    image = image[5:, :]
-    blurredImg = cv2.GaussianBlur(image, (3, 3), 0)
-    lower = 30
-    upper = 90
-    edges_img = cv2.Canny(blurredImg, lower, upper, 3)
-    roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
-  border_lines = {"L": Lines(roi_lines["L"], (0, 5), (0, 0)), "R": Lines(roi_lines["R"], (640-roi_width, 5), (roi_width, 0))}
+  if pillars:
+    roi_lines = {"L": [], "R": []}
+    for image, key in zip([roi_left_side, roi_right_side], ["L", "R"]):
+      # remove the 5 uppest rows from the image just in case the robot sees over the barriers
+      image = image[5:, :]
+      blurredImg = cv2.GaussianBlur(image, (3, 3), 0)
+      lower = 30
+      upper = 90
+      edges_img = cv2.Canny(blurredImg, lower, upper, 3)
+      roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
+    border_lines = {"L": Lines(roi_lines["L"], (0, 5), (0, 0)), "R": Lines(roi_lines["R"], (640-roi_width, 5), (roi_width, 0))}
 
-  for line_group in border_lines.values():
-    if line_group is not None:
-      b = 200
-      for line in line_group.lines:
-        if not headless:
-          cv2.line(viz, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 
-                (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), (b, 100, 0), 2)
-          cv2.putText(viz, f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
-                (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-          # create a green dot for x1 y1 and a red dot for x2 y2
-          cv2.circle(viz, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 3, (0, 255, 0), -1)
-          cv2.circle(viz, (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 3, (0, 0, 255), -1)
-          if b == 200:
-            cv2.putText(viz, f"y={line['m']:.2f}x+{line['b']:.2f}", 
-                  (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-          b *= 0.6
+    for line_group in border_lines.values():
+      if line_group is not None:
+        b = 200
+        for line in line_group.lines:
+          if not headless:
+            cv2.line(viz, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 
+                  (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), (b, 100, 0), 2)
+            cv2.putText(viz, f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
+                  (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            # create a green dot for x1 y1 and a red dot for x2 y2
+            cv2.circle(viz, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 3, (0, 255, 0), -1)
+            cv2.circle(viz, (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 3, (0, 0, 255), -1)
+            if b == 200:
+              cv2.putText(viz, f"y={line['m']:.2f}x+{line['b']:.2f}", 
+                    (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            b *= 0.6
 
-  roi_front_width = 10
-  roi_front = extract_ROI(rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
-  portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
-  sm.distance_front = portion_black_front
-  if not headless:
-    cv2.rectangle(viz, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
-    cv2.putText(viz, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    cv2.putText(viz, f"{portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    cv2.putText(viz, f"{portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    # cv2.putText(viz, f"o: {portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    # cv2.putText(viz, f"b: {portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+    roi_front_width = 10
+    roi_front = extract_ROI(rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
+    portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
+    sm.distance_front = portion_black_front
+    if not headless:
+      cv2.rectangle(viz, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
+      cv2.putText(viz, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+      cv2.putText(viz, f"{portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+      cv2.putText(viz, f"{portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+      # cv2.putText(viz, f"o: {portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+      # cv2.putText(viz, f"b: {portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
-  # filter out the red and green colors of the pillars and walls
-  pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
-  pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
-  pillars = pillars_r + pillars_g
+    # filter out the red and green colors of the pillars and walls
+    detected_pillars_r = pipeline.get_pillars(rgbl["red"], "RED")
+    detected_pillars_g = pipeline.get_pillars(rgbl["green"], "GREEN")
+    detected_pillars = detected_pillars_r + detected_pillars_g
 
-  pillars.sort(key=lambda x: x.width*x.height, reverse=True)
+    detected_pillars.sort(key=lambda x: x.width*x.height, reverse=True)
 
-  section_index = (11-sm.turns_left) % 4
-  if sm.take_picture and sm.distance_take_picture < distance:
-    sm.take_picture = False
-    sm._took_picture = True
-    index = None
-    if straight_sections[section_index].parking_lot:
-      print(f"parking lot in section, resetting pillars")
-      # rescan the parking lot
-      for i in range(3):
-        straight_sections[section_index].l[i] = 0
-        straight_sections[section_index].r[i] = 0
-      print(f"pillars reset and printing now")
-      straight_sections[section_index].print()
-    for p in pillars:
-      if p.ignore:
-        continue
-      if sm.current_state == "PD-CENTER-START":
-        if p.y > 130:
-          print(f"--Pillar {p.color} is too high, y={p.y}")
-          continue
-        if abs(p.screen_x - 320) > 170:
-          print(f"--Pillar {p.color} is too far from the center, x={p.screen_x}")
-          continue
-        if p.y > 50:
-          index = 0
-        elif p.y > 28:
-          index = 1
-        # elif p.y > 24:
-        #   index = 2
-        else:
-          print(f"--Pillar {p.color} is too low, y={p.y}")
-          continue
-      else:
-        if p.y > 180:
-          print(f"--Pillar {p.color} is too high, y={p.y}")
-          continue
-        if p.y > 50:
-          index = 0
-        elif p.y > 35:
-          index = 1
-        elif p.y > 24:
-          index = 2
-        else:
-          print(f"--Pillar {p.color} is too low, y={p.y}")
-          continue
-      if p.screen_x < 320:
-        straight_sections[section_index].l[index] = p.color
-      else:
-        straight_sections[section_index].r[index] = p.color
-      cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
-      cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-    straight_sections[section_index].parking_lot = True if section_index == 3 else False
-    straight_sections[section_index].validate(sm.round_dir)
-    cv2.imwrite(f"logs/image{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", color_image)
-    cv2.imwrite(f"logs/image_viz{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", viz)
-    print("Image saved")
-    sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
-    straight_sections[section_index].print()
-
-  if sm.current_state == "PD-CENTER-2" and not sm._took_picture:
-    if sm.distance_take_picture < sm.total_distance:
+    section_index = (11-sm.turns_left) % 4
+    if sm.take_picture and sm.distance_take_picture < distance:
+      sm.take_picture = False
       sm._took_picture = True
-      sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
-      print(f"Picture would be taken now")
+      index = None
+      if straight_sections[section_index].parking_lot:
+        print(f"parking lot in section, resetting pillars")
+        # rescan the parking lot
+        for i in range(3):
+          straight_sections[section_index].l[i] = 0
+          straight_sections[section_index].r[i] = 0
+        print(f"pillars reset and printing now")
+        straight_sections[section_index].print()
+      for p in detected_pillars:
+        if p.ignore:
+          continue
+        if sm.current_state == "PD-CENTER-START":
+          if p.y > 130:
+            print(f"--Pillar {p.color} is too high, y={p.y}")
+            continue
+          if abs(p.screen_x - 320) > 170:
+            print(f"--Pillar {p.color} is too far from the center, x={p.screen_x}")
+            continue
+          if p.y > 50:
+            index = 0
+          elif p.y > 28:
+            index = 1
+          # elif p.y > 24:
+          #   index = 2
+          else:
+            print(f"--Pillar {p.color} is too low, y={p.y}")
+            continue
+        else:
+          if p.y > 180:
+            print(f"--Pillar {p.color} is too high, y={p.y}")
+            continue
+          if p.y > 50:
+            index = 0
+          elif p.y > 35:
+            index = 1
+          elif p.y > 24:
+            index = 2
+          else:
+            print(f"--Pillar {p.color} is too low, y={p.y}")
+            continue
+        if p.screen_x < 320:
+          straight_sections[section_index].l[index] = p.color
+        else:
+          straight_sections[section_index].r[index] = p.color
+        cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
+        cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+      straight_sections[section_index].parking_lot = True if section_index == 3 else False
+      straight_sections[section_index].validate(sm.round_dir)
+      cv2.imwrite(f"logs/image{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", color_image)
+      cv2.imwrite(f"logs/image_viz{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", viz)
+      print("Image saved")
+      sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
+      straight_sections[section_index].print()
+
+    if sm.current_state == "PD-CENTER-2" and not sm._took_picture:
+      if sm.distance_take_picture < sm.total_distance:
+        sm._took_picture = True
+        sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+        print(f"Picture would be taken now")
 
   # A state machine is used to model the car's behavior
   # This checks if the car should transition to a new state, and if so, transitions
   # states may be PD-CENTER, PD-RIGHT, PD-LEFT, TURNING-L, TURNING-R, etc.
   if not calibrate:
-    sm.shouldTransitionState()
+    if pillars:
+      sm.shouldTransitionState()
+    else:
+      sm.shouldTransitionState(rgbl["orange"], rgbl["blue"])
 
   # PD control
 
@@ -278,7 +282,7 @@ def cycle():
   if sm.current_state in PD_STATES and sm.round_dir == 1:
     error = (portion_black_l - REF_PORTION) * 1.2
   
-  if sm.side != None:
+  if pillars and sm.side != None:
     side = sm.side
     if sm.following_angle == True:
       error = -sm.diff_angle / 80
@@ -428,7 +432,7 @@ def cycle():
     cv2.putText(viz, f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    for p in pillars:
+    for p in detected_pillars:
       cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)    
 
   last_error = error

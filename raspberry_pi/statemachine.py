@@ -141,7 +141,7 @@ class StateMachine:
           self.transitionState("UNPARKING-3")
           return True
       if self.current_state == "UNPARKING-3":
-        if self.diff_distance < -0:
+        if self.diff_distance < 0:
           self.transitionState("UNPARKING-4")
           return True
       if self.current_state == "UNPARKING-4":

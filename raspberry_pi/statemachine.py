@@ -285,7 +285,7 @@ class StateMachine:
       # Handle turning states
       TURNING_ANGLE = 70.0  # Angle threshold for turning
       if self.current_state in ["TURNING-L", "TURNING-R"]:
-        if abs(diff_angle) > TURNING_ANGLE:
+        if abs(self.diff_angle) > TURNING_ANGLE:
           self.transitionState("PD-CENTER")
           return True
         return False

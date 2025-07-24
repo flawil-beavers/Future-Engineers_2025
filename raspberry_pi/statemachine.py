@@ -181,9 +181,7 @@ class StateMachine:
         self.transitionState("TURN-L-1")
         return True
       else: # ! error
-        print("ERROR: Pillar driving position is not RED or GREEN.")
-        self.transitionState("TURN-R-1")
-        return True
+        raise ValueError(f"Unexpected pillar driving position: {self.pillar_driving_pos[0]}. Expected 'RED' or 'GREEN'.")
 
     DOUBLE_TURN_ANGLE = 65
 

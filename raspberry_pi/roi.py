@@ -248,7 +248,9 @@ def cycle():
     if pillars:
       sm.shouldTransitionState()
     else:
-      sm.shouldTransitionState(rgbl["orange"], rgbl["blue"])
+      portion_orange = cv2.countNonZero(rgbl["orange"]) / (rgbl["orange"].shape[0] * rgbl["orange"].shape[1])
+      portion_blue = cv2.countNonZero(rgbl["blue"]) / (rgbl["blue"].shape[0] * rgbl["blue"].shape[1])
+      sm.shouldTransitionState(portion_orange, portion_blue)
 
   # PD control
 
@@ -432,8 +434,9 @@ def cycle():
     cv2.putText(viz, f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    for p in detected_pillars:
-      cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)    
+    if pillars:
+      for p in detected_pillars:
+        cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)    
 
   last_error = error
   # print_past_time("finished cycle") # 50 ms

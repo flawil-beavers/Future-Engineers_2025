@@ -101,7 +101,7 @@ class Lines:
       lines (np.ndarray): The array of line coordinates, where each line is represented
                           as [[x1, y1, x2, y2]].
       xy_offset (tuple, optional): A tuple (x_offset, y_offset) for the purpose of drawing the lines
-      cal_offset (tuple, optional): A tuple (x_offset, y_offset) for the purpose of calculating the slope and intercept.
+      calc_offset (tuple, optional): A tuple (x_offset, y_offset) for the purpose of calculating the slope and intercept.
     """
     self.lines = []  # List to store processed line data
     x_offset, y_offset = xy_offset

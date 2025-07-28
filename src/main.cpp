@@ -24,7 +24,7 @@ const int ledPin = 9;
 
 // ------ drive settings ------
 // encoder settings
-const int gear_ratio = 297.92;                                     // gear ratio of the motor
+const int gear_ratio = 150.58;                                     // gear ratio of the motor
 const int countperrev = gear_ratio * 12;                           // counts per revolution of the motor
 const float counter_to_mm = 20.0 / 28.0 * PI * 62.4 / countperrev; // mm per encoder count
 
@@ -46,7 +46,7 @@ bool hold_dc = false;
 
 // current sensor settings
 const float dc_to_current = 5.0 / 1024 * 0.525; // conversion factor from duty cycle to current (A)
-const float max_current = 0.2;   // max current (A)
+const float max_current = 0.5;   // max current (A)
 
 // speed settings
 float current_speed = 0;
@@ -672,7 +672,7 @@ void loop()
 {
   loop_updater();
   check_serial_available();
-  // check_current();
+  check_current();
   drive_loop();
   // pid_config_print();
   // gyro_config_print();

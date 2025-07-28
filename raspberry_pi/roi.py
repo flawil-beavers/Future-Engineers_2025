@@ -394,7 +394,18 @@ def cycle():
       ser.write(message.encode())
       message = "s0\n"
       ser.write(message.encode())
-    # exit()
+    if pillars:
+      
+      sleep(15)
+      
+      ser.write("d-150\n".encode())  # drive backwards for 2 seconds 
+      ser.write(f"s{int(sm.round_dir * 20)}\n".encode())     # turn in the right direction
+      sleep(2)                      
+      ser.write("d0\n".encode())    # Stoppen
+      # Stoppe Motoren
+      ser.write("p\n".encode())
+      ser.write("s0\n".encode())
+    
     sleep(5)
     exit()
 

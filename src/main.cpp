@@ -472,6 +472,9 @@ void parseMessage(char *msg)
   case 'o':
     digitalWrite(ledPin, HIGH);
     break;
+  case 'z':
+    Serial.println(get_distance(encoder_pos));
+    Serial.println(degree_calibrated * 180 / PI);
   }
 }
 
@@ -669,7 +672,7 @@ void loop()
 {
   loop_updater();
   check_serial_available();
-  check_current();
+  // check_current();
   drive_loop();
   // pid_config_print();
   // gyro_config_print();

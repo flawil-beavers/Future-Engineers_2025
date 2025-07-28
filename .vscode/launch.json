@@ -12,9 +12,12 @@
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/raspberry_pi/roi.py",
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/raspberry_pi"
+            "cwd": "${workspaceFolder}/raspberry_pi",
+            "args": [
+                "--pillar"
+            ]
         },
         {
             "type": "platformio-debug",

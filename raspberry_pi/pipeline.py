@@ -16,6 +16,18 @@ class Pipeline:
   def crop(self, image: np.ndarray):
     # scale the image by 0.5 in height. This means that the image will have a height of 240 pixels instead of 480
     return cv2.resize(image, (int(image.shape[1]), int(image.shape[0] * 0.5)))
+  
+  def inRange(self, image: np.ndarray, min: list, max: list):
+    """
+    Returns a mask of the image with the pixels in the range of min and max
+    """
+    mins = list(min)
+    maxs = list(max)
+    for i in [mins, maxs]:
+      i[0] = int(round(i[0]/2))
+      i[1] = int(round(i[1]*2.55))
+      i[2] = int(round(i[2]*2.55))
+    return cv2.inRange(image, tuple(mins), tuple(maxs))
 
   def filter_RG_Bl(self, hsv: np.ndarray, color_image: np.ndarray):
     """
@@ -23,57 +35,67 @@ class Pipeline:
     """
     # reload config file
     self.configloader.load_config()
-    redMin = tuple(self.configloader.get_property("filters")['REDLO'])
-    redMax = tuple(self.configloader.get_property("filters")['REDHI'])
-    greenMin = tuple(self.configloader.get_property("filters")['GREENLO'])
-    greenMax = tuple(self.configloader.get_property("filters")['GREENHI'])
+    redMin = list(self.configloader.get_property("filters")['REDLO'])
+    redMax = list(self.configloader.get_property("filters")['REDHI'])
+    greenMin = list(self.configloader.get_property("filters")['GREENLO'])
+    greenMax = list(self.configloader.get_property("filters")['GREENHI'])
     grayThresh = int(self.configloader.get_property("filters")['GRAY'])
 
 
     # red filter
     # First red range
-    rMask1 = cv2.inRange(hsv, redMin, redMax)
+    rMask1 = self.inRange(hsv, redMin, redMax)
 
     # Second red range (adjusted for hue wrapping)
-    redMin2 = (180 - redMax[0], redMin[1], redMin[2])
-    redMax2 = (180, redMax[1], redMax[2])
-    rMask2 = cv2.inRange(hsv, redMin2, redMax2)
+    redMin2 = [360 - redMax[0], redMin[1], redMin[2]]
+    redMax2 = [360, redMax[1], redMax[2]]
+    rMask2 = self.inRange(hsv, redMin2, redMax2)
 
     # Combine both red ranges
     rMask = cv2.bitwise_or(rMask1, rMask2)
+
     # green filter
-    gMask = cv2.inRange(hsv, greenMin, greenMax)
+    gMask = self.inRange(hsv, greenMin, greenMax)
+  
     # blur images to remove noise
     blurredR = cv2.medianBlur(rMask, 5)
     blurredG = cv2.medianBlur(gMask, 5)
+
     grayImage = cv2.cvtColor(color_image, cv2.COLOR_RGB2GRAY)
     blurredImg = cv2.GaussianBlur(grayImage, (3, 3), 0)
     # edge detection
     lower = 30
     upper = 90
     blackimg = cv2.inRange(blurredImg, 0, grayThresh)
-    # edgesImg = cv2.Canny(blackimg, lower, upper, 3)
+    
+    ob_image = self.filter_OB(hsv)
     # combine images
-    # return [edgesImg, blurredG, blurredR, blackimg]
-    return {"green": blurredG, "red": blurredR, "black": blackimg}
-
-
+    combined = cv2.bitwise_or(ob_image["orange"], ob_image["blue"])
+    blackimg = cv2.subtract(blackimg, combined)
+    return {"green": blurredG, "red": blurredR, "black": blackimg, "orange": ob_image["orange"], "blue": ob_image["blue"]}
+    
   def filter_OB(self, hsv: np.ndarray):
     """
     Extracts the orange and blue colors from the image -> this is used to detect the turn markers
     """
-    orangeMin = tuple(self.configloader.get_property("filters")['ORANGELO'])
-    orangeMax = tuple(self.configloader.get_property("filters")['ORANGEHI'])
-    blueMin = tuple(self.configloader.get_property("filters")['BLUELO'])
-    blueMax = tuple(self.configloader.get_property("filters")['BLUEHI'])
+    orangeMin = list(self.configloader.get_property("filters")['ORANGELO'])
+    orangeMax = list(self.configloader.get_property("filters")['ORANGEHI'])
+    blueMin = list(self.configloader.get_property("filters")['BLUELO'])
+    blueMax = list(self.configloader.get_property("filters")['BLUEHI'])
     # orange filter
-    oMask = cv2.inRange(hsv, orangeMin, orangeMax)
+    oMask = self.inRange(hsv, orangeMin, orangeMax)
     # blue filter
-    bMask = cv2.inRange(hsv, blueMin, blueMax)
+    bMask = self.inRange(hsv, blueMin, blueMax)
     # blur images to remove noise
     blurredO = cv2.medianBlur(oMask, 5)
     blurredB = cv2.medianBlur(bMask, 5)
-    # return [blurredO, blurredB]
+    # remove more noise by eroding and dilating the image
+    kernel = np.ones((3, 3), np.uint8)
+    blurredO = cv2.erode(blurredO, kernel, iterations=1)
+    blurredB = cv2.erode(blurredB, kernel, iterations=1)
+    kernel = np.ones((6, 6), np.uint8)
+    blurredO = cv2.dilate(blurredO, kernel, iterations=1)
+    blurredB = cv2.dilate(blurredB, kernel, iterations=1)
     return {"orange": blurredO, "blue": blurredB}
   
   def filter_parking(self, hsv: np.ndarray):

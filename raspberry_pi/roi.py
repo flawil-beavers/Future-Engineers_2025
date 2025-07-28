@@ -361,6 +361,11 @@ def cycle():
       error *= -1
 
   correction = error * kp + (error - last_error) * kd
+  
+  if sm.current_state == "TURNING-L":
+    correction = -turn_correction
+  if sm.current_state == "TURNING-R":
+    correction = turn_correction
 
   driving_speed = speed
   

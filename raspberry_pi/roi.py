@@ -248,8 +248,10 @@ def cycle():
     if pillars:
       sm.shouldTransitionState()
     else:
-      portion_orange = cv2.countNonZero(rgbl["orange"]) / (rgbl["orange"].shape[0] * rgbl["orange"].shape[1])
-      portion_blue = cv2.countNonZero(rgbl["blue"]) / (rgbl["blue"].shape[0] * rgbl["blue"].shape[1])
+      orange_roi = extract_ROI(rgbl["orange"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+      blue_roi = extract_ROI(rgbl["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+      portion_orange = cv2.countNonZero(orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
+      portion_blue = cv2.countNonZero(blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
       sm.shouldTransitionState(portion_orange, portion_blue)
 
   # PD control

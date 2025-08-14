@@ -65,6 +65,9 @@ int set_degree = 0;
 bool disable_servo = false;
 int last_angle = 0;
 
+// manual stalling detection
+long stall_encoder_pos = 0; // current encoder position
+
 // PID
 float target_distance = 0; // target encoder position in mm
 
@@ -536,6 +539,20 @@ void check_current()
   }
 }
 
+void check_stalling()
+{
+  if (fabs(stall_encoder_pos - encoder_pos) < 4 && fabs(current_dc) > max_dc * 0.9 && !disable_dc)
+  {
+    Serial.print(fabs(stall_encoder_pos - encoder_pos));
+    Serial.print(", ");
+    Serial.print(current_dc);
+    Serial.println(" Stalling detected, stopping robot");
+    // disable motor
+    stop();
+  }
+  stall_encoder_pos = encoder_pos; // update stall position
+}
+
 /*
 Change enable state based on interrupt
 This is the start stop and pause button
@@ -673,6 +690,7 @@ void loop()
   loop_updater();
   check_serial_available();
   check_current();
+  check_stalling();
   drive_loop();
   // pid_config_print();
   // gyro_config_print();

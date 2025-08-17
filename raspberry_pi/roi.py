@@ -113,7 +113,7 @@ def read_arduino():
     Returns:
         None
     """
-    global ser, sm, calibrate
+    global ser, calibrate
     distance = 0.0
     angle = 0.0
     # Send z to the Arduino to get the distance and gyro heading
@@ -136,8 +136,8 @@ def read_arduino():
             ser.write(message.encode())
             angle = ser.readline().decode('utf-8').strip()
         angle = float(angle)
-    sm.update_distance(distance) # takes all together 20-35 ms
-    sm.update_angle(angle)
+    # sm.update_distance(distance) # takes all together 20-35 ms
+    # sm.update_angle(angle)
 
 def process_image(picam2, pipeline):
     """
@@ -266,7 +266,8 @@ def cycle():
         roi_front_width = 10
         roi_front = extract_ROI(rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
         portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
-        sm.distance_front = portion_black_front
+        distance_front = portion_black_front
+        # sm.distance_front = portion_black_front
         if not headless:
             cv2.rectangle(viz, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
             cv2.putText(viz, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
@@ -281,72 +282,6 @@ def cycle():
         detected_pillars = detected_pillars_r + detected_pillars_g
 
         detected_pillars.sort(key=lambda x: x.width*x.height, reverse=True)
-
-        section_index = (11-sm.turns_left) % 4
-        if sm.take_picture and sm.distance_take_picture < sm.total_distance:
-            sm.take_picture = False
-            sm._took_picture = True
-            index = None
-            if straight_sections[section_index].parking_lot:
-                print(f"parking lot in section, resetting pillars")
-                # rescan the parking lot
-                for i in range(3):
-                    straight_sections[section_index].l[i] = 0
-                    straight_sections[section_index].r[i] = 0
-                print(f"pillars reset and printing now")
-                straight_sections[section_index].print()
-            for p in detected_pillars:
-                if p.ignore:
-                    continue
-                if sm.current_state == "PD-CENTER-START":
-                    if p.y > 130:
-                        print(f"--Pillar {p.color} is too high, y={p.y}")
-                        continue
-                    if abs(p.screen_x - 320) > 170:
-                        print(f"--Pillar {p.color} is too far from the center, x={p.screen_x}")
-                        continue
-                    if p.y > 50:
-                        index = 0
-                    elif p.y > 28:
-                        index = 1
-                    # elif p.y > 24:
-                    #   index = 2
-                    else:
-                        print(f"--Pillar {p.color} is too low, y={p.y}")
-                        continue
-                else:
-                    if p.y > 180:
-                        print(f"--Pillar {p.color} is too high, y={p.y}")
-                        continue
-                    if p.y > 50:
-                        index = 0
-                    elif p.y > 35:
-                        index = 1
-                    elif p.y > 24:
-                        index = 2
-                    else:
-                        print(f"--Pillar {p.color} is too low, y={p.y}")
-                        continue
-                if p.screen_x < 320:
-                    straight_sections[section_index].l[index] = p.color
-                else:
-                    straight_sections[section_index].r[index] = p.color
-                cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
-                cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-            straight_sections[section_index].parking_lot = True if section_index == 3 else False
-            straight_sections[section_index].validate(sm.round_dir)
-            cv2.imwrite(f"logs/image{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", color_image)
-            cv2.imwrite(f"logs/image_viz{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", viz)
-            print("Image saved")
-            sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
-            straight_sections[section_index].print()
-
-        if sm.current_state == "PD-CENTER-2" and not sm._took_picture:
-            if sm.distance_take_picture < sm.total_distance:
-                sm._took_picture = True
-                sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
-                print(f"Picture would be taken now")
 
     # A state machine is used to model the car's behavior
     # This checks if the car should transition to a new state, and if so, transitions
@@ -552,10 +487,10 @@ def cycle():
         cv2.rectangle(viz, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
         cv2.rectangle(viz, (0, 0), (roi_width, 150), (255, 0, 0), 2)
         cv2.rectangle(viz, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
-        cv2.putText(viz, f"State: {sm.current_state} {round(sm.diff_distance)} mm {round(sm.diff_angle, 1)} °", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz, f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        # cv2.putText(viz, f"State: {sm.current_state} {round(sm.diff_distance)} mm {round(sm.diff_angle, 1)} °", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
+        # cv2.putText(viz, f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        # cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         if pillars:
             for p in detected_pillars:
                 cv2.line(viz, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)    
@@ -596,11 +531,11 @@ async def cycle_loop():
 
     while True:
         cycle()
-        await asyncio.sleep(0.01)  # Sleep for a short duration to prevent blocking
+        await asyncio.sleep(0.05)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
     global current_streams, has_sent_streams_info, latest_streams
-
+    print("Websocket connection established")
     # Send initial stream info
     if not has_sent_streams_info:
         has_sent_streams_info = True
@@ -664,10 +599,10 @@ async def main():
     calibrate = args.calibrate
     skip_arduino = args.skip_arduino
     
-    setup_logging()
+    # setup_logging()
     
     if ser and not calibrate and not skip_arduino:
-        connect_arduino(ser)
+        connect_arduino(ser) # todo: only wait for start signal in the main_program()
 
     tasks = [asyncio.create_task(cycle_loop()),
              asyncio.create_task(main_program())]
@@ -691,14 +626,14 @@ def encode_image(image):
     base64_str = base64.b64encode(buffer).decode('utf-8')
     return base64_str
 
-def drive(speed, distance):
+async def drive(speed, distance):
     while (distance > 0):
-        pass
+        await asyncio.sleep(0.1)  # Simulate driving
 
 async def main_program():
     speed = 300 if not pillars else 200
-    drive(speed, 1000)  # Example drive command, adjust as needed
     print("Starting main program...")
+    await drive(speed, 1000)  # Example drive command, adjust as needed
 
 if __name__ == "__main__":
     asyncio.run(main())

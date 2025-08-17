@@ -68,7 +68,7 @@ def process_image(image, roi=None):
     color_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
-  
+
     rgbl = pipeline.filter_RG_Bl(hsv_image, color_image)
     
     roi_width = 100
@@ -78,7 +78,7 @@ def process_image(image, roi=None):
         black_image = extract_ROI(rgbl["black"], [640-roi_width, 0], [640, 150])
     else :
         black_image = rgbl["black"]
-   
+
     
     # do edge detection on the black image
     blurredImg = cv2.GaussianBlur(black_image, (3, 3), 0)
@@ -107,7 +107,7 @@ def process_image(image, roi=None):
             print(f"y = {slope:.2f}x + {intercept:.2f}")
     else:
         print("No lines found")  
-  
+
     # save the image to the same folder with the ending _edges
     edges_image_path = os.path.join("logs", image_name.replace(".jpg", "_edges.jpg"))
     cv2.imwrite(edges_image_path, color_image)

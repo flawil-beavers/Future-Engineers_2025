@@ -214,7 +214,7 @@ class Straight_Section:
         Calculate the driving position of the robot in the straight section.
 
         Returns:
-            list: The driving position as [x, y].
+            list: The driving position as [fist color pillar, second color pillar].
         """
         pillars = [0, 0, 0]
         for i in range(3):

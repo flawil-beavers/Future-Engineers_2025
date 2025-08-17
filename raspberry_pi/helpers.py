@@ -234,6 +234,23 @@ class Straight_Section:
                     self.driving_pos = [i, i]
                     break
         return self.driving_pos
+    
+class Car:
+    """
+    Class to represent the car's current state.
+
+    Attributes:
+        angle (float): The current angle of the car (degrees).
+        distance (float): The current encoder distance (millimeters).
+        speed (float): The current speed of the car.
+        steering (float): The current steering value.
+    """
+
+    def __init__(self, angle=0.0, distance=0.0, speed=0.0, steering=0.0):
+        self.angle = angle
+        self.distance = distance
+        self.speed = speed
+        self.steering = steering
 
 def setup_logging():
     """
@@ -363,4 +380,3 @@ def process_pillars(sm, detected_pillars, straight_sections, color_image, viz):
             sm._took_picture = True
             sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
             print(f"Picture would be taken now")
-

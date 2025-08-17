@@ -11,7 +11,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, connect_arduino
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, connect_arduino, Car
 from pipeline import Pipeline
 from statemachine import StateMachine
 from picamera2 import Picamera2
@@ -53,12 +53,13 @@ roi_center_x, roi_center_y = 320 - roi_center_w // 2, 180
 roi_width = 100
 roi_height = 150
 
-current_streams = ["viz", "roi_left", "roi_right", "roi_center", "red", "green", "black", "orange", "blue", "hsv_image", "color_image"]
+current_streams = ["viz", "black", "viz"]
 has_sent_streams_info = False
 active_websocket = None
 # Shared dictionary to hold the latest streams from cycle()
 latest_streams = {}
 
+car = Car()
 
 ports = serial.tools.list_ports.comports()
 
@@ -113,11 +114,15 @@ def read_arduino():
     Returns:
         None
     """
-    global ser, calibrate
-    distance = 0.0
-    angle = 0.0
+    global ser, calibrate, car
     # Send z to the Arduino to get the distance and gyro heading
-    if ser and not calibrate: # ! inefficient
+    if ser and not calibrate:
+        # Write speed and steering to Arduino
+        speed_message = f"d{int(car.speed)}\n"
+        ser.write(speed_message.encode())
+        steering_message = f"s {int(car.steering)}\n"
+        ser.write(steering_message.encode())
+
         if ser.in_waiting > 0 and ser.readline().decode('utf-8').strip() == "enable 0":
             pause_robot()
         message = "z\n"
@@ -128,16 +133,15 @@ def read_arduino():
             pause_robot()
             ser.write(message.encode())
             distance = ser.readline().decode('utf-8').strip()
-        distance = float(distance)
+        car.distance = float(distance)
         # read the gyro heading from the Arduino
         angle = ser.readline().decode('utf-8').strip()
         if angle == "enable 0":
             pause_robot()
             ser.write(message.encode())
             angle = ser.readline().decode('utf-8').strip()
-        angle = float(angle)
-    # sm.update_distance(distance) # takes all together 20-35 ms
-    # sm.update_angle(angle)
+        car.angle = float(angle)
+
 
 def process_image(picam2, pipeline):
     """
@@ -324,193 +328,7 @@ def cycle():
             portion_orange = cv2.countNonZero(orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
             portion_blue = cv2.countNonZero(blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
 
-    # PD control
 
-    # This is the reference value for the single side PD control, 
-    # eg. how much black should be on the left side when the car follows the left outer wall
-
-    # pillar_ref = 0.35
-    # if sm.next_pillar:
-    #   if sm.next_pillar.ignore:
-    #     pillar_ref = 0.48
-    
-
-    # REF_PORTION = 0.45 if not sm.isPillarRound else 0.30
-    # REF_PORTION_SIDE = 0.8
-
-    # if "PD-CENTER-" in sm.current_state:
-    #     REF_PORTION = 0.4
-    
-    # # error value
-    # error = 0.0
-
-    # turn_correction = 0.75 if not sm.isPillarRound else 1.0
-
-    # PD_STATES = ["PD-CENTER", "PD-CENTER-START", "PD-CENTER-PARKING-1", "PD-CENTER-PARKING-2"]
-
-    # # follow the left wall, if we're going counter-clockwise
-    # if sm.current_state in PD_STATES and sm.round_dir == -1:
-    #     error = (REF_PORTION - portion_black_r) * 1.2
-
-    # # follow the right wall, if we're going clockwise
-    # if sm.current_state in PD_STATES and sm.round_dir == 1:
-    #     error = (portion_black_l - REF_PORTION) * 1.2
-    
-    # if pillars and sm.side != None:
-    #     side = sm.side
-    #     if sm.following_angle == True:
-    #         error = -sm.diff_angle / 80
-    #     elif sm.round_dir == -1 and portion_black_r > 0.99 and "INNER" in side:
-    #         # if the right side is black, we should follow the left wall
-    #         error = REF_PORTION - portion_black_r
-    #     elif sm.round_dir == 1 and portion_black_l > 0.99 and "INNER" in side:
-    #         # if the left side is black, we should follow the right wall
-    #         error = portion_black_l - REF_PORTION
-    #     elif len(border_lines[side[-1]].lines) > 0:
-    #         # if there are lines in the image, we should follow them      
-    #         lines = border_lines[side[-1]].lines
-    #         # calculate the slope and intercept of the line
-    #         slope = lines[0]["m"]
-    #         intercept = lines[0]["b"]
-    #         detected_corner = None
-    #         for line in lines:
-    #             # detect if any line forms a corner with the first line
-    #             max_diff = 400 # max difference squared of the two points to be the same point
-    #             different_slopes = line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])
-    #             if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
-    #                 detected_corner = ((line["x2"] + lines[0]["x1"]) // 2, (line["y2"] + lines[0]["y1"]) // 2, lines.index(line), "different")
-    #                 break
-    #             elif (line["x1"] - lines[0]["x2"]) ** 2 + (line["y1"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
-    #                 detected_corner = ((line["x1"] + lines[0]["x2"]) // 2, (line["y1"] + lines[0]["y2"]) // 2, lines.index(line), "different")
-    #                 break
-    #             elif (line["x2"] - lines[0]["x2"]) ** 2 + (line["y2"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
-    #                 detected_corner = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "same")
-    #                 break
-    #             elif (line["x1"] - lines[0]["x1"]) ** 2 + (line["y1"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
-    #                 detected_corner = ((line["x1"] + lines[0]["x1"]) // 2, (line["y1"] + lines[0]["y1"]) // 2, lines.index(line), "same")
-    #                 break
-    #         if detected_corner != None:
-    #             # if not headless:
-    #             # Determine the correct x position for the detected corner based on round_dir
-    #             if sm.round_dir == -1:
-    #                 corner_x = detected_corner[0]
-    #             else:
-    #                 corner_x = 640 + detected_corner[0]
-    #             cv2.circle(viz, (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
-    #             cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    #         # calculate the error based on the slope and intercept
-    #         if "INNER" in side:
-    #             # if we detected a corner, we should start gyro following
-    #             if detected_corner != None:
-    #                 slope_2 = lines[detected_corner[2]]["m"]
-    #                 if (abs(slope) > 3 or abs(slope_2) > 3) and detected_corner[1] > 100 and detected_corner[3] == "same":
-    #                     # if we reach the end of the wall
-    #                     sm.following_angle = True
-    #                     cv2.imwrite(f"logs/image_corner_{12-sm.turns_left}.jpg", viz)
-    #                     error = (sm.diff_angle / 80) ** 2
-    #             else:
-    #                 error = (160 - intercept) / 250 * sm.round_dir
-    #                 # increase the bounded error quadratically if the angle is too high
-    #                 if sm.diff_angle != 0:
-    #                     error = bound(error) - (sm.diff_angle / 80) ** 2 * sm.diff_angle / abs(sm.diff_angle)
-    #         elif "OUTER" in side:
-    #             error = (intercept - 150) / 250 * sm.round_dir
-    #             if sm.diff_angle != 0:
-    #                 error = bound(error) - (sm.diff_angle / 80) ** 2 * sm.diff_angle / abs(sm.diff_angle)
-    #         elif "MIDDLE" in side: # todo: watch out of blue lines triggering black contour
-    #             error = (intercept - 53) / 100 * sm.round_dir
-    #     else: # todo remove
-    #         print("ERROR: Following the wall without lines")
-    #         # if there are no lines in the image, we should follow the wall
-    #         if "R" in side:
-    #             error = REF_PORTION_SIDE - portion_black_r
-    #         else:
-    #             error = portion_black_l - REF_PORTION_SIDE
-
-    # if sm.current_state in ["GYRO", "REVERSE-EXTRA"]:
-    #     error = -sm.diff_angle / 80
-    #     if sm.current_state == "REVERSE-EXTRA":
-    #         error *= -1
-
-    # correction = error * kp + (error - last_error) * kd
-    
-    # if sm.current_state == "TURNING-L":
-    #     correction = -turn_correction
-    # if sm.current_state == "TURNING-R":
-    #     correction = turn_correction
-
-    # driving_speed = speed
-    
-    # if sm.current_state == "TURNING-REVERSE-L":
-    #     correction = turn_correction
-    #     driving_speed = -speed
-    # if sm.current_state == "TURNING-REVERSE-R":
-    #     correction = -turn_correction
-    #     driving_speed = -speed
-
-    # if sm.current_state == "REVERSE-EXTRA":
-    #     driving_speed = -speed
-
-    # if (("TURN-L-" in sm.current_state and int(sm.current_state[-1]) % 2 == 0) or
-    #     ("TURN-R-" in sm.current_state and int(sm.current_state[-1]) % 2 == 1)):
-    #     correction = 1
-    # elif (("TURN-L-" in sm.current_state and int(sm.current_state[-1]) % 2 == 1) or
-    #     ("TURN-R-" in sm.current_state and int(sm.current_state[-1]) % 2 == 0)):
-    #     correction = -1
-    
-    # if sm.current_state == "DONE":
-    #     correction = 0.0
-    #     print("---- DONE ----")
-    #     if ser:
-    #         message = "p\n"
-    #         ser.write(message.encode())
-    #         message = "s0\n"
-    #         ser.write(message.encode())
-    #     if pillars:
-            
-    #         sleep(15)
-            
-    #         ser.write("d-150\n".encode())  # drive backwards for 2 seconds 
-    #         ser.write(f"s{int(sm.round_dir * 20)}\n".encode())     # turn in the right direction
-    #         sleep(2)                      
-    #         ser.write("d0\n".encode())    # Stoppen
-    #         # Stoppe Motoren
-    #         ser.write("p\n".encode())
-    #         ser.write("s0\n".encode())
-        
-    #     sleep(5)
-    #     exit()
-
-    # if sm.search_for_dir and sm.current_state == "STARTING":
-    #     sm.round_dir += find_round_dir(rgbl["black"], sm.isPillarRound)
-    #     driving_speed = 0
-        
-    # SPEED_UNPARK = 100
-    # if "UNPARKING" in sm.current_state:
-    #     if sm.current_state == "UNPARKING-1":
-    #         correction = 1.2 if sm.round_dir == -1 else -1.2
-    #         driving_speed = SPEED_UNPARK
-    #     elif sm.current_state == "UNPARKING-2":
-    #         correction = 1.2 if sm.round_dir == 1 else -1.2
-    #         driving_speed = -SPEED_UNPARK
-    #     elif sm.current_state == "UNPARKING-3":
-    #         driving_speed = -SPEED_UNPARK
-    #     elif sm.current_state == "UNPARKING-4":
-    #         correction = 1 if sm.round_dir == -1 else -1
-    #         driving_speed = -SPEED_UNPARK
-
-    # if "AVOID" in sm.current_state and "-3" in sm.current_state:
-    #   driving_speed = SPEED_UNPARK # can probably be removed again later on
-
-    # correction = bound(correction)
-    # MAX_STEERING_ANGLE = 25.0
-    # steering_angle = correction * MAX_STEERING_ANGLE
-
-    # if ser and not calibrate:
-    #     message = "d" + str(driving_speed) + "\n"
-    #     ser.write(message.encode())
-    #     message = "s " + str(int(steering_angle)) + "\n"
-    #     ser.write(message.encode())
     correction = 0
     error = 0
     # viz stuff

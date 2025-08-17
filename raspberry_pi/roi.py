@@ -484,13 +484,41 @@ def encode_image(image):
     return base64_str
 
 async def drive(speed, distance):
-    while (distance > 0):
-        await asyncio.sleep(0.1)  # Simulate driving
+    # todo add gyro following
+    distance_beg = car.distance
+    car.speed = speed
+    while (car.distance - distance_beg) < distance:
+        await asyncio.sleep(0.1)
+    car.speed = 0  # Stop the car after driving the distance
 
+async def turn(speed, degrees, radius):
+    # todo: does not work as intended
+    """   
+    Args:
+        speed (int): Speed of the turn.
+        degrees (float): Degrees to turn.
+        radius (float): Radius of the turn.
+    
+    Returns:
+        None
+    """
+    car.speed = speed
+    car.steering = radius
+    angle_beg = car.angle
+    # Calculate the target angle based on the current angle and degrees to turn
+    target_angle = angle_beg + degrees
+    # Adjust the steering based on the radius
+    while (target_angle > car.angle):
+        await asyncio.sleep(0.1)
+    car.speed = 0  # Stop the car after turning
+    
+    
 async def main_program():
     speed = 300 if not pillars else 200
     print("Starting main program...")
     await drive(speed, 1000)  # Example drive command, adjust as needed
+    await turn(speed, 90, 100)  # Example turn command, adjust as needed
+    await turn(speed, -90, 100)  # Example turn command, adjust as needed
 
 if __name__ == "__main__":
     asyncio.run(main())

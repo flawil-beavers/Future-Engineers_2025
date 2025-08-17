@@ -53,9 +53,9 @@ roi_center_x, roi_center_y = 320 - roi_center_w // 2, 180
 roi_width = 100
 roi_height = 150
 
-current_streams = ["viz", "black", "color_image"]
+current_streams = ["viz", "roi_left", "roi_right", "roi_center", "red", "green", "black", "orange", "blue", "hsv_image", "color_image"]
 has_sent_streams_info = False
-websocket = None
+active_websocket = None
 # Shared dictionary to hold the latest streams from cycle()
 latest_streams = {}
 
@@ -282,6 +282,37 @@ def cycle():
         detected_pillars = detected_pillars_r + detected_pillars_g
 
         detected_pillars.sort(key=lambda x: x.width*x.height, reverse=True)
+        
+        for i in ["L", "R"]: # todo use this information
+            lines = border_lines[i].lines
+            # calculate the slope and intercept of the line
+            detected_corner = None
+            for line in lines:
+                # detect if any line forms a corner with the first line
+                max_diff = 400 # max difference squared of the two points to be the same point
+                different_slopes = line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])
+                if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
+                    detected_corner = ((line["x2"] + lines[0]["x1"]) // 2, (line["y2"] + lines[0]["y1"]) // 2, lines.index(line), "different")
+                    break
+                elif (line["x1"] - lines[0]["x2"]) ** 2 + (line["y1"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
+                    detected_corner = ((line["x1"] + lines[0]["x2"]) // 2, (line["y1"] + lines[0]["y2"]) // 2, lines.index(line), "different")
+                    break
+                elif (line["x2"] - lines[0]["x2"]) ** 2 + (line["y2"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
+                    detected_corner = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "same")
+                    break
+                elif (line["x1"] - lines[0]["x1"]) ** 2 + (line["y1"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
+                    detected_corner = ((line["x1"] + lines[0]["x1"]) // 2, (line["y1"] + lines[0]["y1"]) // 2, lines.index(line), "same")
+                    break
+            if detected_corner != None:
+                # if not headless:
+                # Determine the correct x position for the detected corner based on round_dir
+                if i == "L":
+                    corner_x = detected_corner[0]
+                else:
+                    corner_x = 640 + detected_corner[0]
+                cv2.circle(viz, (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
+                cv2.putText(viz, f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
 
     # A state machine is used to model the car's behavior
     # This checks if the car should transition to a new state, and if so, transitions
@@ -534,49 +565,57 @@ async def cycle_loop():
         await asyncio.sleep(0.05)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
-    global current_streams, has_sent_streams_info, latest_streams
+    global current_streams, has_sent_streams_info, latest_streams, active_websocket
     print("Websocket connection established")
+    # If there is already an active websocket, close it
+    if active_websocket is not None and not active_websocket.closed:
+        print("Closing previous websocket connection...")
+        await active_websocket.close()
+    active_websocket = websocket
     # Send initial stream info
     if not has_sent_streams_info:
         has_sent_streams_info = True
         await websocket.send(json.dumps({
-            "streams": current_streams
+            "streams": list(latest_streams.keys()),
         }))
 
-    while True:
-        # check if the websocket has sent a stream request, wait at most for 0.05 seconds
-        try:
-            res = json.loads(await asyncio.wait_for(websocket.recv(), timeout=0.01))
-            if "updateGray" in res:
-                # Update the GRAY value in the config
-                config["filters"]["GRAY"] = res["updateGray"]
-                print(f"Updated GRAY value: {config['filters']['GRAY']}")
+    try:
+        while True:
+            # check if the websocket has sent a stream request, wait at most for 0.05 seconds
+            try:
+                res = json.loads(await asyncio.wait_for(websocket.recv(), timeout=0.01))
+                if "updateGray" in res:
+                    # Update the GRAY value in the config
+                    config["filters"]["GRAY"] = res["updateGray"]
+                    print(f"Updated GRAY value: {config['filters']['GRAY']}")
 
-                # Save the updated config back to the file
-                with open("config.json", "w") as f:
-                    json.dump(config, f, indent=2)
-                    
-            current_streams[0] = res["streamA"]
-            current_streams[1] = res["streamB"]
-            current_streams[2] = res["streamC"]
-            # print_past_time("received streams")
+                    # Save the updated config back to the file
+                    with open("config.json", "w") as f:
+                        json.dump(config, f, indent=2)
+                current_streams[0] = res["streamA"]
+                current_streams[1] = res["streamB"]
+                current_streams[2] = res["streamC"]
+                # print_past_time("received streams")
+            except:
+                pass
 
-        except:
-            pass
-
-        # Only send if changed
-        data = {}
-        for idx, stream_name in enumerate(current_streams):
-            value = latest_streams.get(stream_name)
-            if value is not None:
-                # Use encode_image for images, else send as is
-                if isinstance(value, np.ndarray):
-                    encoded = encode_image(value)
-                else:
-                    encoded = value
-                data[chr(ord('a') + idx)] = encoded
-        await websocket.send(json.dumps(data))
-        # print_past_time("sent images")
+            # Only send if changed
+            data = {}
+            for idx, stream_name in enumerate(current_streams):
+                value = latest_streams.get(stream_name)
+                if value is not None:
+                    # Use encode_image for images, else send as is
+                    if isinstance(value, np.ndarray):
+                        encoded = encode_image(value)
+                    else:
+                        encoded = value
+                    data[chr(ord('a') + idx)] = encoded
+            await websocket.send(json.dumps(data))
+            # print_past_time("sent images")
+    finally:
+        # If this websocket is the active one, clear it on disconnect
+        if active_websocket == websocket:
+            active_websocket = None
 
 
 async def run_webserver():

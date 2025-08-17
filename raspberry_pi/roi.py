@@ -88,59 +88,91 @@ kp = configloader.get_property("PD")['kp']
 kd = configloader.get_property("PD")['kd']
 
 
-def pause_robot():
-    print("Robot paused")
-    while ser and not ser.readline().decode('utf-8').strip() == "enable 1":
-        sleep(0.1)
-    print("Robot resumed")
-
-def read_arduino():
+async def arduino_communication():
+    # todo improve stopping and only sending pause messages where necessary; make pause_robot asynchronous
     """
-    Communicates with an Arduino device to retrieve distance and gyro heading data.
-
-    This function sends a command to the Arduino to request sensor readings. It reads the distance and angle values,
-    handling special "enable 0" messages to pause the robot if necessary. The retrieved values are then updated in the
-    state manager.
-
-    Globals:
-        ser: Serial connection object to the Arduino.
-        sm: State manager object for updating distance and angle.
-        calibrate: Boolean flag indicating calibration mode.
-
-    Side Effects:
-        - May pause the robot if "enable 0" is received from the Arduino.
-        - Updates the state manager with new distance and angle values.
-
-    Returns:
-        None
+    Asynchronously communicates with an Arduino device to retrieve distance and gyro heading data.
+    Sends speed and steering, handles 'enable 0' and all 'Error' messages robustly.
     """
     global ser, calibrate, car
-    # Send z to the Arduino to get the distance and gyro heading
-    if ser and not calibrate:
-        # Write speed and steering to Arduino
-        speed_message = f"d{int(car.speed)}\n"
-        ser.write(speed_message.encode())
-        steering_message = f"s {int(car.steering)}\n"
-        ser.write(steering_message.encode())
+    if not (ser and not calibrate):
+        return False
+    loop = asyncio.get_running_loop()
 
-        if ser.in_waiting > 0 and ser.readline().decode('utf-8').strip() == "enable 0":
+    def pause_robot():
+        print("Robot paused")
+        while ser and not ser.readline().decode('utf-8').strip() == "enable 1":
+            sleep(0.1)
+        print("Robot resumed")
+
+    async def write_serial(msg):
+        await loop.run_in_executor(None, ser.write, msg.encode())
+
+    async def read_serial_line():
+        line = await loop.run_in_executor(None, ser.readline)
+        return line.decode('utf-8').strip()
+
+    async def handle_special_line(line):
+        if line == "enable 0":
             pause_robot()
-        message = "z\n"
-        ser.write(message.encode())
-        # read the distance from the Arduino
-        distance = ser.readline().decode('utf-8').strip()
-        if distance == "enable 0":
-            pause_robot()
-            ser.write(message.encode())
-            distance = ser.readline().decode('utf-8').strip()
-        car.distance = float(distance)
-        # read the gyro heading from the Arduino
-        angle = ser.readline().decode('utf-8').strip()
-        if angle == "enable 0":
-            pause_robot()
-            ser.write(message.encode())
-            angle = ser.readline().decode('utf-8').strip()
-        car.angle = float(angle)
+            return True
+        elif line.startswith("Error"):
+            print(f"Arduino error: {line}")
+            return True
+        return False
+
+    async def read_and_parse_float(prompt=None):
+        line = await read_serial_line()
+        if await handle_special_line(line):
+            return None
+        try:
+            return float(line)
+        except Exception as e:
+            print(f"Parse error: {prompt or ''}{line} ({e})")
+            return None
+
+    try:
+        # Write speed and steering to Arduino
+        await write_serial(f"d{car.speed}\n")
+        await write_serial(f"s {int(car.steering)}\n")
+
+        # Check for 'enable 0' or 'Error' messages
+        if ser.in_waiting > 0:
+            line = await read_serial_line()
+            if await handle_special_line(line):
+                return False
+
+        # Request distance and angle
+        await write_serial("z\n")
+        distance = await read_and_parse_float("distance: ")
+        if distance is None:
+            # Try again if paused
+            await write_serial("z\n")
+            distance = await read_and_parse_float("distance (retry): ")
+            if distance is None:
+                return False
+        car.distance = distance
+
+        angle = await read_and_parse_float("angle: ")
+        if angle is None:
+            # Try again if paused
+            await write_serial("z\n")
+            angle = await read_and_parse_float("angle (retry): ")
+            if angle is None:
+                return False
+        car.angle = angle
+        return True
+    except Exception as e:
+        print(f"Exception in read_arduino: {e}")
+        return False
+    
+async def arduino_communication_loop():
+    while True:
+        arduino_ok = await arduino_communication()
+        if arduino_ok is False:
+            # Optionally, handle error state here (e.g., skip processing, log, etc.)
+            print("Arduino communication failed, skipping processing.")
+
 
 
 def process_image(picam2, pipeline):
@@ -247,8 +279,6 @@ def detect_edge_lines(roi_left_side, roi_right_side, roi_width, headless, viz) -
 def cycle():
     global last_error, straight_sections, angle_following, latest_streams
 
-    read_arduino()
-
     processed_images = process_image(picam2, pipeline)
 
     # todo: some of these variables can be removed
@@ -336,6 +366,7 @@ def cycle():
         cv2.rectangle(viz, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
         cv2.rectangle(viz, (0, 0), (roi_width, 150), (255, 0, 0), 2)
         cv2.rectangle(viz, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
+        cv2.putText(viz, f"Angle: {car.angle:.2f}°, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         # cv2.putText(viz, f"State: {sm.current_state} {round(sm.diff_distance)} mm {round(sm.diff_angle, 1)} °", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
         # cv2.putText(viz, f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
@@ -462,7 +493,8 @@ async def main():
         connect_arduino(ser) # todo: only wait for start signal in the main_program()
 
     tasks = [asyncio.create_task(cycle_loop()),
-             asyncio.create_task(main_program())]
+             asyncio.create_task(main_program()),
+             asyncio.create_task(arduino_communication_loop())]
     if not headless:
         tasks.append(asyncio.create_task(run_webserver()))
     try:
@@ -516,9 +548,9 @@ async def turn(speed, degrees, radius):
 async def main_program():
     speed = 300 if not pillars else 200
     print("Starting main program...")
-    await drive(speed, 1000)  # Example drive command, adjust as needed
-    await turn(speed, 90, 100)  # Example turn command, adjust as needed
-    await turn(speed, -90, 100)  # Example turn command, adjust as needed
+    # await drive(speed, 1000)  # Example drive command, adjust as needed
+    # await turn(speed, 90, 100)  # Example turn command, adjust as needed
+    # await turn(speed, -90, 100)  # Example turn command, adjust as needed
 
 if __name__ == "__main__":
     asyncio.run(main())

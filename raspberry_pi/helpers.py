@@ -1,5 +1,8 @@
 import numpy as np
-from time import time
+from time import time, sleep
+import sys
+import os
+import serial
 
 class Pillar:
     """
@@ -230,3 +233,56 @@ class Straight_Section:
                     self.driving_pos = [i, i]
                     break
         return self.driving_pos
+
+def setup_logging():
+    """
+    Set up logging to a file and redirect print statements to the log file.
+    This function creates a log file named 'robot_log.txt' in the 'logs' directory.
+    If the directory does not exist, it will be created.
+    """
+    
+    # Open a file for logging
+    log_file = open("logs/robot_log.txt", "a")
+
+    # Redirect print statements to the log file
+    class Logger:
+        def __init__(self, file):
+            self.file = file
+
+        def write(self, message):
+            self.file.write(message)
+            self.file.flush()
+
+        def flush(self):
+            pass
+
+    sys.stdout = Logger(log_file)
+    sys.stderr = Logger(log_file)
+    
+def connect_arduino(ser: serial.Serial):
+    print("Connecting to Arduino")
+    while True:
+        ser.timeout = 2
+        msg = ser.readline().decode('utf-8')
+        msg = msg.strip()
+        if msg == "Gyro OK":
+            break
+        else:
+            if msg == "Gyro error":
+                print("Gyro error, closing serial and restarting connection")
+            else:
+                print("Arduino not available, closing serial and restarting connection")
+            ser.setDTR(False)
+            sleep(1)
+            ser.setDTR(True)
+            continue
+        
+    ser.timeout = None
+    print("Gyro initialized successfully")
+    ser.write("o\n".encode())
+    while True:
+        msg = ser.readline().decode('utf-8')
+        msg = msg.strip()
+        if msg == "enable 1":
+            break
+    print("Arduino connected")

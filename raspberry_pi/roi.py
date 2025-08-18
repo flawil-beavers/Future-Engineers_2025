@@ -515,7 +515,7 @@ def encode_image(image):
     base64_str = base64.b64encode(buffer).decode('utf-8')
     return base64_str
 
-async def drive(speed, distance):
+async def async_drive(speed, distance):
     # todo add gyro following
     distance_beg = car.distance
     car.speed = speed
@@ -523,7 +523,7 @@ async def drive(speed, distance):
         await asyncio.sleep(0.1)
     car.speed = 0  # Stop the car after driving the distance
 
-async def turn(speed, degrees, radius):
+async def async_turn(speed, degrees, radius):
     # todo: does not work as intended
     """   
     Args:
@@ -545,12 +545,20 @@ async def turn(speed, degrees, radius):
     car.speed = 0  # Stop the car after turning
     
     
+def drive(speed, distance):
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(async_drive(speed, distance))
+
+def turn(speed, degrees, radius):
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(async_turn(speed, degrees, radius))
+
 async def main_program():
     speed = 300 if not pillars else 200
     print("Starting main program...")
-    # await drive(speed, 1000)  # Example drive command, adjust as needed
-    # await turn(speed, 90, 100)  # Example turn command, adjust as needed
-    # await turn(speed, -90, 100)  # Example turn command, adjust as needed
+    # drive(speed, 1000)  # Example drive command, adjust as needed
+    # turn(speed, 90, 100)  # Example turn command, adjust as needed
+    # turn(speed, -90, 100)  # Example turn command, adjust as needed
 
 if __name__ == "__main__":
     asyncio.run(main())

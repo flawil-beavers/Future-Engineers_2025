@@ -277,33 +277,6 @@ def setup_logging():
     sys.stdout = Logger(log_file)
     sys.stderr = Logger(log_file)
     
-def connect_arduino(ser: serial.Serial):
-    print("Connecting to Arduino")
-    while True:
-        ser.timeout = 2
-        msg = ser.readline().decode('utf-8')
-        msg = msg.strip()
-        if msg == "Gyro OK":
-            break
-        else:
-            if msg == "Gyro error":
-                print("Gyro error, closing serial and restarting connection")
-            else:
-                print("Arduino not available, closing serial and restarting connection")
-            ser.setDTR(False)
-            sleep(1)
-            ser.setDTR(True)
-            continue
-        
-    ser.timeout = None
-    print("Gyro initialized successfully")
-    ser.write("o\n".encode())
-    while True:
-        msg = ser.readline().decode('utf-8')
-        msg = msg.strip()
-        if msg == "enable 1":
-            break
-    print("Arduino connected")
 
 def process_pillars(sm, detected_pillars, straight_sections, color_image, viz):
     """

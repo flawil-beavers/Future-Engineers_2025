@@ -11,7 +11,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, connect_arduino, Car
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car
 from pipeline import Pipeline
 from statemachine import StateMachine
 from picamera2 import Picamera2
@@ -87,9 +87,9 @@ straight_sections = [Straight_Section(i) for i in range(4)]
 kp = configloader.get_property("PD")['kp']
 kd = configloader.get_property("PD")['kd']
 
-car_paused = False
+car_paused = True
 
-async def arduino_communication():
+async def arduino_communication(should_connect_arduino: bool = False) -> bool:
     """
     Asynchronously communicates with an Arduino device to retrieve distance and gyro heading data.
     Sends speed and steering, handles 'enable 0' and all 'Error' messages robustly.
@@ -135,6 +135,41 @@ async def arduino_communication():
         except Exception as e:
             print(f"Parse error: {prompt or ''}{line} ({e})")
             return None
+    
+    async def connect_arduino():
+        print("Connecting to Arduino (async)")
+        while True:
+            ser.timeout = 2
+            msg = await read_serial_line()
+            if await handle_special_line(msg):
+                continue
+            elif msg == "Gyro OK":
+                break
+            elif msg == "Gyro error":
+                print("Gyro error, closing serial and restarting connection")
+            else:
+                print(f"Received unexpected message: {msg}, closing serial and restarting connection")
+            ser.setDTR(False)
+            await asyncio.sleep(1)
+            ser.setDTR(True)
+        ser.timeout = None
+        print("Gyro initialized successfully")
+        await write_serial("o\n")
+        while car_paused:
+            if await handle_special_line(await read_serial_line()):
+                continue
+            await asyncio.sleep(0.1)
+        print("Arduino connected and start signal received.")
+
+    if should_connect_arduino:
+        try:
+            if ser is None:
+                print("No Arduino connected, skipping communication.")
+                return False
+            await connect_arduino()
+        except Exception as e:
+            print(f"Exception in connect_arduino: {e}")
+            return False
 
     try:
         if not car_paused:
@@ -172,6 +207,8 @@ async def arduino_communication():
         return False
     
 async def arduino_communication_loop():
+    while car_paused:
+        await asyncio.sleep(0.1)
     while True:
         await asyncio.sleep(0.05)
         arduino_ok = await arduino_communication()
@@ -496,8 +533,7 @@ async def main():
     
     # setup_logging()
     
-    if ser and not calibrate and not skip_arduino:
-        connect_arduino(ser) # todo: only wait for start signal in the main_program()
+    # connect_arduino is now called at the start of main_program
 
     tasks = [asyncio.create_task(cycle_loop()),
              asyncio.create_task(main_program()),
@@ -552,10 +588,12 @@ async def turn(speed, degrees, radius):
     car.speed = 0  # Stop the car after turning
 
 async def main_program():
+    # Wait for Arduino trigger before starting main logic
+    if ser and not calibrate:
+        await arduino_communication(True)
     speed = 300 if not pillars else 200
     print("Starting main program...")
-    # Pythonic way: run drive in a thread, await so only main_program is blocked, not the event loop
-    await drive(speed, 10000)  # Example drive command, adjust as needed
+    await drive(speed, 1000)  # Example drive command, adjust as needed
     # await turn(speed, 90, 100)  # Example turn command, adjust as needed
     # await turn(speed, -90, 100)  # Example turn command, adjust as needed
     print("Main program completed. Exiting...")

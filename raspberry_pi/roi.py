@@ -87,6 +87,7 @@ straight_sections = [Straight_Section(i) for i in range(4)]
 kp = configloader.get_property("PD")['kp']
 kd = configloader.get_property("PD")['kd']
 
+car_paused = False
 
 async def arduino_communication():
     # todo improve stopping and only sending pause messages where necessary; make pause_robot asynchronous
@@ -94,16 +95,18 @@ async def arduino_communication():
     Asynchronously communicates with an Arduino device to retrieve distance and gyro heading data.
     Sends speed and steering, handles 'enable 0' and all 'Error' messages robustly.
     """
-    global ser, calibrate, car
+    global ser, calibrate, car, car_paused
     if not (ser and not calibrate):
         return False
     loop = asyncio.get_running_loop()
 
     def pause_robot():
-        print("Robot paused")
-        while ser and not ser.readline().decode('utf-8').strip() == "enable 1":
-            sleep(0.1)
-        print("Robot resumed")
+        global car_paused
+        if car_paused:
+            print("Robot resumed")
+        else:
+            print("Robot paused")
+        car_paused = not car_paused
 
     async def write_serial(msg):
         await loop.run_in_executor(None, ser.write, msg.encode())
@@ -114,6 +117,9 @@ async def arduino_communication():
 
     async def handle_special_line(line):
         if line == "enable 0":
+            pause_robot()
+            return True
+        elif line == "enable 1":
             pause_robot()
             return True
         elif line.startswith("Error"):
@@ -132,15 +138,15 @@ async def arduino_communication():
             return None
 
     try:
-        # Write speed and steering to Arduino
-        await write_serial(f"d{car.speed}\n")
-        await write_serial(f"s {int(car.steering)}\n")
+        if not car_paused:
+            # Write speed and steering to Arduino
+            await write_serial(f"d{car.speed}\n")
+            await write_serial(f"s{int(car.steering)}\n")
 
         # Check for 'enable 0' or 'Error' messages
         if ser.in_waiting > 0:
             line = await read_serial_line()
-            if await handle_special_line(line):
-                return False
+            await handle_special_line(line)
 
         # Request distance and angle
         await write_serial("z\n")
@@ -414,6 +420,7 @@ async def cycle_loop():
         await asyncio.sleep(0.05)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
+    # todo: make sure old webserver is closed properly before starting a new one
     global current_streams, has_sent_streams_info, latest_streams, active_websocket
     print("Websocket connection established")
     # If there is already an active websocket, close it

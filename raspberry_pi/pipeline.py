@@ -90,12 +90,12 @@ class Pipeline:
         blurredO = cv2.medianBlur(oMask, 5)
         blurredB = cv2.medianBlur(bMask, 5)
         # remove more noise by eroding and dilating the image
-        kernel = np.ones((3, 3), np.uint8)
-        blurredO = cv2.erode(blurredO, kernel, iterations=1)
-        blurredB = cv2.erode(blurredB, kernel, iterations=1)
-        kernel = np.ones((6, 6), np.uint8)
-        blurredO = cv2.dilate(blurredO, kernel, iterations=1)
-        blurredB = cv2.dilate(blurredB, kernel, iterations=1)
+        kernel_erode = np.ones((3, 3), np.uint8)
+        kernel_dilate = np.ones((10, 10), np.uint8)
+        blurredO = cv2.erode(blurredO, kernel_erode, iterations=2)
+        blurredO = cv2.dilate(blurredO, kernel_dilate, iterations=2)
+        blurredB = cv2.erode(blurredB, kernel_erode, iterations=2)
+        blurredB = cv2.dilate(blurredB, kernel_dilate, iterations=2)
         return {"orange": blurredO, "blue": blurredB}
     
     def filter_parking(self, hsv: np.ndarray):

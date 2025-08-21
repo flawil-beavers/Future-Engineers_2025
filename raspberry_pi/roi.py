@@ -90,7 +90,6 @@ kd = configloader.get_property("PD")['kd']
 car_paused = False
 
 async def arduino_communication():
-    # todo improve stopping and only sending pause messages where necessary; make pause_robot asynchronous
     """
     Asynchronously communicates with an Arduino device to retrieve distance and gyro heading data.
     Sends speed and steering, handles 'enable 0' and all 'Error' messages robustly.
@@ -174,6 +173,7 @@ async def arduino_communication():
     
 async def arduino_communication_loop():
     while True:
+        await asyncio.sleep(0.05)
         arduino_ok = await arduino_communication()
         if arduino_ok is False:
             # Optionally, handle error state here (e.g., skip processing, log, etc.)
@@ -373,7 +373,7 @@ def cycle():
         cv2.rectangle(viz, (0, 0), (roi_width, 150), (255, 0, 0), 2)
         cv2.rectangle(viz, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
         cv2.putText(viz, f"Angle: {car.angle:.2f}°, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        # cv2.putText(viz, f"State: {sm.current_state} {round(sm.diff_distance)} mm {round(sm.diff_angle, 1)} °", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
+        cv2.putText(viz, f"Speed: {car.speed} mm/s, Steering: {car.steering:.2f}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
         # cv2.putText(viz, f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz, f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         # cv2.putText(viz, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
@@ -522,7 +522,7 @@ def encode_image(image):
     base64_str = base64.b64encode(buffer).decode('utf-8')
     return base64_str
 
-async def async_drive(speed, distance):
+async def drive(speed, distance):
     # todo add gyro following
     distance_beg = car.distance
     car.speed = speed
@@ -530,7 +530,7 @@ async def async_drive(speed, distance):
         await asyncio.sleep(0.1)
     car.speed = 0  # Stop the car after driving the distance
 
-async def async_turn(speed, degrees, radius):
+async def turn(speed, degrees, radius):
     # todo: does not work as intended
     """   
     Args:
@@ -550,22 +550,25 @@ async def async_turn(speed, degrees, radius):
     while (target_angle > car.angle):
         await asyncio.sleep(0.1)
     car.speed = 0  # Stop the car after turning
-    
-    
-def drive(speed, distance):
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(async_drive(speed, distance))
-
-def turn(speed, degrees, radius):
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(async_turn(speed, degrees, radius))
 
 async def main_program():
     speed = 300 if not pillars else 200
     print("Starting main program...")
-    # drive(speed, 1000)  # Example drive command, adjust as needed
-    # turn(speed, 90, 100)  # Example turn command, adjust as needed
-    # turn(speed, -90, 100)  # Example turn command, adjust as needed
+    # Pythonic way: run drive in a thread, await so only main_program is blocked, not the event loop
+    await drive(speed, 10000)  # Example drive command, adjust as needed
+    # await turn(speed, 90, 100)  # Example turn command, adjust as needed
+    # await turn(speed, -90, 100)  # Example turn command, adjust as needed
+    print("Main program completed. Exiting...")
+    if shutdown:
+        print("Shutting down the robot...")
+        if ser and not calibrate:
+            ser.write(b's0\n')  # Stop steering
+            ser.write(b'p\n')   # Stop driving
+            print("Sent stop commands to robot via serial.")
+        sleep(1)  # Give some time for the commands to be sent
+        os.system("sudo shutdown now")  # Shutdown the Raspberry Pi
+    else:
+        print("Main program finished without shutdown. Robot is ready for next commands.")
 
 if __name__ == "__main__":
     asyncio.run(main())

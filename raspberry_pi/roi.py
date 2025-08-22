@@ -196,7 +196,7 @@ async def arduino_communication(should_connect_arduino: bool = False) -> bool:
         angle = await read_and_parse_float("angle: ")
         if angle is None:
             # Try again if paused
-            await write_serial("z\n")
+            await write_serial("g\n")
             angle = await read_and_parse_float("angle (retry): ")
             if angle is None:
                 return False
@@ -504,6 +504,7 @@ async def img_stream(websocket, path):
                         encoded = value
                     data[chr(ord('a') + idx)] = encoded
             await websocket.send(json.dumps(data))
+            await asyncio.sleep(0.1)
             # print_past_time("sent images")
     finally:
         # If this websocket is the active one, clear it on disconnect
@@ -558,12 +559,18 @@ def encode_image(image):
     base64_str = base64.b64encode(buffer).decode('utf-8')
     return base64_str
 
+MAX_STEERING_ANGLE = 25.0
+
 async def drive(speed, distance):
     # todo add gyro following
     distance_beg = car.distance
+    angle_beg = car.angle
     car.speed = speed
     while (car.distance - distance_beg) < distance:
-        await asyncio.sleep(0.1)
+        error = (angle_beg - car.angle) / 80
+        correction = error * kp + (error - last_error) * kd
+        car.steering = bound(correction) * MAX_STEERING_ANGLE
+        await asyncio.sleep(0.001)
     car.speed = 0  # Stop the car after driving the distance
 
 async def turn(speed, degrees, radius):
@@ -597,6 +604,7 @@ async def main_program():
     # await turn(speed, 90, 100)  # Example turn command, adjust as needed
     # await turn(speed, -90, 100)  # Example turn command, adjust as needed
     print("Main program completed. Exiting...")
+    await asyncio.sleep(0.5)
     if shutdown:
         print("Shutting down the robot...")
         if ser and not calibrate:

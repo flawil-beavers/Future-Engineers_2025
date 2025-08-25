@@ -32,8 +32,8 @@ long encoder_pos = 0;
 int encoder_dir = 1; // 1 -> CCW, -1 -> CW
 
 bool en_state = false; // enable state
-const char en_state_true[] = "enable 1";
-const char en_state_false[] = "enable 0";
+const char en_state_true[] = "enable start";
+const char en_state_false[] = "enable stop";
 
 // dc motor settings
 const int max_dc = 200;        // max duty cycle for motor driver
@@ -273,7 +273,7 @@ void drive_loop()
     return;
   }
   pid_speed();
-  measured_speed = (current_distance - last_distance) / last_loop_time; // approximate speed in mm/s todo: average over multiple loops
+  // measured_speed = (current_distance - last_distance) / last_loop_time; // approximate speed in mm/s todo: average over multiple loops
 }
 
 /*
@@ -427,13 +427,14 @@ void parseMessage(char *msg)
     beg++;
   }
 
-  char *end = beg;
+  char *second_int = beg;
 
-  while (*end != '\0')
+  while (*second_int >= '0' && *second_int <= '9')
   {
-    end++;
+    second_int++;
   }
   value = atoi(beg);
+  int value_2 = atoi(++second_int);
   switch (cmd[0])
   {
   case 'd':
@@ -543,10 +544,10 @@ void check_stalling()
 {
   if (fabs(stall_encoder_pos - encoder_pos) < 4 && fabs(current_dc) > max_dc * 0.9 && !disable_dc)
   {
+    Serial.print("Error stall detected, stopping robot: diff_distance:");
     Serial.print(fabs(stall_encoder_pos - encoder_pos));
-    Serial.print(", ");
-    Serial.print(current_dc);
-    Serial.println(" Stalling detected, stopping robot");
+    Serial.print(", current_dc");
+    Serial.println(current_dc);
     // disable motor
     stop();
   }

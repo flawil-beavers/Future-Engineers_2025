@@ -88,8 +88,6 @@ kp = configloader.get_property("PD")['kp']
 kd = configloader.get_property("PD")['kd']
 
 car_paused = True
-# last_steering = 0, 0
-# current_steering = 0, 0
 
 def pause_robot(resume=False):
     global car_paused
@@ -101,17 +99,8 @@ def pause_robot(resume=False):
         print("Robot paused")
 
 async def write_serial(msg):
-    # time_beg = time()
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, ser.write, msg.encode())
-    # result = await read_and_handle_serial_line()
-    # while result[0]:
-    #     result = await read_and_handle_serial_line()
-    # if result[1] is not None:
-    #     # print(f"Arduino response: {result[1]}")
-    #     if result[1] != "ok":
-    #         raise Exception(f"Unexpected Arduino response: {result[1]}")
-    #     print(f"passed time = {time() - time_beg:.5f} s")
     
 async def read_serial_line():
     loop = asyncio.get_running_loop()
@@ -203,9 +192,6 @@ async def connect_to_arduino():
 
 async def arduino_communication() -> bool:
     try:
-        # if not car_paused:
-        #     await write_serial(f"d{int(car.speed)}\n")
-        #     await write_serial(f"s{int(car.steering)}\n")
         if not car_paused: # currently a lag of about 30 ms to communicate to robot
             car.distance, car.angle = await request_and_parse_float(f"y{int(car.speed)},{int(car.steering)}", "gyro and distance: ")
         else:
@@ -216,132 +202,6 @@ async def arduino_communication() -> bool:
         print(f"Exception in arduino_communication: {e}")
         return False
 
-# async def arduino_communication(should_connect_arduino: bool = False) -> bool:
-#     """
-#     Asynchronously communicates with an Arduino device to retrieve distance and gyro heading data.
-#     Sends speed and steering, handles 'enable 0' and all 'Error' messages robustly.
-#     """
-#     global ser, calibrate, car, car_paused #, last_steering, current_steering
-#     if not (ser and not calibrate):
-#         return False
-#     loop = asyncio.get_running_loop()
-
-#     def pause_robot():
-#         global car_paused
-#         if car_paused:
-#             print("Robot resumed")
-#         else:
-#             print("Robot paused")
-#         car_paused = not car_paused
-
-#     async def write_serial(msg):
-#         await loop.run_in_executor(None, ser.write, msg.encode())
-
-#     async def read_serial_line():
-#         line = await loop.run_in_executor(None, ser.readline)
-#         return line.decode('utf-8').strip()
-
-#     async def handle_special_line(line):
-#         if line == "enable 0":
-#             pause_robot()
-#             return True
-#         elif line == "enable 1":
-#             pause_robot()
-#             return True
-#         elif line.startswith("Error"):
-#             print(f"Arduino error: {line}")
-#             return True
-#         return False
-
-#     async def read_and_parse_float(prompt=None):
-#         line = await read_serial_line()
-#         if await handle_special_line(line):
-#             return None
-#         try:
-#             return float(line)
-#         except Exception as e:
-#             print(f"Parse error: {prompt or ''}{line} ({e})")
-#             return None
-    
-#     async def connect_arduino():
-#         print("Connecting to Arduino (async)")
-#         while True:
-#             ser.timeout = 2
-#             msg = await read_serial_line()
-#             if await handle_special_line(msg):
-#                 continue
-#             elif msg == "Gyro OK":
-#                 break
-#             elif msg == "Gyro error":
-#                 print("Gyro error, closing serial and restarting connection")
-#             else:
-#                 print(f"Received unexpected message: {msg}, closing serial and restarting connection")
-#             ser.setDTR(False)
-#             await asyncio.sleep(1)
-#             ser.setDTR(True)
-#         ser.timeout = None
-#         print("Gyro initialized successfully")
-#         await write_serial("o\n")
-#         while car_paused:
-#             if await handle_special_line(await read_serial_line()):
-#                 continue
-#             await asyncio.sleep(0.1)
-#         print("Arduino connected and start signal received.")
-
-#     if should_connect_arduino:
-#         try:
-#             if ser is None:
-#                 print("No Arduino connected, skipping communication.")
-#                 return False
-#             await connect_arduino()
-#         except Exception as e:
-#             print(f"Exception in connect_arduino: {e}")
-#             return False
-
-#     try:
-#         if not car_paused:
-#             # Write speed and steering to Arduino
-#             await write_serial(f"d{int(car.speed)}\n")
-#             await write_serial(f"s{int(car.steering)}\n")
-#             # await write_serial(f"s{int(0)}\n")
-#             # if (car.steering != last_steering[0]):
-#             #     print(f"time passed = {time() - current_steering[1]:.5f} seconds, angle changed from {last_steering[0]} to {car.steering}")
-#             #     last_steering = car.steering, time()
-
-#         # Check for 'enable 0' or 'Error' messages
-#         if ser.in_waiting > 0:
-#             line = await read_serial_line()
-#             await handle_special_line(line)
-
-#         # Request distance and angle
-#         await write_serial("z\n")
-#         distance = await read_and_parse_float("distance: ")
-#         if distance is None:
-#             # Try again if paused
-#             await write_serial("z\n")
-#             distance = await read_and_parse_float("distance (retry): ")
-#             if distance is None:
-#                 return False
-#         car.distance = distance
-
-#         angle = await read_and_parse_float("angle: ")
-#         if angle is None:
-#             # Try again if paused
-#             await write_serial("g\n")
-#             angle = await read_and_parse_float("angle (retry): ")
-#             if angle is None:
-#                 return False
-#         car.angle = angle
-        
-#         await write_serial("x\n")
-#         print(f"Passed time: {await read_serial_line()}")
-#         # if int(time()) != current_steering[0]:
-#         #     current_steering = int(time()), time()
-#         # car.angle = current_steering[0]
-#         return True
-#     except Exception as e:
-#         print(f"Exception in read_arduino: {e}")
-#         return False
     
 async def arduino_communication_loop():
     while car_paused:

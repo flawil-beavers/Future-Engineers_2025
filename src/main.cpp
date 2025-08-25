@@ -491,23 +491,9 @@ void parseMessage(char *msg)
   case 'y':
     set_speed(value);
     set_steering(value_2);
-    // if (value_2 != last_value_2)
-    // {
-    //   steering_diff = current_time - last_steering_command;
-    //   last_value_2 = value_2;
-    // }
     Serial.print(get_distance(encoder_pos));
     Serial.print(",");
     Serial.println(degree_calibrated * 180 / PI);
-    // time_now_int = int(current_time / 1000000.0);
-    // Serial.println(time_now_int);
-    // if (time_now_int != last_current_time_int)
-    // {
-    //   last_steering_command = current_time;
-    // }
-    // last_current_time_int = time_now_int;    
-    // steering_diff = current_time - last_steering_command;
-    // last_steering_command = current_time;
     break;
   case 'x':
     Serial.print("Steering diff: ");

@@ -570,24 +570,23 @@ async def drive(speed, distance):
         await asyncio.sleep(0.001)
     car.speed = 0  # Stop the car after driving the distance
 
-async def turn(speed, degrees, radius):
-    # todo: does not work as intended
+async def turn(speed, degrees, steering):
     """   
     Args:
         speed (int): Speed of the turn.
         degrees (float): Degrees to turn.
-        radius (float): Radius of the turn.
+        steering (float): Radius of the turn.
     
     Returns:
         None
     """
-    car.speed = speed
-    car.steering = radius
     angle_beg = car.angle
     # Calculate the target angle based on the current angle and degrees to turn
-    target_angle = angle_beg + degrees
+    direction = degrees / abs(degrees)
+    car.speed = speed
+    car.steering = abs(steering) * direction
     # Adjust the steering based on the radius
-    while (target_angle > car.angle):
+    while (car.angle - angle_beg) * direction < degrees * direction:
         await asyncio.sleep(0.1)
     car.speed = 0  # Stop the car after turning
 
@@ -597,9 +596,10 @@ async def main_program():
         await connect_to_arduino()
     speed = 300 if not pillars else 200
     print("Starting main program...")
-    await drive(speed, 1000)  # Example drive command, adjust as needed
-    # await turn(speed, 90, 100)  # Example turn command, adjust as needed
-    # await turn(speed, -90, 100)  # Example turn command, adjust as needed
+    await drive(speed, 1000)  # Example drive command
+    # await turn(speed, 90, 100)  # Example turn command
+    # await turn(speed, -90, 100)  # Example turn command
+    await write_serial("o\n")
     print("Main program completed. Exiting...")
     await asyncio.sleep(0.5)
     if shutdown:

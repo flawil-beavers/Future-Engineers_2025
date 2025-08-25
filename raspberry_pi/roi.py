@@ -558,15 +558,21 @@ def encode_image(image):
 
 MAX_STEERING_ANGLE = 25.0
 
+async def calculate_steering(error) -> float:
+    global last_error
+    correction = error * kp + (error - last_error) * kd
+    last_error = error
+    return bound(correction) * MAX_STEERING_ANGLE
+
 async def drive(speed, distance):
     # todo add gyro following
+    global car # does this have to be a global variable??
     distance_beg = car.distance
     angle_beg = car.angle
     car.speed = speed
     while (car.distance - distance_beg) < distance:
         error = (angle_beg - car.angle) / 80
-        correction = error * kp + (error - last_error) * kd # todo: reactivate
-        car.steering = bound(correction) * MAX_STEERING_ANGLE
+        car.steering = calculate_steering(error)
         await asyncio.sleep(0.001)
     car.speed = 0  # Stop the car after driving the distance
 
@@ -596,7 +602,7 @@ async def main_program():
         await connect_to_arduino()
     speed = 300 if not pillars else 200
     print("Starting main program...")
-    await drive(speed, 1000)  # Example drive command
+    await drive(200, 1000)  # Example drive command # todo need to test if works well at 200 speed
     # await turn(speed, 90, 100)  # Example turn command
     # await turn(speed, -90, 100)  # Example turn command
     await write_serial("o\n")

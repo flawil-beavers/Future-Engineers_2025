@@ -251,6 +251,10 @@ class Car:
         self.distance = distance
         self.speed = speed
         self.steering = steering
+        
+        # paused
+        self.paused = True
+
 
 def setup_logging():
     """
@@ -353,3 +357,61 @@ def process_pillars(sm, detected_pillars, straight_sections, color_image, viz):
             sm._took_picture = True
             sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
             print(f"Picture would be taken now")
+
+
+class SharedState:
+    """
+    Central place to store and access all shared data:
+    - Streams (camera images, ROIs, HSV, etc.)
+    - Lines (detected wall/edge lines)
+    - Pillars (red/green markers)
+    - State flags (pillars mode, calibration, shutdown, etc.)
+    """
+    def __init__(self):
+        # Streams
+        self.current_streams = ["viz", "black", "viz"]
+        self.has_sent_streams_info = False
+        self.active_websocket = None
+        self.latest_streams = {}
+
+        # Vision results
+        self.border_lines = {"L": None, "R": None}
+        self.detected_pillars = []
+        self.portion_black_l = 0.0
+        self.portion_black_r = 0.0
+        self.portion_orange = 0.0
+        self.portion_blue = 0.0
+
+        # Configurable flags
+        self.headless = False
+        self.pillars = False
+        self.shutdown = False
+        self.calibrate = False
+        self.skip_arduino = False
+
+        # Error tracking
+        self.last_error = 0.0
+
+        # PD control params
+        self.kp = 0.0
+        self.kd = 0.0
+        
+    def reset_streams(self):
+        self.latest_streams.clear()
+
+    def update_stream(self, name, value):
+        self.latest_streams[name] = value
+
+    def set_lines(self, left, right):
+        self.border_lines["L"] = left
+        self.border_lines["R"] = right
+
+    def add_pillars(self, pillars):
+        self.detected_pillars = pillars
+
+    def set_flags(self, headless=False, pillars=False, shutdown=False, calibrate=False, skip_arduino=False):
+        self.headless = headless
+        self.pillars = pillars
+        self.shutdown = shutdown
+        self.calibrate = calibrate
+        self.skip_arduino = skip_arduino

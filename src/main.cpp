@@ -88,6 +88,8 @@ unsigned long last_status_time = 0;           // when the last status was printe
 unsigned long last_loop_time_us = 0;          // last loop time in microseconds
 float last_loop_time = 0;                     // last loop time in seconds
 unsigned long last_enable_interrupt_time = 0; // last time the enable interrupt was called
+unsigned long last_steering_command = 0;
+unsigned long steering_diff = 0;
 
 sensors_event_t event;
 float degree = 0;
@@ -412,6 +414,10 @@ void gyro_config_print()
   }
 }
 
+int last_current_time_int = 0;
+int last_value_2 = 0;
+int time_now_int = 0;
+
 void parseMessage(char *msg)
 {
   char cmd[3]; // To store the 2-char command
@@ -435,6 +441,7 @@ void parseMessage(char *msg)
   }
   value = atoi(beg);
   int value_2 = atoi(++second_int);
+  // Serial.println("ok");
   switch (cmd[0])
   {
   case 'd':
@@ -477,8 +484,36 @@ void parseMessage(char *msg)
     digitalWrite(ledPin, HIGH);
     break;
   case 'z':
-    Serial.println(get_distance(encoder_pos));
+    Serial.print(get_distance(encoder_pos));
+    Serial.print(",");
     Serial.println(degree_calibrated * 180 / PI);
+    break;
+  case 'y':
+    set_speed(value);
+    set_steering(value_2);
+    // if (value_2 != last_value_2)
+    // {
+    //   steering_diff = current_time - last_steering_command;
+    //   last_value_2 = value_2;
+    // }
+    Serial.print(get_distance(encoder_pos));
+    Serial.print(",");
+    Serial.println(degree_calibrated * 180 / PI);
+    // time_now_int = int(current_time / 1000000.0);
+    // Serial.println(time_now_int);
+    // if (time_now_int != last_current_time_int)
+    // {
+    //   last_steering_command = current_time;
+    // }
+    // last_current_time_int = time_now_int;    
+    // steering_diff = current_time - last_steering_command;
+    // last_steering_command = current_time;
+    break;
+  case 'x':
+    Serial.print("Steering diff: ");
+    Serial.print(steering_diff);
+    Serial.println(" us");
+    break;
   }
 }
 

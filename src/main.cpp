@@ -483,6 +483,9 @@ void parseMessage(char *msg)
   case 'o':
     digitalWrite(ledPin, HIGH);
     break;
+  case 'f':
+    digitalWrite(ledPin, LOW);
+    break;
   case 'z':
     Serial.print(get_distance(encoder_pos));
     Serial.print(",");

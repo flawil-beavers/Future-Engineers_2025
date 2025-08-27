@@ -251,6 +251,13 @@ def process_image(picam2, pipeline):
     portion_black_l = cv2.countNonZero(roi_left) / (roi_left.shape[0] * roi_left.shape[1])
     portion_black_r = cv2.countNonZero(roi_right) / (roi_right.shape[0] * roi_right.shape[1])
 
+    if not state.calibrate and not state.pillars:
+        orange_roi = extract_ROI(rgbl["orange"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+        blue_roi = extract_ROI(rgbl["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+        state.portion_orange = cv2.countNonZero(orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
+        state.portion_blue = cv2.countNonZero(blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
+
+
     state.update_stream("color_image", color_image)
     state.update_stream("hsv_image", hsv_image)
     state.update_stream("red", rgbl["red"])
@@ -312,21 +319,22 @@ def detect_edge_lines(state: SharedState, roi_width):
 def cycle():
     process_image(picam2, pipeline)
 
+    roi_front_width = 10
+    roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
+    portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
+    if not state.headless:
+        cv2.rectangle(state.latest_streams["viz"], (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
+        cv2.putText(state.latest_streams["viz"], f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(state.latest_streams["viz"], f"{state.portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(state.latest_streams["viz"], f"{state.portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(state.latest_streams["viz"], f"o: {state.portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(state.latest_streams["viz"], f"b: {state.portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
     if state.pillars:
         detect_edge_lines(state, roi_width)
 
-        roi_front_width = 10
-        roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
-        portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
         distance_front = portion_black_front
         # sm.distance_front = portion_black_front
-        if not state.headless:
-            cv2.rectangle(state.latest_streams["viz"], (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
-            cv2.putText(state.latest_streams["viz"], f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-            cv2.putText(state.latest_streams["viz"], f"{state.portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-            cv2.putText(state.latest_streams["viz"], f"{state.portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-            # cv2.putText(state.latest_streams["viz"], f"o: {portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-            # cv2.putText(state.latest_streams["viz"], f"b: {portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
         # filter out the red and green colors of the pillars and walls
         detected_pillars_r = pipeline.get_pillars(state.latest_streams["red"], "RED")
@@ -364,17 +372,6 @@ def cycle():
                     corner_x = 640 + detected_corner[0]
                 cv2.circle(state.latest_streams["viz"], (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
                 cv2.putText(state.latest_streams["viz"], f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-
-    # A state machine is used to model the car's behavior
-    # This checks if the car should transition to a new state, and if so, transitions
-    # states may be PD-CENTER, PD-RIGHT, PD-LEFT, TURNING-L, TURNING-R, etc.
-    if not state.calibrate:
-        if not state.pillars:
-            orange_roi = extract_ROI(state.latest_streams["orange"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
-            blue_roi = extract_ROI(state.latest_streams["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
-            portion_orange = cv2.countNonZero(orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
-            portion_blue = cv2.countNonZero(blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
 
 
     correction = 0
@@ -556,15 +553,47 @@ async def turn(speed, degrees, steering):
         await asyncio.sleep(0.1)
     car.speed = 0  # Stop the car after turning
 
+async def pd_middle(speed: int, side: str, stop_condition: callable):
+    REF_PORTION = 0.45 if not state.pillars else 0.30
+    car.speed = speed
+    car.finished = False
+    while True: # todo find out how to determine when to finish
+        if side == "R":
+            error = (REF_PORTION - state.portion_black_r)
+        elif side == "L":
+            error = (state.portion_black_l - REF_PORTION)
+        else:
+            raise ValueError(f"side must be 'L' or 'R', currently it is set to '{side}'")
+        car.steering = await calculate_steering(error*1.2)
+        if stop_condition():
+            break
+        await asyncio.sleep(0.01)
+
+def blue_orange(colour: str) -> bool:
+    MIN_PORTION = 0.15
+    if colour == "blue":
+        if state.portion_blue > MIN_PORTION:
+            return True
+    elif colour == "orange":
+        if state.portion_orange > MIN_PORTION:
+            return True
+    else:
+        raise ValueError(f"colour has to be 'blue' or 'orange', currently it is set to '{colour}'")
+    return False
+
 async def main_program():
     # Wait for Arduino trigger before starting main logic
     if ser and not state.calibrate:
         await connect_to_arduino()
     speed = 300 if not state.pillars else 200
     print("Starting main program...")
-    await drive(speed, 1000)  # Example drive command
+    # await drive(speed, 1000)  # Example drive command
     # await turn(speed, 90, 100)  # Example turn command
     # await turn(speed, -90, 100)  # Example turn command
+    
+    await pd_middle(speed, "L", lambda: blue_orange("orange"))
+
+    car.speed = 0
     await write_serial("o\n")
     print("Main program completed. Exiting...")
     await asyncio.sleep(0.5)

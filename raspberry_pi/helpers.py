@@ -234,26 +234,6 @@ class Straight_Section:
                     self.driving_pos = [i, i]
                     break
         return self.driving_pos
-    
-class Car:
-    """
-    Class to represent the car's current state.
-
-    Attributes:
-        angle (float): The current angle of the car (degrees).
-        distance (float): The current encoder distance (millimeters).
-        speed (float): The current speed of the car.
-        steering (float): The current steering value.
-    """
-
-    def __init__(self, angle=0.0, distance=0.0, speed=0.0, steering=0.0):
-        self.angle = angle
-        self.distance = distance
-        self.speed = speed
-        self.steering = steering
-        
-        # paused
-        self.paused = True
 
 
 def setup_logging():
@@ -282,7 +262,7 @@ def setup_logging():
     sys.stderr = Logger(log_file)
     
 
-def process_pillars(sm, detected_pillars, straight_sections, color_image, viz):
+def process_pillars(state, straight_sections, turns_left, first_section:bool=False):
     """
     Process detected pillars and update the straight sections with pillar information.
     Args:
@@ -292,71 +272,90 @@ def process_pillars(sm, detected_pillars, straight_sections, color_image, viz):
         color_image (np.ndarray): The original color image for visualization.
         viz (np.ndarray): The visualization image to draw on.
     """
-    section_index = (11-sm.turns_left) % 4
-    if sm.take_picture and sm.distance_take_picture < sm.total_distance:
-        sm.take_picture = False
-        sm._took_picture = True
-        index = None
-        if straight_sections[section_index].parking_lot:
-            print(f"parking lot in section, resetting pillars")
-            # rescan the parking lot
-            for i in range(3):
-                straight_sections[section_index].l[i] = 0
-                straight_sections[section_index].r[i] = 0
-            print(f"pillars reset and printing now")
-            straight_sections[section_index].print()
-        for p in detected_pillars:
-            if p.ignore:
-                continue
-            if sm.current_state == "PD-CENTER-START":
-                if p.y > 130:
-                    print(f"--Pillar {p.color} is too high, y={p.y}")
-                    continue
-                if abs(p.screen_x - 320) > 170:
-                    print(f"--Pillar {p.color} is too far from the center, x={p.screen_x}")
-                    continue
-                if p.y > 50:
-                    index = 0
-                elif p.y > 28:
-                    index = 1
-                # elif p.y > 24:
-                #   index = 2
-                else:
-                    print(f"--Pillar {p.color} is too low, y={p.y}")
-                    continue
-            else:
-                if p.y > 180:
-                    print(f"--Pillar {p.color} is too high, y={p.y}")
-                    continue
-                if p.y > 50:
-                    index = 0
-                elif p.y > 35:
-                    index = 1
-                elif p.y > 24:
-                    index = 2
-                else:
-                    print(f"--Pillar {p.color} is too low, y={p.y}")
-                    continue
-            if p.screen_x < 320:
-                straight_sections[section_index].l[index] = p.color
-            else:
-                straight_sections[section_index].r[index] = p.color
-            cv2.rectangle(viz, (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
-            cv2.putText(viz, f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-        straight_sections[section_index].parking_lot = True if section_index == 3 else False
-        straight_sections[section_index].validate(sm.round_dir)
-        cv2.imwrite(f"logs/image{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", color_image)
-        cv2.imwrite(f"logs/image_viz{section_index}{'_p' if sm.current_state == 'PD-CENTER-START' else ''}.jpg", viz)
-        print("Image saved")
-        sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
+    section_index = (11-turns_left) % 4
+    index = None
+    if straight_sections[section_index].parking_lot:
+        print(f"parking lot in section, resetting pillars")
+        # rescan the parking lot
+        for i in range(3):
+            straight_sections[section_index].l[i] = 0
+            straight_sections[section_index].r[i] = 0
+        print(f"pillars reset and printing now")
         straight_sections[section_index].print()
+    for p in state.detected_pillars:
+        if p.ignore:
+            continue
+        if first_section:
+            if p.y > 130:
+                print(f"--Pillar {p.color} is too high, y={p.y}")
+                continue
+            if abs(p.screen_x - 320) > 170:
+                print(f"--Pillar {p.color} is too far from the center, x={p.screen_x}")
+                continue
+            if p.y > 50:
+                index = 0
+            elif p.y > 28:
+                index = 1
+            # elif p.y > 24:
+            #   index = 2
+            else:
+                print(f"--Pillar {p.color} is too low, y={p.y}")
+                continue
+        else:
+            if p.y > 180:
+                print(f"--Pillar {p.color} is too high, y={p.y}")
+                continue
+            if p.y > 50:
+                index = 0
+            elif p.y > 35:
+                index = 1
+            elif p.y > 24:
+                index = 2
+            else:
+                print(f"--Pillar {p.color} is too low, y={p.y}")
+                continue
+        if p.screen_x < 320:
+            straight_sections[section_index].l[index] = p.color
+        else:
+            straight_sections[section_index].r[index] = p.color
+        cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
+        cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
-    if sm.current_state == "PD-CENTER-2" and not sm._took_picture:
-        if sm.distance_take_picture < sm.total_distance:
-            sm._took_picture = True
-            sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
-            print(f"Picture would be taken now")
+    straight_sections[section_index].parking_lot = True if section_index == 3 else False
+    straight_sections[section_index].validate(state.round_dir)
+    cv2.imwrite(f"logs/image{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["color_image"])
+    cv2.imwrite(f"logs/image_viz{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["viz"])
+    print("Image saved")
+    pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
+    straight_sections[section_index].print()
+    return pillar_driving_pos
+
+    # if sm.current_state == "PD-CENTER-2" and not sm._took_picture:
+    #     if sm.distance_take_picture < sm.total_distance:
+    #         sm._took_picture = True
+    #         sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+    #         print(f"Picture would be taken now")
+
+    
+class Car:
+    """
+    Class to represent the car's current state.
+
+    Attributes:
+        angle (float): The current angle of the car (degrees).
+        distance (float): The current encoder distance (millimeters).
+        speed (float): The current speed of the car.
+        steering (float): The current steering value.
+    """
+
+    def __init__(self, angle=0.0, distance=0.0, speed=0.0, steering=0.0):
+        self.angle = angle
+        self.distance = distance
+        self.speed = speed
+        self.steering = steering
+        
+        # paused
+        self.paused = True
 
 
 class SharedState:
@@ -381,6 +380,8 @@ class SharedState:
         self.portion_black_r = 0.0
         self.portion_orange = 0.0
         self.portion_blue = 0.0
+        
+        self.round_dir = None
 
         # Configurable flags
         self.headless = False

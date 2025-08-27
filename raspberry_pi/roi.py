@@ -13,7 +13,6 @@ from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
 from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState
 from pipeline import Pipeline
-from statemachine import StateMachine
 from picamera2 import Picamera2
 from rounddir import find_round_dir
 import argparse
@@ -527,7 +526,6 @@ async def calculate_steering(error) -> float:
     return bound(correction) * MAX_STEERING_ANGLE
 
 async def drive(speed, distance):
-    # todo add gyro following
     global car # does this have to be a global variable??
     distance_beg = car.distance
     angle_beg = car.angle
@@ -564,7 +562,7 @@ async def main_program():
         await connect_to_arduino()
     speed = 300 if not state.pillars else 200
     print("Starting main program...")
-    await drive(200, 1000)  # Example drive command # todo need to test if works well at 200 speed
+    await drive(speed, 1000)  # Example drive command
     # await turn(speed, 90, 100)  # Example turn command
     # await turn(speed, -90, 100)  # Example turn command
     await write_serial("o\n")

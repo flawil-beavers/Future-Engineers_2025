@@ -3,7 +3,8 @@ import numpy as np
 from helpers import extract_ROI
 
 
-def find_round_dir(black_img: np.ndarray, is_pillar_round: bool = False):
+def find_round_dir(state, is_pillar_round: bool = False):
+    black_img = state.latest_streams["black"]
     if is_pillar_round:
         left = extract_ROI(black_img, [0, 0], [100, black_img.shape[0]//2])
         right = extract_ROI(black_img, [black_img.shape[1] - 100, 0], [black_img.shape[1], black_img.shape[0]//2])

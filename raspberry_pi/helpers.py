@@ -381,7 +381,10 @@ class SharedState:
         self.portion_orange = 0.0
         self.portion_blue = 0.0
         
-        self.round_dir = None
+        self.round_dir = 0
+        self.rounds = 0
+        
+        self.current_function = "starting"
 
         # Configurable flags
         self.headless = False

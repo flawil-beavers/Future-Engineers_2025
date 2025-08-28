@@ -374,17 +374,15 @@ def cycle():
                 cv2.putText(state.latest_streams["viz"], f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
 
-    correction = 0
-    error = 0
     # viz stuff
     if not state.headless:
         cv2.rectangle(state.latest_streams["viz"], (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
         cv2.rectangle(state.latest_streams["viz"], (0, 0), (roi_width, 150), (255, 0, 0), 2)
         cv2.rectangle(state.latest_streams["viz"], (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
-        cv2.putText(state.latest_streams["viz"], f"Angle: {car.angle:.2f}°, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(state.latest_streams["viz"], f"Speed: {car.speed} mm/s, Steering: {car.steering:.2f}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
-        # cv2.putText(state.latest_streams["viz"], f"direction: {sm.round_dir}, gyro: {sm.following_angle}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(state.latest_streams["viz"], f"Correction: {round(correction, 2)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(state.latest_streams["viz"], f"Angle: {car.angle:.2f} deg, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(state.latest_streams["viz"], f"Direction: {state.round_dir}, Rounds: {state.rounds}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(state.latest_streams["viz"], f"Current function: {state.current_function}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         # cv2.putText(state.latest_streams["viz"], f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         if state.pillars:
             for p in state.detected_pillars:
@@ -455,7 +453,7 @@ async def img_stream(websocket, path):
                         encoded = value
                     data[chr(ord('a') + idx)] = encoded
             await websocket.send(json.dumps(data))
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.05)
     finally:
         # If this websocket is the active one, clear it on disconnect
         if state.active_websocket == websocket:
@@ -522,8 +520,15 @@ async def calculate_steering(error) -> float:
     state.last_error = error
     return bound(correction) * MAX_STEERING_ANGLE
 
+def current_function(func):
+    def wrapper(*args, **kwargs):
+        # saves the whole function call as in the python file
+        state.current_function = func.__name__ + "(" + ", ".join([str(a) for a in args] + [f"{k}={v}" for k, v in kwargs.items()]) + ")"
+        return func(*args, **kwargs)
+    return wrapper
+
+@current_function
 async def drive(speed, distance):
-    global car # does this have to be a global variable??
     distance_beg = car.distance
     angle_beg = car.angle
     car.speed = speed
@@ -533,6 +538,7 @@ async def drive(speed, distance):
         await asyncio.sleep(0.001)
     car.speed = 0  # Stop the car after driving the distance
 
+@current_function
 async def turn(speed, degrees, steering):
     """   
     Args:
@@ -547,12 +553,13 @@ async def turn(speed, degrees, steering):
     # Calculate the target angle based on the current angle and degrees to turn
     direction = degrees / abs(degrees)
     car.speed = speed
-    car.steering = abs(steering) * direction
+    car.steering = bound(abs(steering) * direction) * MAX_STEERING_ANGLE
     # Adjust the steering based on the radius
     while (car.angle - angle_beg) * direction < degrees * direction:
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.01)
     car.speed = 0  # Stop the car after turning
 
+@current_function
 async def pd_middle(speed: int, side: str, stop_condition: callable):
     REF_PORTION = 0.45 if not state.pillars else 0.30
     car.speed = speed
@@ -581,17 +588,41 @@ def blue_orange(colour: str) -> bool:
         raise ValueError(f"colour has to be 'blue' or 'orange', currently it is set to '{colour}'")
     return False
 
+def distance(distance: float, distance_beg: float) -> bool:
+    if car.distance - distance_beg < distance:
+        return False
+    return True
+
+
 async def main_program():
     # Wait for Arduino trigger before starting main logic
     if ser and not state.calibrate:
         await connect_to_arduino()
     speed = 300 if not state.pillars else 200
     print("Starting main program...")
-    # await drive(speed, 1000)  # Example drive command
-    # await turn(speed, 90, 100)  # Example turn command
-    # await turn(speed, -90, 100)  # Example turn command
     
-    await pd_middle(speed, "L", lambda: blue_orange("orange"))
+    # await turn(speed, 90, 0.75)
+    # await turn(speed, 90, 0.75)
+    # await turn(speed, -90, 0.75)
+    # await asyncio.sleep(1000)
+    try:
+        if not state.pillars:
+            car.speed = speed
+            while abs(state.round_dir) < 5:
+                state.round_dir += find_round_dir(state, state.pillars)
+                await asyncio.sleep(0.01)
+            print(f"Round direction determined from {state.round_dir}: {'clockwise' if state.round_dir > 0 else 'counter-clockwise'}")
+            state.round_dir = 1 if state.round_dir > 0 else -1
+            while state.rounds <= 12:
+                await pd_middle(speed, "L" if state.round_dir > 0 else "R", lambda: blue_orange( "orange" if state.round_dir > 0 else "blue"))
+                state.rounds += 1
+                print(f"detected line: rounds done: {state.rounds}")
+                await pd_middle(speed, "L" if state.round_dir > 0 else "R", lambda: distance(50, car.distance))
+                await turn(speed, 90 * state.round_dir, 0.75)
+    except Exception as e:
+        print(f"Exception in main_program: {e}")
+        ser.write(b's0\n')
+        ser.write(b'p\n')
 
     car.speed = 0
     await write_serial("o\n")

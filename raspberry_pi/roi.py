@@ -46,8 +46,8 @@ picam2.set_controls({
     # controls.AWB_TEMPERATURE: fixed_temperature
 })
 
-roi_center_w, roi_center_h = 100, 50
-roi_center_x, roi_center_y = 320 - roi_center_w // 2, 180
+roi_center_w, roi_center_h = 100, 40
+roi_center_x, roi_center_y = 320 - roi_center_w // 2, 200
 
 roi_width = 100
 roi_height = 150
@@ -327,8 +327,8 @@ async def cycle():
         cv2.putText(viz_stream, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"{state.portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"{state.portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"o: {state.portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"o: {state.portion_orange:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     if state.pillars:
         viz_stream = await detect_edge_lines(state, roi_width, viz_stream)
@@ -407,7 +407,7 @@ async def cycle_loop():
     while True:
         time_beg = time()
         await cycle()
-        print(f"passed cycle time: {time() - time_now:.3f} s; loop cycle: {time() - time_beg:.3f} s")
+        # print(f"passed cycle time: {time() - time_now:.3f} s; loop cycle: {time() - time_beg:.3f} s")
         time_now = time()
         await asyncio.sleep(0.02)  # Sleep for a short duration to prevent blocking
 
@@ -620,12 +620,13 @@ async def main_program():
                 await asyncio.sleep(0.01)
             print(f"Round direction determined from {state.round_dir}: {'clockwise' if state.round_dir > 0 else 'counter-clockwise'}")
             state.round_dir = 1 if state.round_dir > 0 else -1
-            while state.rounds <= 12:
+            while state.rounds < 12:
                 await pd_middle(speed, "L" if state.round_dir > 0 else "R", lambda: blue_orange( "orange" if state.round_dir > 0 else "blue"))
                 state.rounds += 1
                 print(f"detected line: rounds done: {state.rounds}")
-                await pd_middle(speed, "L" if state.round_dir > 0 else "R", lambda: distance(50, car.distance))
-                await turn(speed, 90 * state.round_dir, 0.75)
+                await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(170, start))())
+                await turn(speed, 80 * state.round_dir, 0.75)
+            await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
     except Exception as e:
         print(f"Exception in main_program: {e}")
         ser.write(b's0\n')

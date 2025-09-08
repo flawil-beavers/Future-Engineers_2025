@@ -262,17 +262,18 @@ def setup_logging():
     sys.stderr = Logger(log_file)
     
 
-def process_pillars(state, straight_sections, turns_left, first_section:bool=False):
+def process_pillars(state, straight_sections):
     """
     Process detected pillars and update the straight sections with pillar information.
     Args:
-        sm: The state machine object containing the current state and other parameters.
-        detected_pillars (list): List of detected Pillar objects.
-        straight_sections (list): List of Straight_Section objects representing the sections.
-        color_image (np.ndarray): The original color image for visualization.
-        viz (np.ndarray): The visualization image to draw on.
+        state (SharedState): The shared state containing detected pillars and other information.
+        straight_sections (list): A list of Straight_Section objects representing the straight sections.
     """
-    section_index = (11-turns_left) % 4
+    if state.rounds == 0:
+        first_section = True
+    else:
+        first_section = False
+    section_index = state.rounds % 4
     index = None
     if straight_sections[section_index].parking_lot:
         print(f"parking lot in section, resetting pillars")
@@ -383,6 +384,7 @@ class SharedState:
         
         self.round_dir = 0
         self.rounds = 0
+        self.position = "middle"
         
         self.current_function = "starting"
 
@@ -399,7 +401,7 @@ class SharedState:
         # PD control params
         self.kp = 0.0
         self.kd = 0.0
-        
+
     def reset_streams(self):
         self.latest_streams.clear()
 

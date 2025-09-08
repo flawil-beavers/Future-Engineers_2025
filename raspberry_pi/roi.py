@@ -11,7 +11,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState, process_pillars
 from pipeline import Pipeline
 from picamera2 import Picamera2
 from rounddir import find_round_dir
@@ -56,7 +56,6 @@ current_streams = ["viz", "black", "viz"]
 has_sent_streams_info = False
 active_websocket = None
 # Shared dictionary to hold the latest streams from cycle()
-latest_streams = {}
 
 car = Car()
 
@@ -177,7 +176,7 @@ async def connect_to_arduino():
         ser.timeout = None
         print("Gyro initialized successfully")
         await write_serial("o\n")
-        while car.paused:
+        while car.paused and not state.skip_arduino: # todo: if skip_arduino make the arduino start directly
             await read_and_handle_serial_line()
             await asyncio.sleep(0.1)
         print("Arduino connected and start signal received.")
@@ -199,7 +198,8 @@ async def arduino_communication() -> bool:
 
     
 async def arduino_communication_loop():
-    while car.paused:
+    # await asyncio.sleep(2)
+    while car.paused: # and not state.skip_arduino:
         await asyncio.sleep(0.01)
     while True:
         await asyncio.sleep(0.01)
@@ -314,6 +314,7 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
                         cv2.putText(viz_stream, f"y={line['m']:.2f}x+{line['b']:.2f}", 
                             (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                     b *= 0.6
+    return viz_stream
 
 
 async def cycle():
@@ -542,7 +543,7 @@ async def drive(speed, distance):
     while (car.distance - distance_beg) < distance:
         error = (angle_beg - car.angle) / 80
         car.steering = await calculate_steering(error)
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.01)
     car.speed = 0  # Stop the car after driving the distance
 
 @current_function
@@ -551,7 +552,7 @@ async def turn(speed, degrees, steering):
     Args:
         speed (int): Speed of the turn.
         degrees (float): Degrees to turn.
-        steering (float): Radius of the turn.
+        steering (float, 0.0 to 1.0): Steering intensity.
     
     Returns:
         None
@@ -561,10 +562,19 @@ async def turn(speed, degrees, steering):
     direction = degrees / abs(degrees)
     car.speed = speed
     car.steering = bound(abs(steering) * direction) * MAX_STEERING_ANGLE
+    degrees *= speed / abs(speed)
+    direction *= speed / abs(speed)
     # Adjust the steering based on the radius
     while (car.angle - angle_beg) * direction < degrees * direction:
         await asyncio.sleep(0.01)
     car.speed = 0  # Stop the car after turning
+    
+@current_function
+async def double_turn(speed, angle, steering=0.75):
+    await turn(speed, angle, steering)
+    await turn(speed, -angle, steering)
+    car.speed = 0
+    
 
 @current_function
 async def pd_middle(speed: int, side: str, stop_condition: callable):
@@ -609,17 +619,23 @@ async def main_program():
     print("Starting main program...")
     
     # await turn(speed, 90, 0.75)
+    # print("first turn done")
+    # await turn(-speed, 90, 0.75)
+    # print("second turn done")
     # await turn(speed, 90, 0.75)
     # await turn(speed, -90, 0.75)
     # await asyncio.sleep(1000)
     try:
         if not state.pillars:
             car.speed = speed
-            while abs(state.round_dir) < 5:
-                state.round_dir += find_round_dir(state, state.pillars)
-                await asyncio.sleep(0.01)
-            print(f"Round direction determined from {state.round_dir}: {'clockwise' if state.round_dir > 0 else 'counter-clockwise'}")
-            state.round_dir = 1 if state.round_dir > 0 else -1
+        while abs(state.round_dir) < 5:
+            state.round_dir += find_round_dir(state, state.pillars)
+            await asyncio.sleep(0.01)
+        print(f"Round direction determined from {state.round_dir}: {'clockwise' if state.round_dir > 0 else 'counter-clockwise'}")
+        state.round_dir = 1 if state.round_dir > 0 else -1
+        inner_colour = "RED" if state.round_dir > 0 else "GREEN"
+        outer_colour = "GREEN" if state.round_dir > 0 else "RED"
+        if not state.pillars:
             while state.rounds < 12:
                 await pd_middle(speed, "L" if state.round_dir > 0 else "R", lambda: blue_orange( "orange" if state.round_dir > 0 else "blue"))
                 state.rounds += 1
@@ -627,6 +643,18 @@ async def main_program():
                 await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(170, start))())
                 await turn(speed, 80 * state.round_dir, 0.75)
             await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
+        else:
+            SPEED_UNPARK = 100
+            await turn(SPEED_UNPARK, -10 * state.round_dir, 1.2)
+            await turn(-SPEED_UNPARK, 65 * state.round_dir, 1.2)
+            # await drive(speed, 10, )
+            await turn(-SPEED_UNPARK, -80 * state.round_dir, 1)
+            driving_pos = process_pillars(state, straight_sections)
+            for i in range(2):
+                if driving_pos[i] == inner_colour and state.position == "middle":
+                    await double_turn(speed, 65, 1)
+                    state.position = "inner"
+            # await drive()
     except Exception as e:
         print(f"Exception in main_program: {e}")
         ser.write(b's0\n')

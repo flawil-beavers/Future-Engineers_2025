@@ -172,7 +172,8 @@
 
     <!-- Input field for WebSocket connection -->
     <input type="text" id="ip" value="car2.local" />
-    <button onclick="connectWebSocket()">Connect</button>
+    <button id="connectBtn" onclick="connectWebSocket()">Connect</button>
+    <button id="disconnectBtn" onclick="disconnectWebSocket()" style="display:none;">Disconnect</button>
     <p></p>
     <button onclick="showcolorAdjust()">Color Adjust</button>
     <button onclick="showFullscreen()">Fullscreen (Stream A)</button>
@@ -226,7 +227,8 @@
   <!-- Fullscreen View -->
   <div id="fullscreenView">
     <button onclick="showMainMenu()">Back to Menu</button>
-    <button onclick="connectWebSocket()">Connect</button>
+    <button id="fullscreenConnectBtn" onclick="connectWebSocket()">Connect</button>
+    <button id="fullscreenDisconnectBtn" onclick="disconnectWebSocket()" style="display:none;">Disconnect</button>
     <img id="fullscreenImage" src="" alt="Fullscreen Stream" />
   </div>
 
@@ -242,9 +244,28 @@
     var ws; // WebSocket connection
     var availableStreams = []; // List of available streams
 
+    function updateConnectionButtons(isConnected) {
+      if (isConnected) {
+        document.getElementById("connectBtn").style.display = "none";
+        document.getElementById("disconnectBtn").style.display = "inline-block";
+        document.getElementById("fullscreenConnectBtn").style.display = "none";
+        document.getElementById("fullscreenDisconnectBtn").style.display = "inline-block";
+      } else {
+        document.getElementById("connectBtn").style.display = "inline-block";
+        document.getElementById("disconnectBtn").style.display = "none";
+        document.getElementById("fullscreenConnectBtn").style.display = "inline-block";
+        document.getElementById("fullscreenDisconnectBtn").style.display = "none";
+      }
+    }
+
+
     // Function to connect to the WebSocket server
     function connectWebSocket() {
       ws = new WebSocket(`ws://${ip_input.value}:8765`);
+      ws.onopen = function () {
+        console.log("WebSocket connected");
+        updateConnectionButtons(true);
+      };
       // Event handler for receiving messages from the server
       ws.onmessage = function (event) {
         let data = JSON.parse(event.data);
@@ -274,11 +295,21 @@
           buildSelects();
         }
       };
-
+      
       // Event handler for when the WebSocket connection closes
       ws.onclose = function () {
         console.log("WebSocket connection closed");
+        updateConnectionButtons(false);
       };
+    }
+    
+    function disconnectWebSocket() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+        console.log("WebSocket connection manually closed");
+      } else {
+        console.log("No active WebSocket connection to close");
+      }
     }
 
     // Function to populate the dropdowns with available streams

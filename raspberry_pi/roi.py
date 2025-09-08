@@ -202,7 +202,7 @@ async def arduino_communication_loop():
     while car.paused:
         await asyncio.sleep(0.01)
     while True:
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.01)
         arduino_ok = await arduino_communication()
         if arduino_ok is False:
             # Optionally, handle error state here (e.g., skip processing, log, etc.)
@@ -405,7 +405,7 @@ async def cycle_loop():
 
     while True:
         cycle()
-        await asyncio.sleep(0.05)  # Sleep for a short duration to prevent blocking
+        await asyncio.sleep(0.02)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
     # todo: make sure old webserver is closed properly before starting a new one

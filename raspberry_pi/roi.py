@@ -210,7 +210,7 @@ async def arduino_communication_loop():
 
 
 
-def process_image(picam2, pipeline):
+async def process_image(picam2, pipeline):
     """
     Captures an image from the camera, crops it, converts it to HSV, and extracts regions of interest (ROIs)
     for turn marker detection and PD control.
@@ -233,30 +233,29 @@ def process_image(picam2, pipeline):
             - portion_black_l: Portion of black in the left ROI.
             - portion_black_r: Portion of black in the right ROI.
     """
-    img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR) # 5-10ms
-    color_image = pipeline.crop(img)
-    state.update_stream("viz", color_image.copy())
-    hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
+    img = await asyncio.to_thread(cv2.cvtColor, picam2.capture_array(), cv2.COLOR_RGB2BGR)
+    color_image = await asyncio.to_thread(pipeline.crop, img)
+    viz_stream = color_image.copy()
+    hsv_image = await asyncio.to_thread(cv2.cvtColor, color_image, cv2.COLOR_BGR2HSV)
 
-    state.update_stream("roi_center", extract_ROI(hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h]))
+    state.update_stream("roi_center", await asyncio.to_thread(extract_ROI, hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h]))
 
-    rgbl = pipeline.filter_RG_Bl(hsv_image, color_image)
+    rgbl = await asyncio.to_thread(pipeline.filter_RG_Bl, hsv_image, color_image)
 
-    roi_left_side = extract_ROI(rgbl["black"], [0, 0], [roi_width, rgbl["black"].shape[0]])
-    roi_right_side = extract_ROI(rgbl["black"], [640-roi_width, 0], [640, rgbl["black"].shape[0]])
+    roi_left_side = await asyncio.to_thread(extract_ROI, rgbl["black"], [0, 0], [roi_width, rgbl["black"].shape[0]])
+    roi_right_side = await asyncio.to_thread(extract_ROI, rgbl["black"], [640-roi_width, 0], [640, rgbl["black"].shape[0]])
 
-    roi_left = extract_ROI(roi_left_side, [0, 0], [roi_width, roi_height])
-    roi_right = extract_ROI(roi_right_side, [0, 0], [roi_width, roi_height])
+    roi_left = await asyncio.to_thread(extract_ROI, roi_left_side, [0, 0], [roi_width, roi_height])
+    roi_right = await asyncio.to_thread(extract_ROI, roi_right_side, [0, 0], [roi_width, roi_height])
 
-    portion_black_l = cv2.countNonZero(roi_left) / (roi_left.shape[0] * roi_left.shape[1])
-    portion_black_r = cv2.countNonZero(roi_right) / (roi_right.shape[0] * roi_right.shape[1])
+    portion_black_l = await asyncio.to_thread(cv2.countNonZero, roi_left) / (roi_left.shape[0] * roi_left.shape[1])
+    portion_black_r = await asyncio.to_thread(cv2.countNonZero, roi_right) / (roi_right.shape[0] * roi_right.shape[1])
 
     if not state.calibrate and not state.pillars:
-        orange_roi = extract_ROI(rgbl["orange"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
-        blue_roi = extract_ROI(rgbl["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
-        state.portion_orange = cv2.countNonZero(orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
-        state.portion_blue = cv2.countNonZero(blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
-
+        orange_roi = await asyncio.to_thread(extract_ROI, rgbl["orange"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+        blue_roi = await asyncio.to_thread(extract_ROI, rgbl["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+        state.portion_orange = await asyncio.to_thread(cv2.countNonZero, orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
+        state.portion_blue = await asyncio.to_thread(cv2.countNonZero, blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
 
     state.update_stream("color_image", color_image)
     state.update_stream("hsv_image", hsv_image)
@@ -270,8 +269,9 @@ def process_image(picam2, pipeline):
 
     state.portion_black_l = portion_black_l
     state.portion_black_r = portion_black_r
+    return viz_stream
 
-def detect_edge_lines(state: SharedState, roi_width):
+async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
     """
     Detects edge lines in the left and right side ROIs using Canny edge detection and Hough line transform.
     Draws detected lines and their properties on the visualization image if not in headless mode.
@@ -290,11 +290,11 @@ def detect_edge_lines(state: SharedState, roi_width):
     for image, key in zip([state.latest_streams["roi_left"], state.latest_streams["roi_right"]], ["L", "R"]):
         # remove the 5 uppest rows from the image just in case the robot sees over the barriers
         image = image[5:, :]
-        blurredImg = cv2.GaussianBlur(image, (3, 3), 0)
+        blurredImg = await asyncio.to_thread(cv2.GaussianBlur, image, (3, 3), 0)
         lower = 30
         upper = 90
-        edges_img = cv2.Canny(blurredImg, lower, upper, 3)
-        roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
+        edges_img = await asyncio.to_thread(cv2.Canny, blurredImg, lower, upper, 3)
+        roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
     state.border_lines = {"L": Lines(roi_lines["L"], (0, 5), (0, 0)), "R": Lines(roi_lines["R"], (640-roi_width, 5), (roi_width, 0))}
 
     # visualisation
@@ -303,35 +303,35 @@ def detect_edge_lines(state: SharedState, roi_width):
             if line_group is not None:
                 b = 200
                 for line in line_group.lines:
-                    cv2.line(state.latest_streams["viz"], (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 
+                    cv2.line(viz_stream, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 
                         (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), (b, 100, 0), 2)
-                    cv2.putText(state.latest_streams["viz"], f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
+                    cv2.putText(viz_stream, f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
                         (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                     # create a green dot for x1 y1 and a red dot for x2 y2
-                    cv2.circle(state.latest_streams["viz"], (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 3, (0, 255, 0), -1)
-                    cv2.circle(state.latest_streams["viz"], (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 3, (0, 0, 255), -1)
+                    cv2.circle(viz_stream, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 3, (0, 255, 0), -1)
+                    cv2.circle(viz_stream, (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 3, (0, 0, 255), -1)
                     if b == 200:
-                        cv2.putText(state.latest_streams["viz"], f"y={line['m']:.2f}x+{line['b']:.2f}", 
+                        cv2.putText(viz_stream, f"y={line['m']:.2f}x+{line['b']:.2f}", 
                             (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                     b *= 0.6
 
 
-def cycle():
-    process_image(picam2, pipeline)
+async def cycle():
+    viz_stream = await process_image(picam2, pipeline)
 
     roi_front_width = 10
     roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
     portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
     if not state.headless:
-        cv2.rectangle(state.latest_streams["viz"], (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
-        cv2.putText(state.latest_streams["viz"], f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(state.latest_streams["viz"], f"{state.portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(state.latest_streams["viz"], f"{state.portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(state.latest_streams["viz"], f"o: {state.portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(state.latest_streams["viz"], f"b: {state.portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.rectangle(viz_stream, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
+        cv2.putText(viz_stream, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"{state.portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"{state.portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"o: {state.portion_orange:.2f}", (300, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     if state.pillars:
-        detect_edge_lines(state, roi_width)
+        viz_stream = await detect_edge_lines(state, roi_width, viz_stream)
 
         distance_front = portion_black_front
         # sm.distance_front = portion_black_front
@@ -370,24 +370,25 @@ def cycle():
                     corner_x = detected_corner[0]
                 else:
                     corner_x = 640 + detected_corner[0]
-                cv2.circle(state.latest_streams["viz"], (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
-                cv2.putText(state.latest_streams["viz"], f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                if not state.headless:
+                    cv2.circle(viz_stream, (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
+                    cv2.putText(viz_stream, f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
 
     # viz stuff
     if not state.headless:
-        cv2.rectangle(state.latest_streams["viz"], (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
-        cv2.rectangle(state.latest_streams["viz"], (0, 0), (roi_width, 150), (255, 0, 0), 2)
-        cv2.rectangle(state.latest_streams["viz"], (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
-        cv2.putText(state.latest_streams["viz"], f"Speed: {car.speed} mm/s, Steering: {car.steering:.2f}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
-        cv2.putText(state.latest_streams["viz"], f"Angle: {car.angle:.2f} deg, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(state.latest_streams["viz"], f"Direction: {state.round_dir}, Rounds: {state.rounds}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(state.latest_streams["viz"], f"Current function: {state.current_function}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        # cv2.putText(state.latest_streams["viz"], f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.rectangle(viz_stream, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
+        cv2.rectangle(viz_stream, (0, 0), (roi_width, 150), (255, 0, 0), 2)
+        cv2.rectangle(viz_stream, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
+        cv2.putText(viz_stream, f"Speed: {car.speed} mm/s, Steering: {car.steering:.2f}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
+        cv2.putText(viz_stream, f"Angle: {car.angle:.2f} deg, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"Direction: {state.round_dir}, Rounds: {state.rounds}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"Current function: {state.current_function}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        # cv2.putText(viz_stream, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         if state.pillars:
             for p in state.detected_pillars:
-                cv2.line(state.latest_streams["viz"], (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)    
-
+                cv2.line(viz_stream, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)
+        state.latest_streams["viz"] = viz_stream
 
 async def cycle_loop():
     """
@@ -402,9 +403,12 @@ async def cycle_loop():
     """
     state.last_error = 0.0
     state.has_sent_streams_info = False
-
+    time_now = time()
     while True:
-        cycle()
+        time_beg = time()
+        await cycle()
+        print(f"passed cycle time: {time() - time_now:.3f} s; loop cycle: {time() - time_beg:.3f} s")
+        time_now = time()
         await asyncio.sleep(0.02)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
@@ -432,9 +436,10 @@ async def img_stream(websocket, path):
                     config["filters"]["GRAY"] = res["updateGray"]
                     print(f"Updated GRAY value: {config['filters']['GRAY']}")
 
-                    # Save the updated config back to the file
-                    with open("config.json", "w") as f:
-                        json.dump(config, f, indent=2)
+                    # Save the updated config back to the file asynchronously
+                    async def async_write_config(cfg):
+                        await asyncio.to_thread(lambda: open("config.json", "w").write(json.dumps(cfg, indent=2)))
+                    await async_write_config(config)
                 state.current_streams[0] = res["streamA"]
                 state.current_streams[1] = res["streamB"]
                 state.current_streams[2] = res["streamC"]
@@ -443,14 +448,15 @@ async def img_stream(websocket, path):
 
             # Only send if changed
             data = {}
-            for idx, stream_name in enumerate(state.current_streams):
-                value = state.latest_streams.get(stream_name)
-                if value is not None:
-                    # Use encode_image for images, else send as is
-                    if isinstance(value, np.ndarray):
-                        encoded = encode_image(value)
-                    else:
-                        encoded = value
+            # Asynchronously encode all images in parallel
+            async def async_encode(val):
+                if isinstance(val, np.ndarray):
+                    return await asyncio.to_thread(encode_image, val)
+                return val
+            tasks = [async_encode(state.latest_streams.get(stream_name)) for stream_name in state.current_streams]
+            results = await asyncio.gather(*tasks)
+            for idx, encoded in enumerate(results):
+                if encoded is not None:
                     data[chr(ord('a') + idx)] = encoded
             await websocket.send(json.dumps(data))
             await asyncio.sleep(0.05)

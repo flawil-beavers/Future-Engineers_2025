@@ -435,7 +435,7 @@ void parseMessage(char *msg)
 
   char *second_int = beg;
 
-  while (*second_int >= '0' && *second_int <= '9')
+  while ((*second_int >= '0' && *second_int <= '9') || *second_int == '-')
   {
     second_int++;
   }

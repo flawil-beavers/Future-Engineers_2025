@@ -496,10 +496,11 @@ async def main():
     # connect_arduino is now called at the start of main_program
 
     tasks = [asyncio.create_task(cycle_loop()), # todo reactivate
-             asyncio.create_task(main_program()),
              asyncio.create_task(arduino_communication_loop())]
     if not state.headless:
         tasks.append(asyncio.create_task(run_webserver()))
+    if not state.calibrate:
+        tasks.append(asyncio.create_task(main_program()))
 
     try:
         await asyncio.gather(*tasks)

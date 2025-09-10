@@ -297,6 +297,37 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
         roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
     state.border_lines = {"L": Lines(roi_lines["L"], (0, 5), (0, 0)), "R": Lines(roi_lines["R"], (640-roi_width, 5), (roi_width, 0))}
 
+    for side_letter in ["L", "R"]:
+        lines = state.border_lines[side_letter].lines
+        # calculate the slope and intercept of the line
+        state.detected_corners[side_letter] = None
+        for line in lines:
+            # detect if any line forms a corner with the first line
+            max_diff = 400 # max difference squared of the two points to be the same point
+            if not (line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])):
+                continue
+            if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff:
+                state.detected_corners[side_letter] = ((line["x2"] + lines[0]["x1"]) // 2, (line["y2"] + lines[0]["y1"]) // 2, lines.index(line), "different")
+                break
+            elif (line["x1"] - lines[0]["x2"]) ** 2 + (line["y1"] - lines[0]["y2"]) ** 2 < max_diff:
+                state.detected_corners[side_letter] = ((line["x1"] + lines[0]["x2"]) // 2, (line["y1"] + lines[0]["y2"]) // 2, lines.index(line), "different")
+                break
+            elif (line["x2"] - lines[0]["x2"]) ** 2 + (line["y2"] - lines[0]["y2"]) ** 2 < max_diff:
+                state.detected_corners[side_letter] = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "same")
+                break
+            elif (line["x1"] - lines[0]["x1"]) ** 2 + (line["y1"] - lines[0]["y1"]) ** 2 < max_diff:
+                state.detected_corners[side_letter] = ((line["x1"] + lines[0]["x1"]) // 2, (line["y1"] + lines[0]["y1"]) // 2, lines.index(line), "same")
+                break
+        if not state.headless and state.detected_corners[side_letter] != None:
+            corner_x = state.detected_corners[side_letter][0] + lines[0]["x_offset"]
+            cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1]), 5, (255, 255 if state.detected_corners[side_letter][3] == "different" else 100, 0), -1)
+            cv2.putText(viz_stream, f"{state.detected_corners[side_letter][0]} {state.detected_corners[side_letter][1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+    roi_front_width = 10
+    roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
+    portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
+    state.distance_front = portion_black_front
+
     # visualisation
     if not state.headless:
         for line_group in state.border_lines.values():
@@ -575,10 +606,11 @@ async def double_turn(speed, angle, steering=0.75):
     await turn(speed, -angle, steering)
     car.speed = 0
     
+REF_PORTION = 0.45 if not state.pillars else 0.30
+REF_PORTION_SIDE = 0.8
 
 @current_function
 async def pd_middle(speed: int, side: str, stop_condition: callable):
-    REF_PORTION = 0.45 if not state.pillars else 0.30
     car.speed = speed
     car.finished = False
     while True: # todo find out how to determine when to finish
@@ -588,10 +620,67 @@ async def pd_middle(speed: int, side: str, stop_condition: callable):
             error = (state.portion_black_l - REF_PORTION)
         else:
             raise ValueError(f"side must be 'L' or 'R', currently it is set to '{side}'")
-        car.steering = await calculate_steering(error*1.2)
         if stop_condition():
             break
+
+        car.steering = await calculate_steering(error*1.2)
         await asyncio.sleep(0.01)
+        
+@current_function
+async def follow_wall(speed: int, side: str = state.position, stop_condition: callable = lambda: False):
+    """ follows the wall until an a corner is detected  or the stop_condition is satisfied"""
+    car.speed = speed
+    error = 0
+    angle_beg = car.angle # todo put this at a better place
+    roi_side = "L" if state.round_dir * (1 if side == "inner" else -1) == -1 else "R"
+    while True:
+        diff_angle = car.angle - angle_beg
+        detected_corner = state.detected_corners[roi_side]
+        lines = state.border_lines[roi_side].lines
+        if len(lines) > 0:
+            slope = lines[0]["m"]
+            intercept = lines[0]["b"]
+            if side == "inner":
+                # if we detected a corner, we should start gyro following
+                if detected_corner != None:
+                    slope_2 = lines[detected_corner[2]]["m"]
+                    if (abs(slope) > 3 or abs(slope_2) > 3) and detected_corner[1] > 100 and detected_corner[3] == "same":
+                        # if we reach the end of the wall
+                        # sm.following_angle = True
+                        cv2.imwrite(f"logs/image_corner_{state.rounds}.jpg", state.latest_streams["viz"])
+                        # error = (sm.diff_angle / 80) ** 2
+                        break
+                else:
+                    error = (160 - intercept) / 250 * state.round_dir
+                    # increase the bounded error quadratically if the angle is too high
+                    if diff_angle != 0:
+                        error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
+            elif side == "outer":
+                error = (intercept - 150) / 250 * state.round_dir
+                if diff_angle != 0:
+                    error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
+            elif side == "middle":
+                if detected_corner != None:
+                    slope_2 = lines[detected_corner[2]]["m"]
+                    if detected_corner[1] > 10:
+                        cv2.imwrite(f"logs/image_corner_{state.rounds}.jpg", state.latest_streams["viz"])
+                        break
+                error = (intercept - 53) / 100 * state.round_dir
+            else:
+                raise ValueError(f"side must be 'inner', 'outer' or 'middle', currently it is set to '{side}'")
+        else:
+            if roi_side == "L":
+                error = state.portion_black_l - REF_PORTION_SIDE
+            else:
+                error = REF_PORTION_SIDE - state.portion_black_r
+        
+        if stop_condition():
+            break
+
+        car.steering = await calculate_steering(error)            
+        await asyncio.sleep(0.01)
+
+            
 
 def blue_orange(colour: str) -> bool:
     MIN_PORTION = 0.15
@@ -605,11 +694,18 @@ def blue_orange(colour: str) -> bool:
         raise ValueError(f"colour has to be 'blue' or 'orange', currently it is set to '{colour}'")
     return False
 
+def distance_front_camera(percentage: float) -> bool:
+    if state.distance_front > percentage:
+        return True
+    else:
+        return False
+
 def distance(distance: float, distance_beg: float) -> bool:
     if car.distance - distance_beg < distance:
         return False
     return True
 
+DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
 
 async def main_program():
     # Wait for Arduino trigger before starting main logic
@@ -625,6 +721,12 @@ async def main_program():
     # await turn(speed, 90, 0.75)
     # await turn(speed, -90, 0.75)
     # await asyncio.sleep(1000)
+    state.round_dir = -1
+    await follow_wall(speed, "middle") #, lambda: distance_front_camera(DISTANCE_TO_WALL))
+    print("finished following")
+    car.speed = 0
+    await asyncio.sleep(100)
+    
     try:
         if not state.pillars:
             car.speed = speed
@@ -643,17 +745,18 @@ async def main_program():
                 await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(170, start))())
                 await turn(speed, 80 * state.round_dir, 0.75)
             await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
-        else:
+        else: # pillar round
             SPEED_UNPARK = 100
             await turn(SPEED_UNPARK, -10 * state.round_dir, 1.2)
             await turn(-SPEED_UNPARK, 65 * state.round_dir, 1.2)
             # await drive(speed, 10, )
             await turn(-SPEED_UNPARK, -80 * state.round_dir, 1)
-            driving_pos = process_pillars(state, straight_sections)
+            driving_pos = process_pillars(state, straight_sections) # todo take a new picture (make sure no motion blur)
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle":
                     await double_turn(speed, 65, 1)
                     state.position = "inner"
+            await follow_wall(speed, state.position, lambda: distance_front_camera(DISTANCE_TO_WALL))
             # await drive()
     except Exception as e:
         print(f"Exception in main_program: {e}")

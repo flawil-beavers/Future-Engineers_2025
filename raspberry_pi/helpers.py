@@ -373,6 +373,7 @@ class SharedState:
         self.has_sent_streams_info = False
         self.active_websocket = None
         self.latest_streams = {}
+        self.detected_corners = {"L": None, "R": None} # corner average x, corner average y, index of line, same or different slopes
 
         # Vision results
         self.border_lines = {"L": None, "R": None}
@@ -381,6 +382,7 @@ class SharedState:
         self.portion_black_r = 0.0
         self.portion_orange = 0.0
         self.portion_blue = 0.0
+        self.distance_front = 0.0
         
         self.round_dir = 0
         self.rounds = 0

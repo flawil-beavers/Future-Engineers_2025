@@ -109,6 +109,10 @@ async def read_and_handle_serial_line():
     elif line == "enable stop":
         pause_robot()
         return True, line
+    elif line.startswith("Stall"):
+        print(f"Stall detected: {line}")
+        car.stalled = True
+        return True, line
     elif line.startswith("Error"):
         print(f"Arduino error: {line}")
         return True, line
@@ -414,7 +418,7 @@ async def cycle():
         cv2.rectangle(viz_stream, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
         cv2.putText(viz_stream, f"Speed: {car.speed} mm/s, Steering: {car.steering:.2f}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
         cv2.putText(viz_stream, f"Angle: {car.angle:.2f} deg, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"Direction: {state.round_dir}, Rounds: {state.rounds}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"Direction: {state.round_dir}, Rounds: {state.rounds}, Position: {state.position}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"Current function: {state.current_function}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         # cv2.putText(viz_stream, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         if state.pillars:
@@ -577,7 +581,7 @@ async def drive(speed, distance, stop_condition: callable = lambda: False):
     angle_beg = car.angle
     car.speed = speed
     direction = speed / abs(speed)
-    while distance != 0 and (car.distance - distance_beg) * direction < distance or distance == 0 and not stop_condition():
+    while (distance != 0 and (car.distance - distance_beg) * direction < distance or distance == 0 and not stop_condition()) and not car.stalled:
         error = (angle_beg - car.angle) / 80 * direction
         car.steering = await calculate_steering(error)
         await asyncio.sleep(0.01)
@@ -777,10 +781,17 @@ async def main_program():
                 await follow_wall(speed, state.position, lambda: distance_front_camera(0.3), False)
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
             while state.rounds < 11:
-                state.rounds -= 1
+                state.rounds += 1
                 await turn(-speed, 90 * state.round_dir, 1)
-                await drive(-speed, 300)
-                await follow_wall(speed, "middle", (lambda start=car.distance: lambda: distance(490, start))(), False)
+                await drive(-speed, 300) # todo ignore stalling
+                await write_serial("p\n")
+                await asyncio.sleep(0.1)
+                print(f"car.stalled = {car.stalled}")
+                # if car.stalled:
+                await write_serial("m\n")
+                print("stalled and starting again")
+                car.stalled = False
+                await follow_wall(speed, "middle", (lambda start=car.distance: lambda: distance(400, start))(), False)
                 driving_pos = process_pillars(state, straight_sections)
                 last_driving_pos = state.position
                 if driving_pos[0] == inner_colour:
@@ -789,18 +800,19 @@ async def main_program():
                     state.position = "middle"
                 else:
                     state.position = "outer"
-                direction = find_direction(state, last_driving_pos, state.position)
-                await double_turn(speed, 65 * direction)
-                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(500, start))())
-                last_driving_pos = state.position
+                direction = find_direction(state.round_dir, last_driving_pos, state.position)
+                await double_turn(speed, 55 * direction)
                 if driving_pos[0] != driving_pos[1]:
                     if straight_sections[state.rounds % 4].parking_lot:
                         state.position = "middle" if state.position == "inner" else "inner"
                     else:
                         state.position = "outer" if state.position == "inner" else "inner"
-                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(900 + (driving_pos[0] != driving_pos[1]) * 300, start))())
-                direction = find_direction(state, last_driving_pos, state.position)
-                await double_turn(speed, 65 * direction)
+                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(950 + (driving_pos[0] != driving_pos[1]) * 300, start))(), False if state.position == "middle" else True)
+                if state.position == "inner":
+                    await drive(speed, 0, (lambda start=car.distance: lambda: distance(100, start))())
+                    
+                direction = find_direction(state.round_dir, state.position, "middle")
+                await double_turn(speed, 55 * direction)
                 state.position = "middle"
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
                 

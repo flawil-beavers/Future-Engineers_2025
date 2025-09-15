@@ -503,6 +503,11 @@ void parseMessage(char *msg)
     Serial.print(steering_diff);
     Serial.println(" us");
     break;
+  case 'm':
+    disable_dc = false;
+    disable_servo = false;
+    set_speed();
+    break;
   }
 }
 
@@ -568,12 +573,14 @@ void check_stalling()
 {
   if (fabs(stall_encoder_pos - encoder_pos) < 4 && fabs(current_dc) > max_dc * 0.9 && !disable_dc)
   {
-    Serial.print("Error stall detected, stopping robot: diff_distance:");
+    Serial.print("Stall detected, stopping robot: diff_distance:");
     Serial.print(fabs(stall_encoder_pos - encoder_pos));
     Serial.print(", current_dc");
     Serial.println(current_dc);
     // disable motor
     stop();
+    current_speed = 0;
+    target_distance = current_distance;
   }
   stall_encoder_pos = encoder_pos; // update stall position
 }

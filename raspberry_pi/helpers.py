@@ -283,7 +283,7 @@ def process_pillars(state, straight_sections):
             straight_sections[section_index].r[i] = 0
         print(f"pillars reset and printing now")
         straight_sections[section_index].print()
-    for p in state.detected_pillars:
+    for p in state.detected_pillars: # todo show where the undetected pillars are
         if p.ignore:
             continue
         if first_section:
@@ -322,7 +322,7 @@ def process_pillars(state, straight_sections):
         cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
         cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
-    straight_sections[section_index].parking_lot = True if section_index == 3 else False
+    straight_sections[section_index].parking_lot = True if section_index == 0 else False
     straight_sections[section_index].validate(state.round_dir)
     cv2.imwrite(f"logs/image{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["color_image"])
     cv2.imwrite(f"logs/image_viz{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["viz"])
@@ -357,6 +357,7 @@ class Car:
         
         # paused
         self.paused = True
+        self.stalled = False
 
 
 class SharedState:
@@ -424,18 +425,18 @@ class SharedState:
         self.calibrate = calibrate
         self.skip_arduino = skip_arduino
 
-def find_direction(state, current_position, target_position):
+def find_direction(round_direction, current_position, target_position):
     if current_position == target_position:
         return 0
     elif current_position == "inner":
-        direction = 1
-    elif current_position == "outer":
         direction = -1
+    elif current_position == "outer":
+        direction = 1
     # current_position == "middle"
     elif target_position == "inner":
-        direction = -1
-    elif target_position == "outer":
         direction = 1
+    elif target_position == "outer":
+        direction = -1
     else:
         raise ValueError(f"Invalid position: {current_position} or {target_position}")
-    return direction * state.round_dir
+    return -direction * round_direction

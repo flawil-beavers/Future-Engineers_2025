@@ -290,8 +290,8 @@ def process_pillars(state, straight_sections):
             if p.y > 130:
                 print(f"--Pillar {p.color} is too high, y={p.y}")
                 continue
-            if abs(p.screen_x - 320) > 170:
-                print(f"--Pillar {p.color} is too far from the center, x={p.screen_x}")
+            if abs(p.screen_x - 320) > 200:
+                print(f"--Pillar {p.color} is too far from the center (further than 200), x={abs(p.screen_x - 320)}")
                 continue
             if p.y > 50:
                 index = 0

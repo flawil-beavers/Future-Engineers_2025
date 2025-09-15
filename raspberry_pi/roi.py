@@ -567,12 +567,16 @@ def current_function(func):
     return wrapper
 
 @current_function
-async def drive(speed, distance):
+async def drive(speed, distance, stop_condition: callable = lambda: False):
+    if distance < 0:
+        speed = -speed
+        distance = -distance
     distance_beg = car.distance
     angle_beg = car.angle
     car.speed = speed
-    while (car.distance - distance_beg) < distance:
-        error = (angle_beg - car.angle) / 80
+    direction = speed / abs(speed)
+    while distance != 0 and (car.distance - distance_beg) * direction < distance or distance == 0 and not stop_condition():
+        error = (angle_beg - car.angle) / 80 * direction
         car.steering = await calculate_steering(error)
         await asyncio.sleep(0.01)
     car.speed = 0  # Stop the car after driving the distance
@@ -627,7 +631,7 @@ async def pd_middle(speed: int, side: str, stop_condition: callable):
         await asyncio.sleep(0.01)
         
 @current_function
-async def follow_wall(speed: int, side: str = state.position, stop_condition: callable = lambda: False):
+async def follow_wall(speed: int, side: str = state.position, stop_condition: callable = lambda: False, wait_for_corner = True):
     """ follows the wall until an a corner is detected  or the stop_condition is satisfied"""
     car.speed = speed
     error = 0
@@ -642,7 +646,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
             intercept = lines[0]["b"]
             if side == "inner":
                 # if we detected a corner, we should start gyro following
-                if detected_corner != None:
+                if detected_corner != None and wait_for_corner:
                     slope_2 = lines[detected_corner[2]]["m"]
                     if (abs(slope) > 3 or abs(slope_2) > 3) and detected_corner[1] > 100 and detected_corner[3] == "same":
                         # if we reach the end of the wall
@@ -660,7 +664,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                 if diff_angle != 0:
                     error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle":
-                if detected_corner != None:
+                if detected_corner != None and wait_for_corner:
                     slope_2 = lines[detected_corner[2]]["m"]
                     if detected_corner[1] > 10:
                         cv2.imwrite(f"logs/image_corner_{state.rounds}.jpg", state.latest_streams["viz"])
@@ -721,11 +725,12 @@ async def main_program():
     # await turn(speed, 90, 0.75)
     # await turn(speed, -90, 0.75)
     # await asyncio.sleep(1000)
-    state.round_dir = -1
-    await follow_wall(speed, "middle") #, lambda: distance_front_camera(DISTANCE_TO_WALL))
-    print("finished following")
-    car.speed = 0
-    await asyncio.sleep(100)
+    # state.round_dir = -1
+    # await follow_wall(speed, "middle") #, lambda: distance_front_camera(DISTANCE_TO_WALL))
+    # await drive(-speed, 500)
+    # print("finished following")
+    # car.speed = 0
+    # await asyncio.sleep(100)
     
     try:
         if not state.pillars:
@@ -754,10 +759,20 @@ async def main_program():
             driving_pos = process_pillars(state, straight_sections) # todo take a new picture (make sure no motion blur)
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle":
-                    await double_turn(speed, 65, 1)
+                    await double_turn(speed, 75 * state.round_dir, 1)
                     state.position = "inner"
-            await follow_wall(speed, state.position, lambda: distance_front_camera(DISTANCE_TO_WALL))
-            # await drive()
+            print(f"current position: {state.position}")
+            if state.position == "inner":
+                await drive(speed, -100) # just to make sure that corner will be detected
+                await follow_wall(speed, "inner")
+                await drive(speed, 250)
+                await double_turn(speed, -75 * state.round_dir, 1)
+                state.position = "middle"
+                await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
+            else:
+                await follow_wall(speed, state.position, lambda: distance_front_camera(0.3), False)
+                await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
+            
     except Exception as e:
         print(f"Exception in main_program: {e}")
         ser.write(b's0\n')

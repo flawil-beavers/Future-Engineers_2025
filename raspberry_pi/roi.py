@@ -11,7 +11,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState, process_pillars
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState, process_pillars, find_direction
 from pipeline import Pipeline
 from picamera2 import Picamera2
 from rounddir import find_round_dir
@@ -568,6 +568,8 @@ def current_function(func):
 
 @current_function
 async def drive(speed, distance, stop_condition: callable = lambda: False):
+    if speed == 0:
+        return
     if distance < 0:
         speed = -speed
         distance = -distance
@@ -592,6 +594,8 @@ async def turn(speed, degrees, steering):
     Returns:
         None
     """
+    if degrees == 0 or speed == 0:
+        return
     angle_beg = car.angle
     # Calculate the target angle based on the current angle and degrees to turn
     direction = degrees / abs(degrees)
@@ -636,7 +640,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
     car.speed = speed
     error = 0
     angle_beg = car.angle # todo put this at a better place
-    roi_side = "L" if state.round_dir * (1 if side == "inner" else -1) == -1 else "R"
+    roi_side = "L" if state.round_dir * (1 if side == "inner" else -1) == 1 else "R"
     while True:
         diff_angle = car.angle - angle_beg
         detected_corner = state.detected_corners[roi_side]
@@ -655,12 +659,12 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                         # error = (sm.diff_angle / 80) ** 2
                         break
                 else:
-                    error = (160 - intercept) / 250 * state.round_dir
+                    error = (160 - intercept) / 250 * -state.round_dir
                     # increase the bounded error quadratically if the angle is too high
                     if diff_angle != 0:
                         error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
             elif side == "outer":
-                error = (intercept - 150) / 250 * state.round_dir
+                error = (intercept - 150) / 250 * -state.round_dir
                 if diff_angle != 0:
                     error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle":
@@ -669,7 +673,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                     if detected_corner[1] > 10:
                         cv2.imwrite(f"logs/image_corner_{state.rounds}.jpg", state.latest_streams["viz"])
                         break
-                error = (intercept - 53) / 100 * state.round_dir
+                error = (intercept - 53) / 100 * -state.round_dir
             else:
                 raise ValueError(f"side must be 'inner', 'outer' or 'middle', currently it is set to '{side}'")
         else:
@@ -738,40 +742,69 @@ async def main_program():
         while abs(state.round_dir) < 5:
             state.round_dir += find_round_dir(state, state.pillars)
             await asyncio.sleep(0.01)
-        print(f"Round direction determined from {state.round_dir}: {'clockwise' if state.round_dir > 0 else 'counter-clockwise'}")
+        print(f"Round direction determined from {state.round_dir}: {'clockwise' if state.round_dir < 0 else 'counter-clockwise'}")
         state.round_dir = 1 if state.round_dir > 0 else -1
-        inner_colour = "RED" if state.round_dir > 0 else "GREEN"
-        outer_colour = "GREEN" if state.round_dir > 0 else "RED"
+        inner_colour = "RED" if state.round_dir < 0 else "GREEN"
+        outer_colour = "GREEN" if state.round_dir < 0 else "RED"
         if not state.pillars:
             while state.rounds < 12:
-                await pd_middle(speed, "L" if state.round_dir > 0 else "R", lambda: blue_orange( "orange" if state.round_dir > 0 else "blue"))
+                await pd_middle(speed, "L" if state.round_dir < 0 else "R", lambda: blue_orange( "orange" if state.round_dir < 0 else "blue"))
                 state.rounds += 1
                 print(f"detected line: rounds done: {state.rounds}")
-                await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(170, start))())
-                await turn(speed, 80 * state.round_dir, 0.75)
-            await pd_middle(speed, "L" if state.round_dir > 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
+                await pd_middle(speed, "L" if state.round_dir < 0 else "R", (lambda start=car.distance: lambda: distance(170, start))())
+                await turn(speed, -80 * state.round_dir, 0.75)
+            await pd_middle(speed, "L" if state.round_dir < 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
         else: # pillar round
             SPEED_UNPARK = 100
-            await turn(SPEED_UNPARK, -10 * state.round_dir, 1.2)
-            await turn(-SPEED_UNPARK, 65 * state.round_dir, 1.2)
+            await turn(SPEED_UNPARK, 10 * state.round_dir, 1.2)
+            await turn(-SPEED_UNPARK, -65 * state.round_dir, 1.2)
             # await drive(speed, 10, )
-            await turn(-SPEED_UNPARK, -80 * state.round_dir, 1)
+            await turn(-SPEED_UNPARK, 80 * state.round_dir, 1)
             driving_pos = process_pillars(state, straight_sections) # todo take a new picture (make sure no motion blur)
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle":
-                    await double_turn(speed, 75 * state.round_dir, 1)
+                    await double_turn(speed, -75 * state.round_dir, 1)
                     state.position = "inner"
             print(f"current position: {state.position}")
             if state.position == "inner":
-                await drive(speed, -100) # just to make sure that corner will be detected
+                await drive(speed, -150) # just to make sure that corner will be detected
                 await follow_wall(speed, "inner")
                 await drive(speed, 250)
-                await double_turn(speed, -75 * state.round_dir, 1)
+                await double_turn(speed, 65 * state.round_dir, 1)
                 state.position = "middle"
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
             else:
                 await follow_wall(speed, state.position, lambda: distance_front_camera(0.3), False)
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
+            while state.rounds < 11:
+                state.rounds -= 1
+                await turn(-speed, 90 * state.round_dir, 1)
+                await drive(-speed, 300)
+                await follow_wall(speed, "middle", (lambda start=car.distance: lambda: distance(490, start))(), False)
+                driving_pos = process_pillars(state, straight_sections)
+                last_driving_pos = state.position
+                if driving_pos[0] == inner_colour:
+                    state.position = "inner"
+                elif straight_sections[state.rounds % 4].parking_lot:
+                    state.position = "middle"
+                else:
+                    state.position = "outer"
+                direction = find_direction(state, last_driving_pos, state.position)
+                await double_turn(speed, 65 * direction)
+                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(500, start))())
+                last_driving_pos = state.position
+                if driving_pos[0] != driving_pos[1]:
+                    if straight_sections[state.rounds % 4].parking_lot:
+                        state.position = "middle" if state.position == "inner" else "inner"
+                    else:
+                        state.position = "outer" if state.position == "inner" else "inner"
+                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(900 + (driving_pos[0] != driving_pos[1]) * 300, start))())
+                direction = find_direction(state, last_driving_pos, state.position)
+                await double_turn(speed, 65 * direction)
+                state.position = "middle"
+                await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
+                
+                
             
     except Exception as e:
         print(f"Exception in main_program: {e}")

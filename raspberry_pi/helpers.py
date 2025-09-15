@@ -195,10 +195,10 @@ class Straight_Section:
         """
         if self.parking_lot:
             for i in range(3):
-                if self.l[i] != 0 and direction == 1:
+                if self.l[i] != 0 and direction == -1:
                     self.r[i] = self.l[i]
                     print(f"Fixing parking lot pillar: l[{i}] = {self.l[i]} -> r[{i}] = {self.r[i]}")
-                elif self.r[i] != 0 and direction == -1:
+                elif self.r[i] != 0 and direction == 1:
                     self.l[i] = self.r[i]
                     print(f"Fixing parking lot pillar: l[{i}] = {self.l[i]} <- r[{i}] = {self.r[i]}")
 
@@ -423,3 +423,19 @@ class SharedState:
         self.shutdown = shutdown
         self.calibrate = calibrate
         self.skip_arduino = skip_arduino
+
+def find_direction(state, current_position, target_position):
+    if current_position == target_position:
+        return 0
+    elif current_position == "inner":
+        direction = 1
+    elif current_position == "outer":
+        direction = -1
+    # current_position == "middle"
+    elif target_position == "inner":
+        direction = -1
+    elif target_position == "outer":
+        direction = 1
+    else:
+        raise ValueError(f"Invalid position: {current_position} or {target_position}")
+    return direction * state.round_dir

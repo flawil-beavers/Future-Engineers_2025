@@ -10,10 +10,10 @@ def find_round_dir(state, is_pillar_round: bool = False):
         right = extract_ROI(black_img, [black_img.shape[1] - 100, 0], [black_img.shape[1], black_img.shape[0]//2])
         if (left.sum() < right.sum()):
             print("rounddir: ccw")
-            return -1
+            return 1
         else:
             print("rounddir: cw")
-            return 1
+            return -1
     else:
         lower = 30
         upper = 90
@@ -45,4 +45,4 @@ def find_round_dir(state, is_pillar_round: bool = False):
         print("rounddir:", clockwise > counter_clockwise)
         print("cw ", clockwise)
         print("ccw", counter_clockwise)
-        return -1 if clockwise > counter_clockwise else 1
+        return 1 if clockwise > counter_clockwise else -1

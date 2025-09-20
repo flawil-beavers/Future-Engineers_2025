@@ -455,6 +455,8 @@ void parseMessage(char *msg)
     break;
   case 'p':
     stop();
+    current_speed = 0;
+    target_distance = current_distance;
     break;
   case 'h':
     stop(true);

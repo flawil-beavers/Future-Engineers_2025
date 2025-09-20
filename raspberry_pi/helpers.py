@@ -284,58 +284,52 @@ def process_pillars(state, straight_sections):
         print(f"pillars reset and printing now")
         straight_sections[section_index].print()
     for p in state.detected_pillars: # todo show where the undetected pillars are
+        index = None
         if p.ignore:
+            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 50) if p.color == "RED" else (0, 50, 0)), 3)
+            cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
             continue
         if first_section:
             if p.y > 130:
-                print(f"--Pillar {p.color} is too high, y={p.y}")
-                continue
+                print(f"--Pillar {p.color} is too near (higher than 130), y={p.y}")
             if abs(p.screen_x - 320) > 200:
                 print(f"--Pillar {p.color} is too far from the center (further than 200), x={abs(p.screen_x - 320)}")
-                continue
             if p.y > 50:
                 index = 0
             elif p.y > 28:
                 index = 1
-            # elif p.y > 24:
-            #   index = 2
             else:
-                print(f"--Pillar {p.color} is too low, y={p.y}")
-                continue
+                print(f"--Pillar {p.color} is too far (lower than 29), y={p.y}")
         else:
             if p.y > 180:
-                print(f"--Pillar {p.color} is too high, y={p.y}")
-                continue
+                print(f"--Pillar {p.color} is too near (higher than 180), y={p.y}")
             if p.y > 50:
-                index = 0
-            elif p.y > 35:
-                index = 1
-            elif p.y > 24:
-                index = 2
+                index = 0 # about 80
+            elif p.y > 22:
+                index = 1 # about 28
+            elif p.y > 11:
+                index = 2 # about 13
             else:
-                print(f"--Pillar {p.color} is too low, y={p.y}")
-                continue
+                print(f"--Pillar {p.color} is too far (lower than 25), y={p.y}")
+        if index == None:
+            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 100) if p.color == "RED" else (0, 100, 0)), 3)
+            cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            continue
+        else:
+            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
+            cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         if p.screen_x < 320:
             straight_sections[section_index].l[index] = p.color
         else:
             straight_sections[section_index].r[index] = p.color
-        cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
-        cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     straight_sections[section_index].parking_lot = True if section_index == 0 else False
     straight_sections[section_index].validate(state.round_dir)
     cv2.imwrite(f"logs/image{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["color_image"])
     cv2.imwrite(f"logs/image_viz{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["viz"])
-    print("Image saved")
     pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
     straight_sections[section_index].print()
     return pillar_driving_pos
-
-    # if sm.current_state == "PD-CENTER-2" and not sm._took_picture:
-    #     if sm.distance_take_picture < sm.total_distance:
-    #         sm._took_picture = True
-    #         sm.pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
-    #         print(f"Picture would be taken now")
 
     
 class Car:

@@ -738,18 +738,14 @@ async def main_program():
     speed = 300 if not state.pillars else 200
     print("Starting main program...")
     
-    # await turn(speed, 90, 0.75)
-    # print("first turn done")
-    # await turn(-speed, 90, 0.75)
-    # print("second turn done")
-    # await turn(speed, 90, 0.75)
-    # await turn(speed, -90, 0.75)
-    # await asyncio.sleep(1000)
-    # state.round_dir = -1
-    # await follow_wall(speed, "middle") #, lambda: distance_front_camera(DISTANCE_TO_WALL))
-    # await drive(-speed, 500)
-    # print("finished following")
-    # car.speed = 0
+    # state.round_dir = 1
+    # # Parking: 
+    # SPEED_PARK = 100
+    # print("Start parking...")
+    # await turn(-SPEED_PARK, -80 * state.round_dir, 1)
+    # await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
+    # await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
+    # print("parking completet.")
     # await asyncio.sleep(100)
     
     try:

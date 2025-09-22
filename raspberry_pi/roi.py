@@ -180,9 +180,14 @@ async def connect_to_arduino():
         ser.timeout = None
         print("Gyro initialized successfully")
         await write_serial("o\n")
-        while car.paused and not state.skip_arduino: # todo: if skip_arduino make the arduino start directly
-            await read_and_handle_serial_line()
-            await asyncio.sleep(0.1)
+        if state.skip_arduino:
+            # Directly start Arduino without waiting for button press
+            car.paused = False
+            print("Arduino started directly due to skip_arduino flag.")
+        else:
+            while car.paused and not state.skip_arduino:
+                await read_and_handle_serial_line()
+                await asyncio.sleep(0.1)
         print("Arduino connected and start signal received.")
     except Exception as e:
         print(f"Exception in connect_arduino: {e}")

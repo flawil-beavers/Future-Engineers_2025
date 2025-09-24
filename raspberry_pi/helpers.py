@@ -284,8 +284,8 @@ def process_pillars(state, straight_sections):
         for i in range(3):
             straight_sections[section_index].l[i] = 0
             straight_sections[section_index].r[i] = 0
-        print(f"pillars reset and printing now")
-        straight_sections[section_index].print()
+        # print(f"pillars reset and printing now")
+        # straight_sections[section_index].print()
     for p in state.detected_pillars: # todo show where the undetected pillars are
         index = None
         if p.ignore:

@@ -536,7 +536,7 @@ async def main():
     
     # connect_arduino is now called at the start of main_program
 
-    tasks = [asyncio.create_task(cycle_loop()), # todo reactivate
+    tasks = [asyncio.create_task(cycle_loop()),
              asyncio.create_task(arduino_communication_loop())]
     if not state.headless:
         tasks.append(asyncio.create_task(run_webserver()))
@@ -554,7 +554,11 @@ async def main():
                 print("Sent stop commands to robot via serial.")
         except Exception as e:
             print(f"Error sending stop commands: {e}")
-        raise
+        # Cancel all running tasks and exit immediately
+        for task in asyncio.all_tasks():
+            task.cancel()
+        await asyncio.sleep(0.1)  # Give tasks a moment to cancel
+        os._exit(0)
 
 def encode_image(image):
     retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 99])
@@ -576,14 +580,13 @@ def current_function(func):
     return wrapper
 
 @current_function
-async def drive(speed, distance, stop_condition: callable = lambda: False):
+async def drive(speed, distance, stop_condition: callable = lambda: False, angle_beg: float = car.angle):
     if speed == 0:
         return
     if distance < 0:
         speed = -speed
         distance = -distance
     distance_beg = car.distance
-    angle_beg = car.angle
     car.speed = speed
     direction = speed / abs(speed)
     while (distance != 0 and (car.distance - distance_beg) * direction < distance or distance == 0 and not stop_condition()) and not car.stalled:
@@ -644,11 +647,10 @@ async def pd_middle(speed: int, side: str, stop_condition: callable):
         await asyncio.sleep(0.01)
         
 @current_function
-async def follow_wall(speed: int, side: str = state.position, stop_condition: callable = lambda: False, wait_for_corner = True):
+async def follow_wall(speed: int, side: str = state.position, stop_condition: callable = lambda: False, wait_for_corner = True, angle_beg: float = car.angle):
     """ follows the wall until an a corner is detected  or the stop_condition is satisfied"""
     car.speed = speed
     error = 0
-    angle_beg = car.angle # todo put this at a better place
     roi_side = "L" if state.round_dir * (1 if side == "inner" else -1) == 1 else "R"
     while True:
         diff_angle = car.angle - angle_beg
@@ -676,6 +678,10 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                 error = (intercept - 150) / 250 * -state.round_dir
                 if diff_angle != 0:
                     error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
+            elif side == "middle_parking":
+                error = (intercept - 80) / 250 * -state.round_dir
+                if diff_angle != 0:
+                    error = bound(error) - (diff_angle / 50) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle":
                 if detected_corner != None and wait_for_corner:
                     slope_2 = lines[detected_corner[2]]["m"]
@@ -772,62 +778,112 @@ async def main_program():
             await turn(-SPEED_UNPARK, -65 * state.round_dir, 1.2)
             # await drive(speed, 10, )
             await turn(-SPEED_UNPARK, 80 * state.round_dir, 1)
+            state.position = "middle_parking"
             driving_pos = process_pillars(state, straight_sections) # todo take a new picture (make sure no motion blur)
             for i in range(2):
-                if driving_pos[i] == inner_colour and state.position == "middle":
+                if driving_pos[i] == inner_colour and state.position == "middle_parking":
                     await double_turn(speed, -75 * state.round_dir, 1)
                     state.position = "inner"
             print(f"current position: {state.position}")
             if state.position == "inner":
-                await drive(speed, -150) # just to make sure that corner will be detected
+                await drive(speed, -200) # just to make sure that corner will be detected
                 await follow_wall(speed, "inner")
                 await drive(speed, 250)
                 await double_turn(speed, 65 * state.round_dir, 1)
                 state.position = "middle"
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
             else:
-                await follow_wall(speed, state.position, lambda: distance_front_camera(0.4), False) # todo: move the middle part a bit more to the wall
+                await follow_wall(speed, state.position, lambda: distance_front_camera(0.4), False) # todo: move the middle part a bit more to the wall -> should work
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
             state.rounds += 1
             while state.rounds < 11:
-                if state.rounds < 4:
-                    await turn(-speed, 90 * state.round_dir, 1)
-                    await drive(-speed, 300)
+                if state.rounds < 5:
+                    car.straight_direction = car.angle
+                    await turn(-500, 70 * state.round_dir, 1)
+                    await drive(-speed, 400, lambda: False, car.straight_direction - 90 * state.round_dir)
                     await write_serial("p\n")
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.2)
                     print(f"car.stalled = {car.stalled}")
                     await write_serial("m\n")
                     print("stalled and starting again")
                     car.stalled = False
                     await follow_wall(speed*0.6, "middle", (lambda start=car.distance: lambda: distance(450, start))(), False)
                     await stop(True)
+                    car.straight_direction = car.angle
                     driving_pos = process_pillars(state, straight_sections)
                     last_driving_pos = state.position
                     if driving_pos[0] == inner_colour:
                         state.position = "inner"
                     elif straight_sections[state.rounds % 4].parking_lot:
-                        state.position = "middle"
+                        state.position = "middle_parking"
                     else:
                         state.position = "outer"
                     direction = find_direction(state.round_dir, last_driving_pos, state.position)
                     await double_turn(speed, 60 * direction)
                 if driving_pos[0] != driving_pos[1]:
                     if straight_sections[state.rounds % 4].parking_lot:
-                        state.position = "middle" if state.position == "inner" else "inner"
+                        state.position = "middle_parking" if state.position == "inner" else "inner"
                     else:
                         state.position = "outer" if state.position == "inner" else "inner"
-                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(950 + (driving_pos[0] != driving_pos[1]) * 300, start))(), False if state.position == "middle" else True)
+                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(950 + (driving_pos[0] != driving_pos[1]) * 300, start))(), False if state.position == "middle" else True, car.straight_direction)
                 if state.position == "inner":
-                    await drive(speed, 0, (lambda start=car.distance: lambda: distance(200, start))())
-                    
+                    await drive(speed, 0, (lambda start=car.distance: lambda: distance(200, start))(), car.straight_direction)
                 direction = find_direction(state.round_dir, state.position, "middle")
                 state.rounds += 1
                 if state.rounds < 5:
                     await double_turn(speed, 60 * direction)
                     state.position = "middle"
-                    await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
+                    await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL), car.straight_direction)
                 else:
-                    await turn(speed, -90 * state.round_dir, 1)
+                    # todo start
+                    # determine the next position to drive in the next section. This enables the robot to decide what turn to do to end up at the correct position in the next section
+                    driving_pos = process_pillars(state, straight_sections)
+                    last_driving_pos = state.position
+                    if driving_pos[0] == inner_colour:
+                        state.position = "inner"
+                    elif straight_sections[state.rounds % 4].parking_lot:
+                        state.position = "middle_parking"
+                    else:
+                        state.position = "outer"
+
+                    # todo end
+                    print(f"Final rounds, currently at {state.position}, driving_pos: {driving_pos}, last driving pos: {last_driving_pos}")
+                    if last_driving_pos == "inner":
+                        if state.position == "inner":
+                            await drive(speed, 100)
+                            await turn(speed, -90 * state.round_dir, 1)
+                        elif state.position == "middle_parking":
+                            await drive(speed, 400)
+                            await turn(speed, -90 * state.round_dir, 1)
+                        else:
+                            await drive(speed, 700)
+                            await turn(speed, -90 * state.round_dir, 1)
+                    elif last_driving_pos == "outer":
+                        if state.position == "inner":
+                            await turn(speed, -90 * state.round_dir, 1)
+                            await drive(speed, 700)
+                        elif state.position == "middle_parking":
+                            await turn(speed, -90 * state.round_dir, 1)
+                            await drive(speed, 400)
+                        else:
+                            await turn(speed, -90 * state.round_dir, 1)
+                            await drive(speed, 100)
+                    elif last_driving_pos == "middle_parking":
+                        if state.position == "inner":
+                            await drive(speed, 100)
+                            await turn(speed, -90 * state.round_dir, 1)
+                            await drive(speed, 400)
+                        elif state.position == "middle_parking":
+                            await drive(speed, 400)
+                            await turn(speed, -90 * state.round_dir, 1)
+                            await drive(speed, 400)
+                        else:
+                            await drive(speed, 700)
+                            await turn(speed, -90 * state.round_dir, 1)
+                            await drive(speed, 400)
+                    await asyncio.sleep(100)                    
+                    
+                    # await turn(speed, -90 * state.round_dir, 1)
                 
                 
             
@@ -835,6 +891,11 @@ async def main_program():
         print(f"Exception in main_program: {e}")
         ser.write(b's0\n')
         ser.write(b'p\n')
+        # Cancel all running tasks and exit immediately
+        for task in asyncio.all_tasks():
+            task.cancel()
+        await asyncio.sleep(0.1)  # Give tasks a moment to cancel
+        os._exit(0)
 
     car.speed = 0
     await write_serial("o\n")

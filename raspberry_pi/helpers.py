@@ -274,6 +274,9 @@ def process_pillars(state, straight_sections):
     else:
         first_section = False
     section_index = state.rounds % 4
+    if state.rounds > 4:
+        pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
+        return pillar_driving_pos
     index = None
     if straight_sections[section_index].parking_lot:
         print(f"parking lot in section, resetting pillars")
@@ -383,6 +386,8 @@ class SharedState:
         self.rounds = 0
         self.position = "middle"
         
+        self.straight_direction = 0
+        
         self.current_function = "starting"
 
         # Configurable flags
@@ -420,6 +425,11 @@ class SharedState:
         self.skip_arduino = skip_arduino
 
 def find_direction(round_direction, current_position, target_position):
+    # change middle_parking to middle, if current_position or target_position is middle_parking
+    if current_position == "middle_parking":
+        current_position = "middle"
+    if target_position == "middle_parking":
+        target_position = "middle"
     if current_position == target_position:
         return 0
     elif current_position == "inner":

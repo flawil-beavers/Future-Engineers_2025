@@ -829,6 +829,8 @@ async def main_program():
                         state.position = "outer"
                     direction = find_direction(state.round_dir, last_driving_pos, state.position)
                     await double_turn(speed, 60 * direction)
+                    if direction == 0:
+                        await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(300, start))(), False if state.position == "middle" else True, car.straight_direction)
                 if driving_pos[0] != driving_pos[1]:
                     if straight_sections[state.rounds % 4].parking_lot:
                         state.position = "middle_parking" if state.position == "inner" else "inner"
@@ -908,7 +910,7 @@ async def main_program():
                         else:
                             await drive(speed, 0, lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN))
                             await turn(speed, -90 * state.round_dir, 1)
-                            await drive(speed, 550)
+                            await follow_wall(speed, "outer", (lambda start=car.distance: lambda: distance(550, start))(), False, car.angle)
                     elif last_driving_pos == "middle_parking":
                         if state.position == "inner":
                             await drive(speed, 100)

@@ -852,21 +852,22 @@ async def main_program():
                     if state.position == "middle_parking":
                         if state.parking_field_location == "back":
                             await drive(speed, 500)
-                        await turn(-SPEED_PARK, -80 * state.round_dir, 1)
-                        await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
-                        await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
+                        await turn(SPEED_PARK, 80 * state.round_dir, 1)
+                        await turn(SPEED_PARK, -65 * state.round_dir, 1.2)
+                        await turn(-SPEED_PARK, 10 * state.round_dir, 1.2)
 
                     elif state.position == "inner":
                         if state.parking_field_location == "back":
                             await drive(speed, 500)
-                        await double_turn(-SPEED_PARK, 75 * state.round_dir, 1)
-                        await turn(SPEED_PARK, -80 * state.round_dir, 1)
-                        await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
-                        await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
+                        await double_turn(-SPEED_PARK, -75 * state.round_dir, 1)
+                        await turn(SPEED_PARK, 80 * state.round_dir, 1)
+                        await turn(SPEED_PARK, -65 * state.round_dir, 1.2)
+                        await turn(-SPEED_PARK, 10 * state.round_dir, 1.2)
                     else:
                         print(f"Unknown parking position: {state.position}")
                         
                     print("Parking completed.")
+                    break
 
                 if state.rounds < 5:
                     await double_turn(speed, 60 * direction)

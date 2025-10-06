@@ -591,7 +591,7 @@ async def drive(speed, distance, stop_condition: callable = lambda: False, angle
     distance_beg = car.distance
     car.speed = speed
     direction = speed / abs(speed)
-    while (distance != 0 and (car.distance - distance_beg) * direction < distance or distance == 0 and not stop_condition()) and not car.stalled:
+    while ((distance != 0 and (car.distance - distance_beg) * direction < distance) or (distance == 0 and not stop_condition())) and not car.stalled:
         error = (angle_beg - car.angle) / 80 * direction
         car.steering = await calculate_steering(error)
         await asyncio.sleep(0.01)
@@ -805,7 +805,7 @@ async def main_program():
                 state.parking_field_location = "front"
             print(f"Parking field location detected: {state.parking_field_location}")
             print(f"car distance: {car.distance}")
-            while state.rounds < 12:
+            while state.rounds < 13:
                 if state.rounds < 5:
                     car.straight_direction = car.angle
                     await turn(-500, 70 * state.round_dir, 1)
@@ -834,13 +834,16 @@ async def main_program():
                         state.position = "middle_parking" if state.position == "inner" else "inner"
                     else:
                         state.position = "outer" if state.position == "inner" else "inner"
-                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(950 + (driving_pos[0] != driving_pos[1]) * 300 + (state.position == "middle_parking") * 400, start))(), False if state.position == "middle" else True, car.straight_direction)
+                follow_wall_distance = 900 + (driving_pos[0] != driving_pos[1]) * 250 + (state.position == "middle_parking") * 400
+                await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(follow_wall_distance, start))(), False if state.position == "middle" else True, car.straight_direction)
                 if state.position == "inner":
                     await drive(speed, 0, (lambda start=car.distance: lambda: distance(200, start))(), car.straight_direction)
+                await stop(True)
+                await asyncio.sleep(2)
                 direction = find_direction(state.round_dir, state.position, "middle")
                 state.rounds += 1
 
-                if state.rounds == 12:
+                if state.rounds == 13:
                     
                     print("Parking back into the parking spot...")
                     SPEED_PARK = 100
@@ -883,6 +886,7 @@ async def main_program():
 
                     # todo end
                     print(f"Final rounds (No. {state.rounds}), currently at {state.position}, driving_pos: {driving_pos}, last driving pos: {last_driving_pos}")
+                    DISTANCE_FRONT_OUTSIDE_TURN = 0.6
                     if last_driving_pos == "inner":
                         if state.position == "inner":
                             await drive(speed, 100)
@@ -891,18 +895,19 @@ async def main_program():
                             await drive(speed, 400)
                             await turn(speed, -90 * state.round_dir, 1)
                         else:
-                            await drive(speed, 700)
+                            await drive(speed, 0, lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN))
                             await turn(speed, -90 * state.round_dir, 1)
                     elif last_driving_pos == "outer":
                         if state.position == "inner":
                             await turn(speed, -90 * state.round_dir, 1)
-                            await drive(speed, 700)
+                            await drive(speed, 550)
                         elif state.position == "middle_parking":
                             await turn(speed, -90 * state.round_dir, 1)
                             await drive(speed, 400)
                         else:
+                            await drive(speed, 0, lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN))
                             await turn(speed, -90 * state.round_dir, 1)
-                            await drive(speed, 100)
+                            await drive(speed, 550)
                     elif last_driving_pos == "middle_parking":
                         if state.position == "inner":
                             await drive(speed, 100)
@@ -913,10 +918,10 @@ async def main_program():
                             await turn(speed, -90 * state.round_dir, 1)
                             await drive(speed, 300)
                         else:
-                            await drive(speed, 700)
+                            await drive(speed, 0, lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN))
                             await turn(speed, -90 * state.round_dir, 1)
                             await drive(speed, 300)
-                    await asyncio.sleep(2)                    
+                    await asyncio.sleep(2)
                     car.straight_direction = car.angle
 
                     # await turn(speed, -90 * state.round_dir, 1)

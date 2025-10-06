@@ -321,6 +321,7 @@ def process_pillars(state, straight_sections):
         else:
             cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
             cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            print(f"Pillar {p.color} accepted at index {index}, y={p.y}, x={p.screen_x}, section {section_index}")
         if p.screen_x < 320:
             straight_sections[section_index].l[index] = p.color
         else:

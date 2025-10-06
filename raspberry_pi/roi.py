@@ -798,6 +798,12 @@ async def main_program():
                 await follow_wall(speed, state.position, lambda: distance_front_camera(0.4), False) # todo: move the middle part a bit more to the wall -> should work
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
             state.rounds += 1
+            
+            if car.distance < 1000:
+                state.parking_field_location = "back"
+            else:
+                state.parking_field_location = "front"
+            print(f"Parking field location detected: {state.parking_field_location}")
             while state.rounds < 12:
                 if state.rounds < 5:
                     car.straight_direction = car.angle
@@ -835,24 +841,27 @@ async def main_program():
 
                 if state.rounds == 12:
                     
-                    print("Parking back into the original parking spot...")
+                    print("Parking back into the parking spot...")
                     SPEED_PARK = 100
 
-                    # Rückwärtseinparken: Alle Turns werden so kombiniert, dass der Roboter korrekt ins Feld fährt
+                    
                     if state.position == "middle_parking":
-                        # Rückwärts gerade ins mittlere Parkfeld
+                        if state.parking_field_location == "back":
+                            await drive(speed, 500)
                         await turn(-SPEED_PARK, -80 * state.round_dir, 1)
                         await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
                         await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
 
                     elif state.position == "inner":
+                        if state.parking_field_location == "back":
+                            await drive(speed, 500)
                         await double_turn(-SPEED_PARK, 75 * state.round_dir, 1)
                         await turn(SPEED_PARK, -80 * state.round_dir, 1)
                         await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
                         await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
                     else:
-                        print(f"Unknown parking position: {state.position}, parking straight back.")
-                        await drive(-SPEED_PARK, 400)
+                        print(f"Unknown parking position: {state.position}")
+                        
                     print("Parking completed.")
 
                 if state.rounds < 5:

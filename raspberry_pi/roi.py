@@ -804,6 +804,7 @@ async def main_program():
             else:
                 state.parking_field_location = "front"
             print(f"Parking field location detected: {state.parking_field_location}")
+            print(f"car distance: {car.distance}")
             while state.rounds < 12:
                 if state.rounds < 5:
                     car.straight_direction = car.angle

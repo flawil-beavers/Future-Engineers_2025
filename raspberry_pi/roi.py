@@ -834,8 +834,27 @@ async def main_program():
                 state.rounds += 1
 
                 if state.rounds == 12:
-                    pass # park
-                
+                    
+                    print("Parking back into the original parking spot...")
+                    SPEED_PARK = 100
+
+                    # Rückwärtseinparken: Alle Turns werden so kombiniert, dass der Roboter korrekt ins Feld fährt
+                    if state.position == "middle_parking":
+                        # Rückwärts gerade ins mittlere Parkfeld
+                        await turn(-SPEED_PARK, -80 * state.round_dir, 1)
+                        await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
+                        await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
+
+                    elif state.position == "inner":
+                        await double_turn(-SPEED_PARK, 75 * state.round_dir, 1)
+                        await turn(SPEED_PARK, -80 * state.round_dir, 1)
+                        await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
+                        await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
+                    else:
+                        print(f"Unknown parking position: {state.position}, parking straight back.")
+                        await drive(-SPEED_PARK, 400)
+                    print("Parking completed.")
+
                 if state.rounds < 5:
                     await double_turn(speed, 60 * direction)
                     state.position = "middle"

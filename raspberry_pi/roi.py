@@ -86,8 +86,19 @@ class AngleBuffer:
         mse = sum((a - mean) ** 2 for a in angles) / len(angles)
         return mean, mse
 
+    def clear(self):
+        self.buf.clear()
+
+    def covers_full_window(self, now: float = None) -> bool:
+        """Return True if the buffer currently contains samples that span at least self.window seconds."""
+        if now is None:
+            now = time()
+        if not self.buf:
+            return False
+        return (now - self.buf[0][0]) >= self.window
+
 # attach an angle buffer to the shared state
-state.angle_buffer = AngleBuffer(window_seconds=6.0)
+state.angle_buffer = AngleBuffer(window_seconds=3.0)
 
 ports = serial.tools.list_ports.comports()
 
@@ -682,21 +693,30 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
     car.speed = speed
     error = 0
     roi_side = "L" if state.round_dir * (1 if side == "inner" else -1) == 1 else "R"
+    # start-time for this follow_wall invocation and reset buffer
+    start_time = time()
+    try:
+        state.angle_buffer.clear()
+    except Exception:
+        pass
+
     while True:
         diff_angle = car.angle - angle_beg
         # collect angle samples for stability check (mean + MSE)
         try:
-            state.angle_buffer.append(time(), car.angle)
+            now = time()
+            state.angle_buffer.append(now, car.angle)
             mean_angle, mse = state.angle_buffer.mean_and_mse()
-            if mean_angle is not None and mse is not None:
-                # if the RMS of angle deviation is < 1 degree, update straight_direction
-                if mse < 0.2 and abs(mean_angle - car.straight_direction) < 10:
+            if mean_angle is not None and mse is not None and state.angle_buffer.covers_full_window(now) and (now - start_time) >= state.angle_buffer.window:
+                # only change straight_direction when the buffer spans the configured window
+                if mse < 2 and abs(mean_angle - car.straight_direction) < 10:
                     print(f"Updating straight direction to {mean_angle:.2f} deg (MSE: {mse:.2f})")
                     car.straight_direction = mean_angle
-                elif mse < 0.2:
+                elif mse < 2:
                     print(f"Not updating straight direction (MSE: {mse:.2f}), because mean angle deviation is {abs(mean_angle - car.straight_direction):.2f} deg")
         except Exception:
             # be defensive: do not break the control loop on buffer errors
+            # keep silent in production, but print for debugging
             print("Angle buffer error")
             pass
         detected_corner = state.detected_corners[roi_side]
@@ -855,6 +875,7 @@ async def main_program():
                 # car.straight_direction = car.angle # todo test if this is the correct position to reset the angle
                 if state.rounds < 5:
                     await turn(-500, 70 * state.round_dir, 1)
+                    car.straight_direction += 20 * state.round_dir
                     await drive(-speed, 400, lambda: False, car.straight_direction)
                     await write_serial("p\n")
                     await asyncio.sleep(0.2)

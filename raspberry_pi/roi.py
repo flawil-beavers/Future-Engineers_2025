@@ -62,6 +62,33 @@ car = Car()
 # Create a single shared state object
 state = SharedState()
 
+# Helper buffer to keep recent angle samples with timestamps
+from collections import deque
+class AngleBuffer:
+    def __init__(self, window_seconds: float = 1.0):
+        self.window = window_seconds
+        self.buf = deque()  # stores (timestamp, angle)
+
+    def append(self, timestamp: float, angle: float):
+        self.buf.append((timestamp, angle))
+        self._trim(timestamp)
+
+    def _trim(self, now: float):
+        # remove samples older than window
+        while self.buf and (now - self.buf[0][0]) > self.window:
+            self.buf.popleft()
+
+    def mean_and_mse(self):
+        if not self.buf:
+            return None, None
+        angles = [a for _, a in self.buf]
+        mean = sum(angles) / len(angles)
+        mse = sum((a - mean) ** 2 for a in angles) / len(angles)
+        return mean, mse
+
+# attach an angle buffer to the shared state
+state.angle_buffer = AngleBuffer(window_seconds=6.0)
+
 ports = serial.tools.list_ports.comports()
 
 # get some frames so camera can adjust
@@ -620,6 +647,7 @@ async def turn(speed, degrees, steering):
     # Adjust the steering based on the radius
     while (car.angle - angle_beg) * direction < degrees * direction:
         await asyncio.sleep(0.01)
+    car.straight_direction += degrees
     car.speed = 0  # Stop the car after turning
     
 @current_function
@@ -656,6 +684,21 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
     roi_side = "L" if state.round_dir * (1 if side == "inner" else -1) == 1 else "R"
     while True:
         diff_angle = car.angle - angle_beg
+        # collect angle samples for stability check (mean + MSE)
+        try:
+            state.angle_buffer.append(time(), car.angle)
+            mean_angle, mse = state.angle_buffer.mean_and_mse()
+            if mean_angle is not None and mse is not None:
+                # if the RMS of angle deviation is < 1 degree, update straight_direction
+                if mse < 0.2 and abs(mean_angle - car.straight_direction) < 10:
+                    print(f"Updating straight direction to {mean_angle:.2f} deg (MSE: {mse:.2f})")
+                    car.straight_direction = mean_angle
+                elif mse < 0.2:
+                    print(f"Not updating straight direction (MSE: {mse:.2f}), because mean angle deviation is {abs(mean_angle - car.straight_direction):.2f} deg")
+        except Exception:
+            # be defensive: do not break the control loop on buffer errors
+            print("Angle buffer error")
+            pass
         detected_corner = state.detected_corners[roi_side]
         lines = state.border_lines[roi_side].lines
         if len(lines) > 0:
@@ -775,6 +818,8 @@ async def main_program():
                 await turn(speed, -80 * state.round_dir, 0.75)
             await pd_middle(speed, "L" if state.round_dir < 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
         else: # pillar round
+            # todo: reset angle more often
+            car.straight_direction = car.angle
             SPEED_UNPARK = 100
             await turn(SPEED_UNPARK, 10 * state.round_dir, 1.2)
             await turn(-SPEED_UNPARK, -65 * state.round_dir, 1.2)
@@ -784,11 +829,12 @@ async def main_program():
             driving_pos = process_pillars(state, straight_sections) # todo take a new picture (make sure no motion blur)
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle_parking":
+                    await drive(speed, 50, False, car.straight_direction)
                     await double_turn(speed, -75 * state.round_dir, 1)
                     state.position = "inner"
             print(f"current position: {state.position}")
             if state.position == "inner":
-                await drive(speed, -200) # just to make sure that corner will be detected
+                await drive(speed, -200, False, car.straight_direction) # just to make sure that corner will be detected
                 await follow_wall(speed, "inner")
                 await drive(speed, 250)
                 await double_turn(speed, 65 * state.round_dir, 1)
@@ -806,10 +852,10 @@ async def main_program():
             print(f"Parking field location detected: {state.parking_field_location}")
             print(f"car distance: {car.distance}")
             while state.rounds < 13:
-                car.straight_direction = car.angle # todo test if this is the correct position to reset the angle
+                # car.straight_direction = car.angle # todo test if this is the correct position to reset the angle
                 if state.rounds < 5:
                     await turn(-500, 70 * state.round_dir, 1)
-                    await drive(-speed, 400, lambda: False, car.straight_direction - 90 * state.round_dir)
+                    await drive(-speed, 400, lambda: False, car.straight_direction)
                     await write_serial("p\n")
                     await asyncio.sleep(0.2)
                     print(f"car.stalled = {car.stalled}")
@@ -818,7 +864,7 @@ async def main_program():
                     car.stalled = False
                     await follow_wall(speed*0.6, "middle", (lambda start=car.distance: lambda: distance(450, start))(), False)
                     await stop(True)
-                    car.straight_direction = car.angle # todo: improve the resetting of the angle to not drift too much
+                    # car.straight_direction = car.angle # todo: improve the resetting of the angle to not drift too much
                     driving_pos = process_pillars(state, straight_sections)
                     last_driving_pos = state.position
                     if driving_pos[0] == inner_colour:
@@ -926,7 +972,7 @@ async def main_program():
                             await turn(speed, -90 * state.round_dir, 1)
                             await follow_wall(speed, "outer", (lambda start=car.distance: lambda: distance(300, start))(), False, car.angle)
                     # await asyncio.sleep(2)
-                    car.straight_direction = car.angle
+                    # car.straight_direction = car.angle
 
                     # await turn(speed, -90 * state.round_dir, 1)
             

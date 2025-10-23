@@ -299,10 +299,10 @@ def process_pillars(state, straight_sections):
                 print(f"--Pillar {p.color} is too far from the center (further than 200), x={abs(p.screen_x - 320)}")
             if p.y > 50:
                 index = 0
-            elif p.y > 28:
+            elif p.y > 23:
                 index = 1
             else:
-                print(f"--Pillar {p.color} is too far (lower than 29), y={p.y}")
+                print(f"--Pillar {p.color} is too far (lower than 24), y={p.y}")
         else:
             if p.y > 180:
                 print(f"--Pillar {p.color} is too near (higher than 180), y={p.y}")
@@ -352,7 +352,9 @@ class Car:
         self.distance = distance
         self.speed = speed
         self.steering = steering
-        
+
+        self.straight_direction = 0
+
         # paused
         self.paused = True
         self.stalled = False
@@ -386,9 +388,7 @@ class SharedState:
         self.round_dir = 0
         self.rounds = 0
         self.position = "middle"
-        
-        self.straight_direction = 0
-        
+      
         self.current_function = "starting"
 
         # Configurable flags

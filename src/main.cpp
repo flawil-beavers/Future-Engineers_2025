@@ -629,7 +629,15 @@ void update_gyro()
 {
   gyro.getEvent(&event);
   degree += event.gyro.z * last_loop_time;
-  degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+  int temperature = get_temperature();
+  if (temperature < 0)
+  {
+    degree_calibrated += (event.gyro.z - (-0.0003 * get_temperature() + -0.0083) / 2) * last_loop_time * 0.98 * scaling_calibrated; // / 2 experimentally included
+  }
+  else
+  {
+    degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+  }
   temperature_average += temperature * last_loop_time;
 }
 

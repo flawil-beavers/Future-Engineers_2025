@@ -216,8 +216,10 @@ async def connect_to_arduino():
             await asyncio.sleep(1)
             ser.setDTR(True)
         ser.timeout = None
-        print("Gyro initialized successfully")
+        # print("Gyro initialized successfully")
         await write_serial("o\n")
+        gyro_temp = await request_and_parse_float('t', 'getting Gyro temperature')
+        print(f"Gyro temperature: {gyro_temp} °C") # prints always -7 °C Todo fix this
         if state.skip_arduino:
             # Directly start Arduino without waiting for button press
             car.paused = False
@@ -699,6 +701,9 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
         state.angle_buffer.clear()
     except Exception:
         pass
+    
+    updated_mean_angle = None
+    updated_mse = None
 
     while True:
         diff_angle = car.angle - angle_beg
@@ -710,10 +715,13 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
             if mean_angle is not None and mse is not None and (now - start_time) >= state.angle_buffer.window:
                 # only change straight_direction when the buffer spans the configured window
                 if mse < 20 and abs(mean_angle - car.straight_direction) < 10:
-                    print(f"Updating straight direction to {mean_angle:.2f} deg (MSE: {mse:.2f})")
+                    # print(f"Updating straight direction to {mean_angle:.2f} deg (MSE: {mse:.2f})")
                     car.straight_direction = mean_angle
+                    updated_mean_angle = mean_angle
+                    updated_mse = mse
                 elif mse < 20:
-                    print(f"Not updating straight direction (MSE: {mse:.2f}), because mean angle deviation is {abs(mean_angle - car.straight_direction):.2f} deg")
+                    pass
+                    # print(f"Not updating straight direction (MSE: {mse:.2f}), because mean angle deviation is {abs(mean_angle - car.straight_direction):.2f} deg")
         except Exception:
             # be defensive: do not break the control loop on buffer errors
             # keep silent in production, but print for debugging
@@ -761,12 +769,13 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                 error = state.portion_black_l - REF_PORTION_SIDE
             else:
                 error = REF_PORTION_SIDE - state.portion_black_r
-        
         if stop_condition():
             break
 
         car.steering = await calculate_steering(error)            
         await asyncio.sleep(0.01)
+    if (updated_mean_angle is not None and updated_mse is not None):
+        print(f"Updated straight direction to {updated_mean_angle:.2f} deg (MSE: {updated_mse:.2f})")
 
 @current_function
 async def stop(directly = False):
@@ -875,7 +884,7 @@ async def main_program():
             print(f"Parking field location detected: {state.parking_field_location}")
             print(f"car distance: {car.distance}")
 
-            state.rounds = 13
+            # state.rounds = 13
 
             while state.rounds < 13:
                 # print(f"straight direction: {car.straight_direction}")
@@ -934,21 +943,21 @@ async def main_program():
                         await asyncio.sleep(0.2)
                         
                         await write_serial("m\n")
-                        await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
-                        await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
+                        # await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
+                        # await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
 
                     elif state.position == "inner":
-                        if state.parking_field_location == "front":
-                            await drive(-speed, 500)
                         await double_turn(-SPEED_PARK, 75 * state.round_dir, 1)
+                        if state.parking_field_location == "back":
+                            await drive(speed, 400)
                         await turn(-SPEED_PARK, 90 * state.round_dir, 1)
                         await drive(-speed, 400)
                         await write_serial("p\n")
                         await asyncio.sleep(0.2)
                         
                         await write_serial("m\n")
-                        await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
-                        await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
+                        # await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
+                        # await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
                     else:
                         print(f"Unknown parking position: {state.position}")
                         
@@ -986,12 +995,13 @@ async def main_program():
                             await turn(speed, -90 * state.round_dir, 1)
                     elif last_driving_pos == "outer":
                         if state.position == "inner":
-                            await turn(speed, -90 * state.round_dir, 1)
+                            await turn(speed, -85 * state.round_dir, 1)
+                            car.straight_direction -= 5 * state.round_dir
                             await drive(speed, 550)
                         elif state.position == "middle_parking":
-                            await drive(speed, 300)
+                            await drive(speed, 350)
                             await turn(speed, -90 * state.round_dir, 1)
-                            await drive(speed, 400)
+                            await drive(speed, 450)
                         else:
                             await follow_wall(speed, "outer", lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN), False, car.angle)
                             await turn(speed, -90 * state.round_dir, 1)

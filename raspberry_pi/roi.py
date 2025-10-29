@@ -868,12 +868,15 @@ async def main_program():
             print(f"straight direction: {car.straight_direction}")
             state.rounds += 1
             
-            if car.distance < 1000:
+            if car.distance < 1400:
                 state.parking_field_location = "back"
             else:
                 state.parking_field_location = "front"
             print(f"Parking field location detected: {state.parking_field_location}")
             print(f"car distance: {car.distance}")
+
+            state.rounds = 13
+
             while state.rounds < 13:
                 # print(f"straight direction: {car.straight_direction}")
                 # car.straight_direction = car.angle # todo test if this is the correct position to reset the angle
@@ -923,29 +926,29 @@ async def main_program():
 
                     
                     if state.position == "middle_parking":
-                        if state.parking_field_location == "back":
-                            await drive(speed, 500)
-                        await turn(-SPEED_PARK, -90 * state.round_dir, 1)
+                        if state.parking_field_location == "front":
+                            await drive(-speed, 500)
+                        await turn(-SPEED_PARK, 90 * state.round_dir, 1)
                         await drive(-speed, 400)
                         await write_serial("p\n")
                         await asyncio.sleep(0.2)
                         
                         await write_serial("m\n")
                         await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
-                        await turn(-SPEED_PARK, 10 * state.round_dir, 1.2)
+                        await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
 
                     elif state.position == "inner":
-                        if state.parking_field_location == "back":
-                            await drive(speed, 500)
-                        await double_turn(-SPEED_PARK, -75 * state.round_dir, 1)
-                        await turn(-SPEED_PARK, -90 * state.round_dir, 1)
+                        if state.parking_field_location == "front":
+                            await drive(-speed, 500)
+                        await double_turn(-SPEED_PARK, 75 * state.round_dir, 1)
+                        await turn(-SPEED_PARK, 90 * state.round_dir, 1)
                         await drive(-speed, 400)
                         await write_serial("p\n")
                         await asyncio.sleep(0.2)
                         
                         await write_serial("m\n")
                         await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
-                        await turn(-SPEED_PARK, 10 * state.round_dir, 1.2)
+                        await turn(-SPEED_PARK, -10 * state.round_dir, 1.2)
                     else:
                         print(f"Unknown parking position: {state.position}")
                         

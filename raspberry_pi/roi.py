@@ -925,7 +925,7 @@ async def main_program():
                     if state.position == "middle_parking":
                         if state.parking_field_location == "back":
                             await drive(speed, 500)
-                        await turn(-SPEED_PARK, 90 * state.round_dir, 1)
+                        await turn(-SPEED_PARK, -90 * state.round_dir, 1)
                         await drive(-speed, 400)
                         await write_serial("p\n")
                         await asyncio.sleep(0.2)
@@ -938,7 +938,7 @@ async def main_program():
                         if state.parking_field_location == "back":
                             await drive(speed, 500)
                         await double_turn(-SPEED_PARK, -75 * state.round_dir, 1)
-                        await turn(-SPEED_PARK, 90 * state.round_dir, 1)
+                        await turn(-SPEED_PARK, -90 * state.round_dir, 1)
                         await drive(-speed, 400)
                         await write_serial("p\n")
                         await asyncio.sleep(0.2)

@@ -357,7 +357,7 @@ void gyro_config(float time_interval = 10)
     Serial.print(", ");
     Serial.print(temperature_average / time_interval, 6);
     Serial.print(", ");
-    Serial.println(degree_calibrated - last_offset_calibrated, 6);
+    Serial.println((degree_calibrated - last_offset_calibrated) / time_interval, 6);
     temperature_average = 0;
     last_offset += offset;
     last_offset_calibrated += offset_calibrated;

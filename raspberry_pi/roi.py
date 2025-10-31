@@ -218,8 +218,9 @@ async def connect_to_arduino():
         ser.timeout = None
         # print("Gyro initialized successfully")
         await write_serial("o\n")
-        gyro_temp = await request_and_parse_float('t', 'getting Gyro temperature')
-        print(f"Gyro temperature: {gyro_temp} °C") # prints always -7 °C Todo fix this
+        await asyncio.sleep(1) # seems to be necessary and lowest possible is 1 s
+        gyro_temp = await request_and_parse_float("t", "getting Gyro temperature")
+        print(f"Gyro temperature: {gyro_temp}")
         if state.skip_arduino:
             # Directly start Arduino without waiting for button press
             car.paused = False
@@ -238,7 +239,7 @@ async def arduino_communication() -> bool:
         if not car.paused: # currently a lag of about 30 ms to communicate to robot
             car.distance, car.angle = await request_and_parse_float(f"y{int(car.speed)},{int(car.steering)}", "gyro and distance: ")
         else:
-            car.distance, car.angle = await request_and_parse_float(f"z", "gyro and distance: ")
+            car.distance, car.angle = await request_and_parse_float("z", "gyro and distance: ")
         # print(f"Passed time: {await request_and_parse_float('x', 'x (passed time)')}")
                 
     except Exception as e:

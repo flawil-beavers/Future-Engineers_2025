@@ -331,7 +331,9 @@ def process_pillars(state, straight_sections):
     straight_sections[section_index].validate(state.round_dir)
     cv2.imwrite(f"logs/image{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["color_image"])
     cv2.imwrite(f"logs/image_viz{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["viz"])
-    pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
+    cv2.imwrite(f"logs/image_red{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["red"])
+    cv2.imwrite(f"logs/image_green{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["green"])
+    pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
     straight_sections[section_index].print()
     return pillar_driving_pos
 

@@ -484,12 +484,12 @@ async def cycle_loop():
     """
     state.last_error = 0.0
     state.has_sent_streams_info = False
-    time_now = time()
+    # time_now = time()
     while True:
-        time_beg = time()
+        # time_beg = time()
         await cycle()
         # print(f"passed cycle time: {time() - time_now:.3f} s; loop cycle: {time() - time_beg:.3f} s")
-        time_now = time()
+        # time_now = time()
         await asyncio.sleep(0.02)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
@@ -572,7 +572,7 @@ async def main():
     state.kp = configloader.get_property("PD")['kp']
     state.kd = configloader.get_property("PD")['kd']
     
-    # setup_logging() # todo reactivate
+    setup_logging() # todo reactivate
     
     # connect_arduino is now called at the start of main_program
 
@@ -690,7 +690,7 @@ async def pd_middle(speed: int, side: str, stop_condition: callable):
         await asyncio.sleep(0.01)
         
 @current_function
-async def follow_wall(speed: int, side: str = state.position, stop_condition: callable = lambda: False, wait_for_corner = True, angle_beg: float = car.angle):
+async def follow_wall(speed: int, side: str = state.position, stop_condition: callable = lambda: False, wait_for_corner = True, angle_beg: float = car.straight_direction):
     """ follows the wall until an a corner is detected  or the stop_condition is satisfied"""
     car.speed = speed
     error = 0
@@ -866,7 +866,7 @@ async def main_program():
                     await double_turn(speed, -75 * state.round_dir, 1)
                     state.position = "inner"
             print(f"current position: {state.position}")
-            print(f"straight direction: {car.straight_direction}")
+            # print(f"straight direction: {car.straight_direction}")
             if state.position == "inner":
                 await drive(speed, -250) # just to make sure that corner will be detected
                 await follow_wall(speed, "inner")
@@ -893,7 +893,7 @@ async def main_program():
                 # print(f"straight direction: {car.straight_direction}")
                 # car.straight_direction = car.angle # todo test if this is the correct position to reset the angle
                 if state.rounds < 5:
-                    await turn(-500, 70 * state.round_dir, 0.8)
+                    await turn(-500, 70 * state.round_dir, 0.75)
                     car.straight_direction -= 20 * state.round_dir
                     await drive(-speed, 400)
                     await write_serial("p\n")
@@ -1001,18 +1001,18 @@ async def main_program():
                             await turn(speed, -90 * state.round_dir, 1)
                     elif last_driving_pos == "outer":
                         if state.position == "inner":
-                            await follow_wall(speed, "outer", lambda: blue_orange("orange" if state.round_dir < 0 else "blue"), False) # todo fix error that the robot turns right when driving ccw
+                            await follow_wall(speed, "outer", lambda: blue_orange("orange" if state.round_dir < 0 else "blue"), False, car.straight_direction) # todo fix error that the robot turns right when driving ccw
                             await turn(speed, -90 * state.round_dir, 1)
-                            await double_turn(speed, -80 * state.round_dir, 1)
-                            await drive(speed, 100)
+                            await double_turn(speed, -70 * state.round_dir, 1)
+                            await drive(speed, 200)
                         elif state.position == "middle_parking":
                             await drive(speed, 450) # 350 for middle
                             await turn(speed, -90 * state.round_dir, 1)
                             await drive(speed, 450)
                         else:
-                            await follow_wall(speed, "outer", lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN), False, car.angle)
+                            await follow_wall(speed, "outer", lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN), False)
                             await turn(speed, -90 * state.round_dir, 1)
-                            await follow_wall(speed, "outer", (lambda start=car.distance: lambda: distance(550, start))(), False, car.angle)
+                            await follow_wall(speed, "outer", (lambda start=car.distance: lambda: distance(550, start))(), False)
                     elif last_driving_pos == "middle_parking":
                         if state.position == "inner":
                             await drive(speed, 100)
@@ -1025,7 +1025,7 @@ async def main_program():
                         else:
                             await drive(speed, 0, lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN))
                             await turn(speed, -90 * state.round_dir, 1)
-                            await follow_wall(speed, "outer", (lambda start=car.distance: lambda: distance(300, start))(), False, car.angle)
+                            await follow_wall(speed, "outer", (lambda start=car.distance: lambda: distance(300, start))(), False)
                     # await asyncio.sleep(2)
                     # car.straight_direction = car.angle
 
@@ -1043,7 +1043,8 @@ async def main_program():
 
     car.speed = 0
     await write_serial("o\n")
-    print(f"Main program completed in {run_time} s. Exiting...")
+    await write_serial("p\n")
+    print(f"Main program completed in {time() - run_time} s. Exiting...")
     await asyncio.sleep(0.5)
     if state.shutdown:
         print("Shutting down the robot...")

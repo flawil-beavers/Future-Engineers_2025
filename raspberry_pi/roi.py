@@ -343,16 +343,16 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
         lower = 30
         upper = 90
         edges_img = await asyncio.to_thread(cv2.Canny, blurredImg, lower, upper, 3)
-        roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=25, maxLineGap=50)
+        roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=25 if state.parking == None else 10, maxLineGap=50 if state.parking == None else 50)
     state.border_lines = {"L": Lines(roi_lines["L"], (0, 5), (0, 0)), "R": Lines(roi_lines["R"], (640-roi_width, 5), (roi_width, 0))}
 
+    max_diff = 400 # max difference squared of the two points to be the same point
     for side_letter in ["L", "R"]:
         lines = state.border_lines[side_letter].lines
         # calculate the slope and intercept of the line
         state.detected_corners[side_letter] = None
         for line in lines:
             # detect if any line forms a corner with the first line
-            max_diff = 400 # max difference squared of the two points to be the same point
             if not (line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])):
                 continue
             if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff:
@@ -367,11 +367,40 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
             elif (line["x1"] - lines[0]["x1"]) ** 2 + (line["y1"] - lines[0]["y1"]) ** 2 < max_diff:
                 state.detected_corners[side_letter] = ((line["x1"] + lines[0]["x1"]) // 2, (line["y1"] + lines[0]["y1"]) // 2, lines.index(line), "same")
                 break
-        if not state.headless and state.detected_corners[side_letter] != None:
+            
+        if side_letter == state.parking:
+            state.detected_corners["P"] = []
+            for i in range(len(lines)):
+                for j in range(i, len(lines)):
+                    if (lines[i]["x2"] - lines[j]["x1"]) ** 2 + (lines[i]["y2"] - lines[j]["y1"]) ** 2 < max_diff:
+                        state.detected_corners["P"].append(((lines[i]["x2"] + lines[j]["x1"]) // 2, (lines[i]["y2"] + lines[j]["y1"]) // 2, i, j, "different"))
+                        continue
+                    elif (lines[i]["x1"] - lines[j]["x2"]) ** 2 + (lines[i]["y1"] - lines[j]["y2"]) ** 2 < max_diff:
+                        state.detected_corners["P"].append(((lines[i]["x1"] + lines[j]["x2"]) // 2, (lines[i]["y1"] + lines[j]["y2"]) // 2, i, j, "different"))
+                        continue
+                    elif (lines[i]["x1"] - lines[j]["x1"]) ** 2 + (lines[i]["y1"] - lines[j]["y1"]) ** 2 < max_diff:
+                        state.detected_corners["P"].append(((lines[i]["x1"] + lines[j]["x1"]) // 2, (lines[i]["y1"] + lines[j]["y1"]) // 2, i, j, "same"))
+                        continue
+                    elif (lines[i]["x2"] - lines[j]["x2"]) ** 2 + (lines[i]["y2"] - lines[j]["y2"]) ** 2 < max_diff:
+                        state.detected_corners["P"].append(((lines[i]["x2"] + lines[j]["x2"]) // 2, (lines[i]["y2"] + lines[j]["y2"]) // 2, i, j, "same"))
+                        continue
+            first_point = False
+            if not state.headless:
+                state.detected_corners["P"].sort(key=lambda x: x[1])
+                for points in state.detected_corners["P"]:
+                    if (abs(lines[points[2]]["m"]) > 4 or abs(lines[points[3]]["m"]) > 4) and not first_point:
+                        cv2.circle(viz_stream, (points[0] + lines[0]["x_offset"], points[1]), 10, (255, 255 if points[-1] == "different" else 100, 0), -1)
+                        state.parking_x = points[0]
+                        cv2.putText(viz_stream, f"y = {state.parking_x}", (320, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                        first_point = True
+                    else:
+                        cv2.circle(viz_stream, (points[0] + lines[0]["x_offset"], points[1]), 5, (255, 255 if points[-1] == "different" else 100, 0), -1)
+                
+        if not state.headless and state.detected_corners[side_letter] != None :
             corner_x = state.detected_corners[side_letter][0] + lines[0]["x_offset"]
-            cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1]), 5, (255, 255 if state.detected_corners[side_letter][3] == "different" else 100, 0), -1)
+            cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1]), 5, (255, 255 if state.detected_corners[side_letter][-1] == "different" else 100, 0), -1)
             cv2.putText(viz_stream, f"{state.detected_corners[side_letter][0]} {state.detected_corners[side_letter][1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
+                
     roi_front_width = 10
     roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
     portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
@@ -776,10 +805,26 @@ def distance(distance: float, distance_beg: float) -> bool:
         return False
     return True
 
+async def parking():
+    global roi_width
+    roi_width = 640//2
+    state.parking = "R" if state.round_dir == 1 else "L"
+    state.round_dir = -1
+    # Parking: 
+    SPEED_PARK = 100
+    print("Start parking...")
+    await drive(SPEED_PARK, 0, (lambda: abs(state.parking_x) < 70))
+
+
 DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
 
 async def main_program():
     # Wait for Arduino trigger before starting main logic
+    # global roi_width
+    # roi_width = 640//2
+    
+    # state.parking = "R"
+    
     if ser and not state.calibrate:
         await connect_to_arduino()
     speed = 300 if not state.pillars else 200
@@ -790,13 +835,14 @@ async def main_program():
     # # Parking: 
     # SPEED_PARK = 100
     # print("Start parking...")
+    # await parking()
     # await turn(-SPEED_PARK, -80 * state.round_dir, 1)
     # await turn(SPEED_PARK, 65 * state.round_dir, 1.2)
     # await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
     # print("parking completet.")
     # await asyncio.sleep(100)
     # await stop()
-    # return
+    # os._exit(0)
     
     try:
         if not state.pillars:

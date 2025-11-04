@@ -376,7 +376,7 @@ class SharedState:
         self.has_sent_streams_info = False
         self.active_websocket = None
         self.latest_streams = {}
-        self.detected_corners = {"L": None, "R": None} # corner average x, corner average y, index of line, same or different slopes
+        self.detected_corners = {"L": None, "R": None, "P": []} # corner average x, corner average y, index of line, same or different slopes
 
         # Vision results
         self.border_lines = {"L": None, "R": None}
@@ -392,6 +392,8 @@ class SharedState:
         self.position = "middle"
       
         self.current_function = "starting"
+        self.parking = None
+        self.parking_x = 10000
 
         # Configurable flags
         self.headless = False

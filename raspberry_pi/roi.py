@@ -424,38 +424,6 @@ async def cycle():
 
         state.detected_pillars.sort(key=lambda x: x.width*x.height, reverse=True)
         
-        for i in ["L", "R"]: # todo use this information
-            lines = state.border_lines[i].lines
-            # calculate the slope and intercept of the line
-            detected_corner = None
-            for line in lines:
-                # detect if any line forms a corner with the first line
-                max_diff = 400 # max difference squared of the two points to be the same point
-                different_slopes = line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])
-                if (line["x2"] - lines[0]["x1"]) ** 2 + (line["y2"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
-                    detected_corner = ((line["x2"] + lines[0]["x1"]) // 2, (line["y2"] + lines[0]["y1"]) // 2, lines.index(line), "different")
-                    break
-                elif (line["x1"] - lines[0]["x2"]) ** 2 + (line["y1"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
-                    detected_corner = ((line["x1"] + lines[0]["x2"]) // 2, (line["y1"] + lines[0]["y2"]) // 2, lines.index(line), "different")
-                    break
-                elif (line["x2"] - lines[0]["x2"]) ** 2 + (line["y2"] - lines[0]["y2"]) ** 2 < max_diff and different_slopes:
-                    detected_corner = ((line["x2"] + lines[0]["x2"]) // 2, (line["y2"] + lines[0]["y2"]) // 2, lines.index(line), "same")
-                    break
-                elif (line["x1"] - lines[0]["x1"]) ** 2 + (line["y1"] - lines[0]["y1"]) ** 2 < max_diff and different_slopes:
-                    detected_corner = ((line["x1"] + lines[0]["x1"]) // 2, (line["y1"] + lines[0]["y1"]) // 2, lines.index(line), "same")
-                    break
-            if detected_corner != None:
-                # if not headless:
-                # Determine the correct x position for the detected corner based on round_dir
-                if i == "L":
-                    corner_x = detected_corner[0]
-                else:
-                    corner_x = 640 + detected_corner[0]
-                if not state.headless:
-                    cv2.circle(viz_stream, (corner_x, detected_corner[1]), 5, (255, 255 if detected_corner[3] == "different" else 100, 0), -1)
-                    cv2.putText(viz_stream, f"{detected_corner[0]} {detected_corner[1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-
     # viz stuff
     if not state.headless:
         cv2.rectangle(viz_stream, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
@@ -572,7 +540,7 @@ async def main():
     state.kp = configloader.get_property("PD")['kp']
     state.kd = configloader.get_property("PD")['kd']
     
-    setup_logging() # todo reactivate
+    setup_logging()
     
     # connect_arduino is now called at the start of main_program
 
@@ -676,16 +644,13 @@ REF_PORTION_SIDE = 0.8
 async def pd_middle(speed: int, side: str, stop_condition: callable):
     car.speed = speed
     car.finished = False
-    while True: # todo find out how to determine when to finish
+    while not stop_condition():
         if side == "R":
             error = (REF_PORTION - state.portion_black_r)
         elif side == "L":
             error = (state.portion_black_l - REF_PORTION)
         else:
             raise ValueError(f"side must be 'L' or 'R', currently it is set to '{side}'")
-        if stop_condition():
-            break
-
         car.steering = await calculate_steering(error*1.2)
         await asyncio.sleep(0.01)
         
@@ -852,7 +817,6 @@ async def main_program():
                 await turn(speed, -80 * state.round_dir, 0.75)
             await pd_middle(speed, "L" if state.round_dir < 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
         else: # pillar round
-            # todo: reset angle more often
             car.straight_direction = car.angle
             print(f"Initial straight direction: {car.straight_direction}")
             SPEED_UNPARK = 100
@@ -863,7 +827,7 @@ async def main_program():
             state.position = "middle_parking"
             parking_drive_distance = 0
             
-            driving_pos = process_pillars(state, straight_sections) # todo take a new picture (make sure no motion blur)
+            driving_pos = process_pillars(state, straight_sections)
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle_parking":
                     await drive(speed, 50)
@@ -880,7 +844,7 @@ async def main_program():
                 state.position = "middle"
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
             else:
-                await follow_wall(speed, state.position, lambda: distance_front_camera(0.4), False) # todo: move the middle part a bit more to the wall -> should work
+                await follow_wall(speed, state.position, lambda: distance_front_camera(0.4), False)
                 await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
             print(f"straight direction: {car.straight_direction}")
             state.rounds += 1
@@ -895,8 +859,6 @@ async def main_program():
             # state.rounds = 13
 
             while state.rounds < 13:
-                # print(f"straight direction: {car.straight_direction}")
-                # car.straight_direction = car.angle # todo test if this is the correct position to reset the angle
                 follow_wall_distance_extra = 0
                 if state.rounds < 5:
                     await turn(-500, 70 * state.round_dir, 0.75)
@@ -979,7 +941,6 @@ async def main_program():
                     state.position = "middle"
                     await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
                 else:
-                    # todo start
                     # determine the next position to drive in the next section. This enables the robot to decide what turn to do to end up at the correct position in the next section
                     driving_pos = process_pillars(state, straight_sections)
                     last_driving_pos = state.position
@@ -990,7 +951,6 @@ async def main_program():
                     else:
                         state.position = "outer"
 
-                    # todo end
                     print(f"Final rounds (No. {state.rounds}), currently at {state.position}, driving_pos: {driving_pos}, last driving pos: {last_driving_pos}")
                     DISTANCE_FRONT_OUTSIDE_TURN = 0.6
                     if last_driving_pos == "inner":
@@ -1005,7 +965,7 @@ async def main_program():
                             await turn(speed, -90 * state.round_dir, 1)
                     elif last_driving_pos == "outer":
                         if state.position == "inner":
-                            await follow_wall(speed, "outer", lambda: blue_orange("orange" if state.round_dir < 0 else "blue"), False, car.straight_direction) # todo fix error that the robot turns right when driving ccw
+                            await follow_wall(speed, "outer", lambda: blue_orange("orange" if state.round_dir < 0 else "blue"), False, car.straight_direction)
                             await turn(speed, -90 * state.round_dir, 1)
                             await double_turn(speed, -70 * state.round_dir, 1)
                             await drive(speed, 200)
@@ -1019,7 +979,7 @@ async def main_program():
                             await follow_wall(speed, "outer", (lambda start=car.distance: lambda: distance(550, start))(), False)
                     elif last_driving_pos == "middle_parking":
                         if state.position == "inner":
-                            await follow_wall(speed, "middle_parking", lambda: blue_orange("orange" if state.round_dir < 0 else "blue"), False, car.straight_direction) # todo fix error that the robot turns right when driving ccw
+                            await follow_wall(speed, "middle_parking", lambda: blue_orange("orange" if state.round_dir < 0 else "blue"), False, car.straight_direction)
                             await turn(speed, -90 * state.round_dir, 1)
                             await double_turn(speed, -50 * state.round_dir, 0.8)
                         elif state.position == "middle_parking": # never used

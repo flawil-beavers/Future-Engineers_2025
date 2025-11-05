@@ -74,30 +74,34 @@ We are now also working with a gyro sensor that monitors the robot's movements, 
 
 ## Wiring Diagram
 
-![Wiring Diagram](<media/Wiring.png>)
+![Wiring Diagram](<media/Wiring.pdf>)
 
 ---
 
 ## Bill of Materials
 
-| **Amount** | **Product**                                                                 | **Price (CHF)** |
-|------------|-----------------------------------------------------------------------------|-----------------|
-| 1          | Raspberry Pi M12 HQ Camera                                                 | 45.34           |
-| 1          | EDATEC 12MP 3.2mm M12 Raspberry                                            | 28.84           |
-| 1          | Raspberry Pi 4 Model B 8GB                                                | 79.00           |
-| 1          | Arduino Nano: Multifunktionales Board ATmega328 16Mhz, Mini-USB            | 19.95           |
-| 1          | Tattu LiPo-Akku 14.8V 850mAh 95C 4S1P RL                                   | 14.00           |
-| 1          | L298N Schrittmotorendstufe / H-Brücke / DC Motor Treiber                   | 8.90            |
-| 1          | Amewi 0902MG Micro Servo                                                  | 14.40           |
-| 1          | IMU 9-Axis L3GD20, LSM303D [H07]                                          | 6.10            |
-| 1          | 150:1 Micro Metal Gearmotor HPCB 12V with 12 CPR Encoder, Side Connector  | 29.64           |
-| ~20        | M2.5 Screws and Nuts                                                      | 2.00            |
-| ~10        | M2 Screws and Nuts                                                        | 1.00            |
-| ~300g      | 3D Printing Filament                                                      | 5.00            |
-| ~20        | Jumper Cables                                                             | 4.00            |
-| A Few      | LEGO Technic Bricks                                                       | -               |
-| 4          | LEGO Technic Wheels                                                       | -               |
-| **TOTAL**  |                                                                             | **258.17**      |
+| **Amount** | **Product**                                                               | **Price (CHF)** | **Source**      |
+|------------|---------------------------------------------------------------------------|-----------------|-----------------|
+| 1          | Raspberry Pi M12 HQ Camera                                                | 45.34           |[Google](https://www.raspberrypi.com/documentation/accessories/camera.html)|
+| 1          | EDATEC 12MP 3.2mm M12 Raspberry                                           | 28.84           |[Google](https://edatec.cn/docs/assets/m12-lens/170320-12/ED-LENS-M12-170320-12-datasheet-en.pdf)|
+| 1          | Raspberry Pi 4 Model B 8GB                                                | 79.00           |[Google](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf)|
+| 1          | Arduino Nano: Multifunktional Board ATmega328 16Mhz, Mini-USB             | 19.95           |[Google](https://store.arduino.cc/products/arduino-nano)|
+| 1          | Tattu LiPo-Akku 14.8V 850mAh 95C 4S1P RL                                  | 14.00           |[Google](https://swissbatt24.ch/geraetebatterien/rc-drohnen/drohnen/4060/tattu-850mah-14-8v-4s1p-r-line-95c-lipo-akkupack-mit-xt30-stecker?srsltid=AfmBOorWBfktBLLxOzlvwCK3Ksib1zzLIcjN5n8nkZQ84-NGlXiVSCHp&utm)|
+| 1          | Pololu Dual MC33926 Motor Driver Carrier                                  | 52.95           |[Google](https://www.pololu.com/product/1213)|
+| 1          | Amewi 0902MG Micro Servo                                                  | 14.40           |[Google](https://www.digitec.ch/de/s1/product/amewi-digital-amx-racing-0902mg-rc-servo-12872149)|
+| 1          | IMU 9-Axis L3GD20, LSM303D [H07]                                          | 6.10            |[Google](https://www.adafruit.com/product/1714)|
+| 1          | 150:1 Micro Metal Gearmotor HPCB 12V with 12 CPR Encoder, Side Connector  | 29.64           |[Google](https://www.pololu.com/product/3042)|
+| 2          | Changeover switch                                                         | 4.00            ||
+| 1          | LED                                                                       | 0.50            ||
+| ~20        | M2.5 Screws and Nuts                                                      | 2.00            ||
+| ~10        | M2 Screws and Nuts                                                        | 1.00            ||
+| ~300g      | 3D Printing Filament                                                      | 5.00            ||
+| ~20        | Jumper Cables                                                             | 4.00            ||
+| 1          | metal drive shaft                                                         | selfmade        ||
+| 1          | motor shaft coupling                                                      | selfmade        ||
+| A Few      | LEGO Technic Bricks                                                       | -               ||
+| 4          | LEGO Technic Wheels                                                       | -               ||
+| **TOTAL**  |                                                                           | **306.72**      |
 
 All files for the 3D printed parts can be found in the 3D-Printed-Parts folder on GitHub. All parts can be printed without supports at 0.2mm layer height. We recommend using PET-G or nGen for the parts (PLA can also be used). The wiring diagram can be found in the Wiring Diagram file. The instructions for the LEGO chassis can be found in the stud.io file.
 

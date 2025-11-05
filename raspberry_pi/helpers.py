@@ -379,7 +379,7 @@ class SharedState:
         self.detected_corners = {"L": None, "R": None, "P": []} # corner average x, corner average y, index of line, same or different slopes
 
         # Vision results
-        self.border_lines = {"L": None, "R": None}
+        self.border_lines = {"L": None, "R": None, "M": None}
         self.detected_pillars = []
         self.portion_black_l = 0.0
         self.portion_black_r = 0.0
@@ -393,7 +393,10 @@ class SharedState:
       
         self.current_function = "starting"
         self.parking = None
-        self.parking_x = 10000
+        self.parking_x = 0
+        self.parking_y = 0
+        self.vertical_line = None
+        self.lower_point = 0
 
         # Configurable flags
         self.headless = False

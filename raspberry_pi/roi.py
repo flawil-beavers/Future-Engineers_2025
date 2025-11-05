@@ -283,8 +283,13 @@ async def process_image(picam2, pipeline):
             - portion_black_l: Portion of black in the left ROI.
             - portion_black_r: Portion of black in the right ROI.
     """
+    # configloader.load_config()
+    # d = configloader.get_property("d")
+    # sigmaColor = configloader.get_property("sigmaColor")
+    # sigmaSpace = configloader.get_property("sigmaSpace")
     img = await asyncio.to_thread(cv2.cvtColor, picam2.capture_array(), cv2.COLOR_RGB2BGR)
     color_image = await asyncio.to_thread(pipeline.crop, img)
+    color_image = await asyncio.to_thread(cv2.bilateralFilter, color_image, 5, 20, 10)
     viz_stream = color_image.copy()
     hsv_image = await asyncio.to_thread(cv2.cvtColor, color_image, cv2.COLOR_BGR2HSV)
 
@@ -335,8 +340,15 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
     Returns:
         dict: Dictionary with keys 'L' and 'R' containing detected lines for left and right sides as Lines objects.
     """
-    roi_lines = {"L": [], "R": []}
-    for image, key in zip([state.latest_streams["roi_left"], state.latest_streams["roi_right"]], ["L", "R"]):
+    labels = ["L", "R"] + (["P"] if state.parking != None else [])
+    roi_lines = {label: [] for label in labels}
+    images = [
+        state.latest_streams["roi_left"],
+        state.latest_streams["roi_right"],
+        state.latest_streams["black"],
+    ]
+
+    for image, key in zip(images[:len(labels)], labels):
         # remove the 5 uppest rows from the image just in case the robot sees over the barriers
         image = image[5:, :]
         blurredImg = await asyncio.to_thread(cv2.GaussianBlur, image, (3, 3), 0)
@@ -344,7 +356,14 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
         upper = 90
         edges_img = await asyncio.to_thread(cv2.Canny, blurredImg, lower, upper, 3)
         roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=25 if state.parking == None else 10, maxLineGap=50 if state.parking == None else 50)
-    state.border_lines = {"L": Lines(roi_lines["L"], (0, 5), (0, 0)), "R": Lines(roi_lines["R"], (640-roi_width, 5), (roi_width, 0))}
+
+    for key in labels:
+        if key == "L":
+            state.border_lines[key] = Lines(roi_lines[key], (0, 5), (0, 0))
+        elif key == "R":
+            state.border_lines[key] = Lines(roi_lines[key], (640 - roi_width, 5), (roi_width, 0))
+        elif key == "P":
+            state.border_lines[key] = Lines(roi_lines[key], (0, 5), (640 // 2, 0))
 
     max_diff = 400 # max difference squared of the two points to be the same point
     for side_letter in ["L", "R"]:
@@ -367,39 +386,53 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
             elif (line["x1"] - lines[0]["x1"]) ** 2 + (line["y1"] - lines[0]["y1"]) ** 2 < max_diff:
                 state.detected_corners[side_letter] = ((line["x1"] + lines[0]["x1"]) // 2, (line["y1"] + lines[0]["y1"]) // 2, lines.index(line), "same")
                 break
-            
-        if side_letter == state.parking:
-            state.detected_corners["P"] = []
-            for i in range(len(lines)):
-                for j in range(i, len(lines)):
-                    if (lines[i]["x2"] - lines[j]["x1"]) ** 2 + (lines[i]["y2"] - lines[j]["y1"]) ** 2 < max_diff:
-                        state.detected_corners["P"].append(((lines[i]["x2"] + lines[j]["x1"]) // 2, (lines[i]["y2"] + lines[j]["y1"]) // 2, i, j, "different"))
-                        continue
-                    elif (lines[i]["x1"] - lines[j]["x2"]) ** 2 + (lines[i]["y1"] - lines[j]["y2"]) ** 2 < max_diff:
-                        state.detected_corners["P"].append(((lines[i]["x1"] + lines[j]["x2"]) // 2, (lines[i]["y1"] + lines[j]["y2"]) // 2, i, j, "different"))
-                        continue
-                    elif (lines[i]["x1"] - lines[j]["x1"]) ** 2 + (lines[i]["y1"] - lines[j]["y1"]) ** 2 < max_diff:
-                        state.detected_corners["P"].append(((lines[i]["x1"] + lines[j]["x1"]) // 2, (lines[i]["y1"] + lines[j]["y1"]) // 2, i, j, "same"))
-                        continue
-                    elif (lines[i]["x2"] - lines[j]["x2"]) ** 2 + (lines[i]["y2"] - lines[j]["y2"]) ** 2 < max_diff:
-                        state.detected_corners["P"].append(((lines[i]["x2"] + lines[j]["x2"]) // 2, (lines[i]["y2"] + lines[j]["y2"]) // 2, i, j, "same"))
-                        continue
-            first_point = False
-            if not state.headless:
-                state.detected_corners["P"].sort(key=lambda x: x[1])
-                for points in state.detected_corners["P"]:
-                    if (abs(lines[points[2]]["m"]) > 4 or abs(lines[points[3]]["m"]) > 4) and not first_point:
-                        cv2.circle(viz_stream, (points[0] + lines[0]["x_offset"], points[1]), 10, (255, 255 if points[-1] == "different" else 100, 0), -1)
-                        state.parking_x = points[0]
-                        cv2.putText(viz_stream, f"y = {state.parking_x}", (320, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-                        first_point = True
-                    else:
-                        cv2.circle(viz_stream, (points[0] + lines[0]["x_offset"], points[1]), 5, (255, 255 if points[-1] == "different" else 100, 0), -1)
                 
-        if not state.headless and state.detected_corners[side_letter] != None :
+        if not state.headless and state.detected_corners[side_letter] != None:
             corner_x = state.detected_corners[side_letter][0] + lines[0]["x_offset"]
-            cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1]), 5, (255, 255 if state.detected_corners[side_letter][-1] == "different" else 100, 0), -1)
+            cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1] + lines[0]["y_offset"]), 3, (255, 255 if state.detected_corners[side_letter][-1] == "different" else 100, 0), -1)
             cv2.putText(viz_stream, f"{state.detected_corners[side_letter][0]} {state.detected_corners[side_letter][1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+    if state.parking != None:
+        lines = state.border_lines["P"].lines
+        # calculate the slope and intercept of the line
+        state.detected_corners["P"] = []
+        for i in range(len(lines)):
+            for j in range(i, len(lines)):
+                if (lines[i]["x2"] - lines[j]["x1"]) ** 2 + (lines[i]["y2"] - lines[j]["y1"]) ** 2 < max_diff:
+                    state.detected_corners["P"].append(((lines[i]["x2"] + lines[j]["x1"]) // 2, (lines[i]["y2"] + lines[j]["y1"]) // 2, i, j, "different"))
+                    continue
+                elif (lines[i]["x1"] - lines[j]["x2"]) ** 2 + (lines[i]["y1"] - lines[j]["y2"]) ** 2 < max_diff:
+                    state.detected_corners["P"].append(((lines[i]["x1"] + lines[j]["x2"]) // 2, (lines[i]["y1"] + lines[j]["y2"]) // 2, i, j, "different"))
+                    continue
+                elif (lines[i]["x1"] - lines[j]["x1"]) ** 2 + (lines[i]["y1"] - lines[j]["y1"]) ** 2 < max_diff:
+                    state.detected_corners["P"].append(((lines[i]["x1"] + lines[j]["x1"]) // 2, (lines[i]["y1"] + lines[j]["y1"]) // 2, i, j, "same"))
+                    continue
+                elif (lines[i]["x2"] - lines[j]["x2"]) ** 2 + (lines[i]["y2"] - lines[j]["y2"]) ** 2 < max_diff:
+                    state.detected_corners["P"].append(((lines[i]["x2"] + lines[j]["x2"]) // 2, (lines[i]["y2"] + lines[j]["y2"]) // 2, i, j, "same"))
+                    continue
+        first_point = False
+        if not state.headless:
+            state.detected_corners["P"].sort(key=lambda x: x[1])
+            for points in state.detected_corners["P"]:
+                if not first_point and points[0] > -40 * (1 if state.parking == "R" else -1):
+                    index = 0
+                    if abs(lines[points[2]]["m"]) > 4:
+                        index = 2
+                    elif abs(lines[points[3]]["m"]) > 4:
+                        index = 3
+                    if index != 0:
+                        cv2.circle(viz_stream, (points[0] + lines[0]["x_offset"], points[1] + lines[0]["y_offset"]), 5, (255, 150 if points[-1] == "different" else 100, 0), -1)
+                        state.parking_x = points[0]
+                        state.parking_y = points[1]
+                        state.vertical_line = lines[points[index]]
+                        state.lower_point = max(state.vertical_line["y1"], state.vertical_line["y2"])
+                        cv2.putText(viz_stream, f"y_low = {state.lower_point}", (320, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                        cv2.putText(viz_stream, f"x = {state.parking_x}", (320, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                        cv2.putText(viz_stream, f"y = {state.parking_y}", (320, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                        first_point = True
+                else:
+                    cv2.circle(viz_stream, (points[0] + lines[0]["x_offset"], points[1] + lines[0]["y_offset"]), 3, (255, 255 if points[-1] == "different" else 100, 0), -1)
+                        
                 
     roi_front_width = 10
     roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
@@ -413,12 +446,12 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
                 b = 200
                 for line in line_group.lines:
                     cv2.line(viz_stream, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 
-                        (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), (b, 100, 0), 2)
-                    cv2.putText(viz_stream, f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
-                        (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                        (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), (b, 100, 0), 1)
+                    # cv2.putText(viz_stream, f"{line['x1'] + line['x_offset']} {line['y1'] + line['y_offset']} {line['x2'] + line['x_offset']} {line['y2'] + line['y_offset']}", 
+                    #     (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                     # create a green dot for x1 y1 and a red dot for x2 y2
-                    cv2.circle(viz_stream, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 3, (0, 255, 0), -1)
-                    cv2.circle(viz_stream, (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 3, (0, 0, 255), -1)
+                    cv2.circle(viz_stream, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 2, (0, 255, 0), -1)
+                    cv2.circle(viz_stream, (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 2, (0, 0, 255), -1)
                     if b == 200:
                         cv2.putText(viz_stream, f"y={line['m']:.2f}x+{line['b']:.2f}", 
                             (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
@@ -672,7 +705,6 @@ REF_PORTION_SIDE = 0.8
 @current_function
 async def pd_middle(speed: int, side: str, stop_condition: callable):
     car.speed = speed
-    car.finished = False
     while not stop_condition():
         if side == "R":
             error = (REF_PORTION - state.portion_black_r)
@@ -774,6 +806,15 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
         print(f"Updated straight direction to {updated_mean_angle:.2f} deg (MSE: {updated_mse:.2f})")
 
 @current_function
+async def pd_point(speed: int, point: callable, stop_condition: callable, scaler: float = 1, setpoint: float = 0):
+    car.speed = speed
+    while not stop_condition():
+        error = point() - setpoint
+        car.steering = await calculate_steering(error*scaler)
+        await asyncio.sleep(0.01)
+    print(f"lower {state.lower_point}")
+    
+@current_function
 async def stop(directly = False):
     car.speed = 0
     if directly:
@@ -806,14 +847,14 @@ def distance(distance: float, distance_beg: float) -> bool:
     return True
 
 async def parking():
-    global roi_width
-    roi_width = 640//2
-    state.parking = "R" if state.round_dir == 1 else "L"
-    state.round_dir = -1
+
+    state.parking = "R" if state.round_dir == -1 else "L"
     # Parking: 
     SPEED_PARK = 100
     print("Start parking...")
-    await drive(SPEED_PARK, 0, (lambda: abs(state.parking_x) < 70))
+    await drive(SPEED_PARK, 0, (lambda: abs(state.parking_x) > 200))
+    print(f"state.parking = {state.parking}")
+    await pd_point(50, lambda: state.parking_x, (lambda: state.lower_point > 150), 0.005)
 
 
 DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
@@ -841,6 +882,7 @@ async def main_program():
     # await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
     # print("parking completet.")
     # await asyncio.sleep(100)
+    # await parking()
     # await stop()
     # os._exit(0)
     

@@ -91,5 +91,8 @@
     "kd": 8.0
   },
   "ArduinoSerialPort": "/dev/ttyUSB0",
-  "ArduinoBaudRate": 115200
+  "ArduinoBaudRate": 115200,
+  "d": 5,
+  "sigmaColor": 20,
+  "sigmaSpace": 10
 }

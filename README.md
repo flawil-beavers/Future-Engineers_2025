@@ -74,7 +74,7 @@ We are now also working with a gyro sensor that monitors the robot's movements, 
 
 ## Wiring Diagram
 
-![Wiring Diagram](<media/Wiring.pdf>)
+![Wiring Diagram](<media/Wiring.png>)
 
 ---
 

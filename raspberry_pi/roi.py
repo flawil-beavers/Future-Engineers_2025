@@ -364,7 +364,7 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
     images = [
         state.latest_streams["roi_left"],
         state.latest_streams["roi_right"],
-        state.latest_streams["black"],
+        state.latest_streams["pink"],
     ]
 
     for image, key in zip(images[:len(labels)], labels):
@@ -431,7 +431,7 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
                     continue
         first_point = False
         if not state.headless:
-            state.detected_corners["P"].sort(key=lambda x: x[1])
+            state.detected_corners["P"].sort(key=lambda x: x[0], reverse=(state.round_dir == 1))
             for points in state.detected_corners["P"]:
                 if not first_point and points[0] > -40 * (1 if state.parking == "R" else -1):
                     index = 0
@@ -482,6 +482,8 @@ async def cycle():
         cv2.putText(viz_stream, f"o: {state.portion_orange:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 222), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"p: {state.distance_pink:.2f}", (300, 234), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        line = lambda x: -0.35 * state.round_dir * x - 13
+        await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (200+640//2, int(line(200))), (255, 255, 255))
 
     if state.pillars:
         viz_stream = await detect_edge_lines(state, roi_width, viz_stream)
@@ -675,7 +677,7 @@ async def drive(speed, distance, stop_condition: callable = lambda: False, angle
     car.speed = 0  # Stop the car after driving the distance
 
 @current_function
-async def turn(speed, degrees, steering):
+async def turn(speed, degrees, steering, angle_beg = None):
     """   
     Args:
         speed (int): Speed of the turn.
@@ -687,7 +689,8 @@ async def turn(speed, degrees, steering):
     """
     if degrees == 0 or speed == 0:
         return
-    angle_beg = car.angle
+    if angle_beg == None:
+        angle_beg = car.angle
     # Calculate the target angle based on the current angle and degrees to turn
     direction = degrees / abs(degrees)
     car.speed = speed
@@ -861,13 +864,32 @@ def distance(distance: float, distance_beg: float) -> bool:
 
 async def parking():
 
+    state.detect_pink = True
     state.parking = "R" if state.round_dir == -1 else "L"
     # Parking: 
     SPEED_PARK = 100
     print("Start parking...")
     await drive(SPEED_PARK, 0, (lambda: abs(state.parking_x) > 200))
     print(f"state.parking = {state.parking}")
+    wall_line = lambda x: -0.35 * state.round_dir * x - 13 # todo continue following the wall that this is the wall line
+    
+
     await pd_point(50, lambda: state.parking_x, (lambda: state.lower_point > 150), 0.005)
+    # await drive(-SPEED_PARK, 60)
+    # await turn(SPEED_PARK, 60 * state.round_dir, 1, car.straight_direction)
+    # await stop()
+    # await drive(-SPEED_PARK, 300)
+    # await turn(-SPEED_PARK, 45 * state.round_dir, 1)
+    # await turn(-SPEED_PARK, -50 * state.round_dir, 1)
+    # await turn(-SPEED_PARK, 50 * state.round_dir, 1)
+    
+    await drive(SPEED_PARK, 270)
+    await stop()
+    await turn(-SPEED_PARK, -60 * state.round_dir, 1)
+    await turn(-SPEED_PARK, 45 * state.round_dir, 1)
+    await stop()
+    car.steering = -1 * state.round_dir
+    await asyncio.sleep(1)
 
 
 DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
@@ -877,8 +899,9 @@ async def main_program():
     # global roi_width
     # roi_width = 640//2
     
-    state.detect_pink = True
+    # state.detect_pink = True
     # state.parking = "R"
+    # state.round_dir = -1
     
     if ser and not state.calibrate:
         await connect_to_arduino()
@@ -886,7 +909,7 @@ async def main_program():
     print("Starting main program...")
     run_time = time()
     
-    # state.round_dir = -1
+    state.round_dir = -1
     # # Parking: 
     # SPEED_PARK = 100
     # print("Start parking...")
@@ -896,9 +919,9 @@ async def main_program():
     # await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
     # print("parking completet.")
     # await asyncio.sleep(100)
-    # await parking()
-    # await stop()
-    # os._exit(0)
+    await parking()
+    await stop()
+    os._exit(0)
     
     try:
         if not state.pillars:

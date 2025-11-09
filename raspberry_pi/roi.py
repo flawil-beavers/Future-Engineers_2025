@@ -52,6 +52,8 @@ roi_center_x, roi_center_y = 320 - roi_center_w // 2, 200
 roi_width = 100
 roi_height = 150
 
+roi_front_width = 10
+
 current_streams = ["viz", "black", "viz"]
 has_sent_streams_info = False
 active_websocket = None
@@ -296,6 +298,17 @@ async def process_image(picam2, pipeline):
     state.update_stream("roi_center", await asyncio.to_thread(extract_ROI, hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h]))
 
     rgbl = await asyncio.to_thread(pipeline.filter_RG_Bl, hsv_image, color_image)
+    
+    if "pink" not in state.latest_streams:
+        state.update_stream("pink", None)
+    
+    if state.detect_pink:
+        pink = await asyncio.to_thread(pipeline.filter_pink, hsv_image)
+        state.update_stream("pink", pink)
+        portion_pink = await asyncio.to_thread(extract_ROI, pink, [640//2-roi_front_width, 0], [640//2+roi_front_width, 240])
+        state.distance_pink = await asyncio.to_thread(cv2.countNonZero, portion_pink) / (portion_pink.shape[0] * portion_pink.shape[1])
+    elif state.latest_streams["pink"] != None:
+        state.update_stream("pink", None)
 
     roi_left_side = await asyncio.to_thread(extract_ROI, rgbl["black"], [0, 0], [roi_width, rgbl["black"].shape[0]])
     roi_right_side = await asyncio.to_thread(extract_ROI, rgbl["black"], [640-roi_width, 0], [640, rgbl["black"].shape[0]])
@@ -310,6 +323,12 @@ async def process_image(picam2, pipeline):
     blue_roi = await asyncio.to_thread(extract_ROI, rgbl["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
     state.portion_orange = await asyncio.to_thread(cv2.countNonZero, orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
     state.portion_blue = await asyncio.to_thread(cv2.countNonZero, blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
+
+    if state.pillars:
+        roi_front = await asyncio.to_thread(extract_ROI, rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
+        state.distance_front = await asyncio.to_thread(cv2.countNonZero, roi_front) / (roi_front.shape[0] * roi_front.shape[1])
+
+
 
     state.update_stream("color_image", color_image)
     state.update_stream("hsv_image", hsv_image)
@@ -433,12 +452,6 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
                 else:
                     cv2.circle(viz_stream, (points[0] + lines[0]["x_offset"], points[1] + lines[0]["y_offset"]), 3, (255, 255 if points[-1] == "different" else 100, 0), -1)
                         
-                
-    roi_front_width = 10
-    roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
-    portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
-    state.distance_front = portion_black_front
-
     # visualisation
     if not state.headless:
         for line_group in state.border_lines.values():
@@ -461,23 +474,17 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
 
 async def cycle():
     viz_stream = await process_image(picam2, pipeline)
-
-    roi_front_width = 10
-    roi_front = extract_ROI(state.latest_streams["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
-    portion_black_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
     if not state.headless:
         cv2.rectangle(viz_stream, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
-        cv2.putText(viz_stream, f"{portion_black_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"{state.distance_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"{state.portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"{state.portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"o: {state.portion_orange:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 222), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"p: {state.distance_pink:.2f}", (300, 234), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     if state.pillars:
         viz_stream = await detect_edge_lines(state, roi_width, viz_stream)
-
-        distance_front = portion_black_front
-        # sm.distance_front = portion_black_front
 
         # filter out the red and green colors of the pillars and walls
         detected_pillars_r = pipeline.get_pillars(state.latest_streams["red"], "RED")
@@ -835,8 +842,14 @@ def blue_orange(colour: str) -> bool:
         raise ValueError(f"colour has to be 'blue' or 'orange', currently it is set to '{colour}'")
     return False
 
-def distance_front_camera(percentage: float) -> bool:
-    if state.distance_front > percentage:
+def distance_front_camera(percentage: float, colour: str = "black") -> bool:
+    if colour == "black":
+        distance = state.distance_front
+    elif colour == "pink":
+        distance = state.distance_pink
+    else:
+        raise ValueError(f"Colour is not known. The current colour is '{colour}'")
+    if distance > percentage:
         return True
     else:
         return False
@@ -864,6 +877,7 @@ async def main_program():
     # global roi_width
     # roi_width = 640//2
     
+    state.detect_pink = True
     # state.parking = "R"
     
     if ser and not state.calibrate:
@@ -905,10 +919,19 @@ async def main_program():
                 await turn(speed, -80 * state.round_dir, 0.75)
             await pd_middle(speed, "L" if state.round_dir < 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
         else: # pillar round
+            state.detect_pink = True
             car.straight_direction = car.angle
             print(f"Initial straight direction: {car.straight_direction}")
             SPEED_UNPARK = 100
+            distance_front_unparking = 0.85
+            if distance_front_camera(distance_front_unparking, "pink"):
+                await drive(-SPEED_UNPARK/4, 0, lambda: not distance_front_camera(distance_front_unparking+0.05, "pink"))
+            else:
+                await drive(SPEED_UNPARK/4, 0, lambda: distance_front_camera(distance_front_unparking, "pink"))
+            await stop()
             await turn(SPEED_UNPARK, 10 * state.round_dir, 1.2)
+            await stop()
+            state.detect_pink = False
             await turn(-SPEED_UNPARK, -65 * state.round_dir, 1.2)
             # await drive(speed, 10, )
             await turn(-SPEED_UNPARK, 75 * state.round_dir, 1)

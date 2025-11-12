@@ -272,159 +272,167 @@ All files for the 3D printed parts can be found in the 3D-Printed-Parts folder o
 
 <!-- Obstacle management discussion should include the strategy for the vehicle to negotiate the obstacle course for all the challenges. This could include flow diagrams, pseudo code and source code with detailed comments. -->
 
+### Software Architecture
+
+Our main program runs on python and runs asynchrounous. Thanks to the `asyncio` library, we can run multiple loops at the same time. The main components of our program are the image processing loop, the arduino communication loop, the main program loop and the webserver loop (if not in headless mode). The following flowchart illustrates how these components interact:
+
 ```mermaid
 flowchart TD
-    main["main()"] --> async["Start asynchronous"]
-    async --> cycle["cycle_loop()"]
-    async --> arduino["arduino_communication_loop()"]
-    async --> main_program["main_program()"]
-    async --> |if not headless| webserver["run_webserver()"]
+    main("main()")
+    main --> cycle("cycle_loop()")
+    main --> arduino("arduino_communication_loop()")
+    main --> main_program("main_program()")
+    main --> |if not headless| webserver("run_webserver()")
 
+    %% cycle --> process["take new frame"]
+    %% process --> filter["filter the image"]
+    %% filter --> edges["detect edges"]
+    %% edges --> |if not headless| viz["visualize"]
+    %% edges --> |if headless| process
+    %% viz --> process
+
+    %% arduino --> waitcon["wait for connection"]
+    %% waitcon --> arduino_connection["send speed and steering"]
+    %% arduino_connection --> arduino_receive["receive angle and distance"]
+    %% arduino_receive --> arduino_connection
+
+    %% main_program --> wait["wait for arduino to connect"]
+    %% wait --> wait2["wait for arduino to send switch enable start"]
+    %% wait2 --> mainprog["start the main program"]
+    %% mainprog --> pillar{Pillar round?}
+    %% pillar --> |yes| pillary(open challenge logic)
+    %% pillar --> |no| pillarn(obstacle challenge logic)
+
+    webserver --> web["starts webserver and serves streams"]
+```
+
+The `run_webserver()` function starts a web server that serves camera streams and robot telemetry. This loop runs only if the program is not in headless mode.
+
+The `cycle_loop()` handles image acquisition and processing. It continuously captures frames from the camera, applies filtering (extracting red, green and pink stream using hsv and then [Thresholding](https://docs.opencv.org/4.x/d7/d4d/tutorial_py_thresholding.html)), and detects edges using [Canny Edge detection](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html). If headless mode is off, the processed frames are visualized in real time.
+
+```mermaid
+flowchart LR
+    cycle("cycle_loop()")
     cycle --> process["take new frame"]
     process --> filter["filter the image"]
     filter --> edges["detect edges"]
     edges --> |if not headless| viz["visualize"]
     edges --> |if headless| process
     viz --> process
+```
 
+The `arduino_communication_loop()` manages low-level communication with the Arduino. It waits for the Arduino to connect via serial, sends speed and steering commands, and receives angle and distance readings. The loop continuously updates the `Car` class with the latest sensor data.
+
+```mermaid
+flowchart LR
+    arduino("arduino_communication_loop()")
     arduino --> waitcon["wait for connection"]
     waitcon --> arduino_connection["send speed and steering"]
     arduino_connection --> arduino_receive["receive angle and distance"]
     arduino_receive --> arduino_connection
+```
 
+To communicate with the Arduino, we use the `pyserial` library. The Arduino is programmed to receive speed and steering commands via serial communication and send back angle and distance measurements. The communication protocol is simple: the Raspberry Pi sends a formatted string containing speed and steering values, and the Arduino responds with a formatted string containing angle and distance readings. [Here](raspberry_pi/arduino_comm.py) you can find more information about the communication protocol and its implementation. <!-- Todo: Create the document link if necessary -->
+
+The `main_program()` controls the high-level challenge logic. It waits for the Arduino to connect and for the start switch to be enabled. Once started, it decides whether to execute pillar round logic or obstacle challenge logic based on the challenge type.
+
+```mermaid
+flowchart LR
+    main_program("main_program()")
     main_program --> wait["wait for arduino to connect"]
     wait --> wait2["wait for arduino to send switch enable start"]
     wait2 --> mainprog["start the main program"]
     mainprog --> pillar{Pillar round?}
     pillar --> |yes| pillary(open challenge logic)
     pillar --> |no| pillarn(obstacle challenge logic)
-
-    webserver --> web["start webserver"]
-    web --> |until webserver closes| web
 ```
-
-Below is an explanation of the main modules and their interactions according to the flowchart.
-
-## 1. main()
-
-The entry point of the program. It starts the asynchronous components and initializes all subsystems:
-
-- `main()` launches:
-
-  - `cycle_loop()` — image acquisition and processing.
-  - `arduino_communication_loop()` — communication with the Arduino for movement and sensor data.
-  - `main_program()` — the high-level logic of the robot car.
-  - `run_webserver()` — optional, runs if not in headless mode.
-
-### 2. Asynchronous Loops
-
-#### 2.1 cycle_loop()
-
-Handles the continuous image processing loop:
-
-1. `take new frame` — Captures the latest image from the camera.
-2. `filter the image` — Applies preprocessing (extracting red, green and pink stream using hsv and then [Thresholding](https://docs.opencv.org/4.x/d7/d4d/tutorial_py_thresholding.html)).
-3. `detect edges` — Detects edges with [Canny Edge detection](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html)
-4. Visualization:
-
-   - If **headless mode is off**, the processed frame is visualized (`visualize`) in real time.
-   - If **headless**, the loop continues processing without visualization.
-
-**Note:** This loop repeats continuously for real-time perception.
-
-#### 2.2 arduino_communication_loop()
-
-Handles low-level communication with the Arduino:
-
-1. `wait for connection` — Waits until the Arduino is connected via serial.
-2. `send speed and steering` — Sends control commands to the robot.
-3. `receive angle and distance` — Receives sensor readings from the Arduino.
-4. Loops back to save updated values to the `Car` class based on the latest sensor data.
-
-#### 2.3 main_program()
-
-Controls the robot’s high-level challenge logic:
-
-1. `wait for arduino to connect` — Ensures the Arduino is ready.
-2. `wait for arduino to send switch enable start` — Waits for the switch to be set to start
-3. `start the main program` — Initiates challenge execution.
-4. Decision: `Pillar round?`
-
-   - **Yes:** Execute pillar round logic (`open challenge logic`)
-   - **No:** Execute obstacle challenge logic (`obstacle challenge logic`)
-
-This loop drives the robot behavior according to the challenge type.
-
-#### 2.4 run_webserver()
-
-Optional web interface for monitoring robot status:
-
-1. Starts the web server (`start webserver`).
-2. Keeps running until the webserver is manually closed.
-3. Provides a live view of camera frames and robot telemetry.
-
-**Note:** Only runs if the program is not in headless mode.
-
-### 3. Flow Summary
-
-- The program is **asynchronous**, allowing simultaneous execution of:
-
-  - Image processing (`cycle_loop`)
-  - Arduino communication (`arduino_communication_loop`)
-  - High-level logic (`main_program`)
-  - Optional web interface (`run_webserver`)
-
-- Loops and decisions ensure:
-
-  - Continuous perception and visualization.
-  - Real-time robot control via Arduino.
-  - Flexible handling of different challenge types.
-
-- **Headless mode** disables visualization and webserver to optimize for performance.
-
-### Module Dependencies
-
-| Module                         | Description                             | Depends On                     |
-| ------------------------------ | --------------------------------------- | ------------------------------ |
-| `cycle_loop()`                 | Camera acquisition and image processing | N/A                            |
-| `arduino_communication_loop()` | Sends and receives commands to Arduino  | Serial connection              |
-| `main_program()`               | Executes challenge logic                | `arduino_communication_loop()` and `cycle_loop()? |
-| `run_webserver()`              | Web-based monitoring                    | `cycle_loop()` (for frames)    |
 
 ### Opening Race
 
-The robot's behavior is modeled using a behavior tree. The [StateMachine](/raspberry_pi/statemachine.py) class manages the current state and handles transitions to new states. States can also be scheduled to start in the future, which is useful for delaying turns to avoid hitting inner walls. In the opening race, we use the states “STARTING,” “PD-CENTER,” “TURNING-L/R,” and “DONE.”
+```mermaid
+flowchart LR
+    open("open challenge logic") --> side["round detection"]
+    side --> pd["pd middle"]
+    pd --> |orange/blue line| inc["rounds++"]
+    inc --> line["turn 90°"]
+    line --> decision{"rounds < 12"}
+    decision --> |True| pd
+    decision --> |False| stop["PD middle and stop"]
+```
 
-We begin by determining the round direction. First, we crop the top half of the image and filter out all black pixels using OpenCV's `cv2.inRange` function. On this Boolean map of black pixels, we detect edges using `cv2.Canny`. By applying `np.argmax`, we find the heights of the walls in pixels at each x-coordinate in the image. The discrete differences between these heights are calculated using `np.diff`, raised to the fourth power, and summed up. This helps us identify the jump in wall height when the inner wall first appears.
+We begin by determining the `round direction`. First, we crop the top half of the image and filter out all black pixels using OpenCV's [`cv2.inRange`](https://docs.opencv.org/4.x/da/d97/tutorial_threshold_inRange.html) function. On this Boolean map of black pixels, we detect edges using [`cv2.Canny`](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html). By applying `np.argmax`, we find the heights of the walls in pixels at each x-coordinate in the image. The discrete differences between these heights are calculated using `np.diff`, raised to the fourth power, and summed up. This helps us identify the jump in wall height when the inner wall first appears.
 
-For driving, we employ a PD-Controller. The input is derived from the black portion of a region-of-interest extracted from the outer edges of the black-and-white Boolean image. This is compared to a pre-calibrated fixed portion. We follow only the outer wall to avoid collisions with the inner walls, especially if their gap distance is randomized to be small.
-
-Using a small region of interest in the center of the camera feed, we detect the blue and orange lines on the game mat. The color image is converted to HSV for this purpose. Upon encountering such a line, depending on its color, we initiate a turn and decrement the remaining corners counter, allowing us to accurately stop at the end of the round.
+For driving, we employ a PD-Controller in `pd_middle`. The input is derived from the black portion of a region-of-interest extracted from the outer edges of the black-and-white Boolean image. This is compared to a pre-calibrated fixed portion. We follow only the outer wall to avoid collisions with the inner walls, especially if their gap distance is randomized to be small.
 
 ![Wall Detection](<media/black wall detection.png>)
 
 The red outlines show the region of interest used for wall detection.
 
+Using a small region of interest in the center of the camera feed, we detect the blue and orange lines on the game mat. The color image is converted to HSV for this purpose. Upon encountering such a line, depending on its color, we initiate a turn and decrement the remaining corners counter, allowing us to accurately stop at the end of the round.
+
+<!-- Todo add image -->
+
 ---
 
 ### Obstacle Race
 
-In addition to extracting a black-and-white image, we convert the cropped color image to HSV. This conversion allows us to more easily and robustly extract red and green pixels. We then use `cv2.Canny` and `cv2.findContours` to search for contours in this image. The centroids of the contours are extracted and stored along with their width and height. The behavior tree is updated with two new states: "TRACKING-PILLAR" and "AVOIDING-PILLAR-R/G".
+```mermaid
+flowchart LR
+    open("Obstacle challenge logic") --> side["Determine round direction"]
+    side --> unpark["Unpark"]
+    unpark --> foto["Take Foto"]
+    foto --> route["Avoid Obstacles and follow Wall"]
+    route --> rounds{"Rounds?"}
+    rounds --> |"< 5"| dw["Drive to Wall"]
+    dw --> back["Backward Turn"]
+    back --> foto2["Take Foto"]
+    foto2 --> double1["Double Turn"]
+    double1 --> fol1["Follow outer Wall 1"]
+    double1 --> fol2["Follow inner Wall 1"]
+    fol3["Follow outer Wall 2"]
+    fol4["Follow inner Wall 2"]
+    fol1 & fol2 --> fol3 & fol4
+    fol3 & fol4 --> double2["Double Turn / Predefined Route"]
+    double2 --> increment["Rounds ++"]
+    increment --> rounds
+
+    rounds --> |"< 13"| predefroute["Predefined Route"]
+    predefroute --> fol1 & fol2
+
+    rounds --> |"= 13"| drpark["Drive to Parking Lot"]
+    drpark --> park["Parallel Parking"]
+```
+
+First we determine the `round direction` based on how much black we see on each side in the blue ROI. <!-- Todo: add image --> Then we `unpark` by performing a turning sequence. Before starting to drive the rounds we evaluate the current image for pillars and decide whether we have to avoid a pillar. The robot continues driving until it is near to the wall. Then it takes a backward turn to realign itself and starts driving again. After taking  another picture we evaluate the pillars again.
+
+<!-- todo add image -->
+
+If there are pillars, it performs a double turn to avoid the pillars and then continues following the correct wall. If there are two pillars, the robot will change side in the middle of the section. After another double turn we increment the rounds counter
+
+![Routes around Pillars](media/Routes.png)
+
+After completing 5 rounds, the robot follows predefined routes for each round. After completing 13 rounds, the robot drives to the parking lot and performs parallel parking.
+
+#### Colour Detection
+
+In addition to extracting a black-and-white image, we convert the cropped color image to HSV. This conversion allows us to more easily and robustly extract red and green pixels. We then use [`cv2.Canny`](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html) and [`cv2.findContours`](https://docs.opencv.org/3.4/d4/d73/tutorial_py_contours_begin.html) to search for contours in this image. The centroids of the contours are extracted and stored along with their width and height.
 
 When handling the HSV color space, special care is needed for colors near the red hue due to the wrap-around effect. The hue value for red is around 0° and 360°, meaning it wraps around the HSV color wheel. To accurately detect red, we create two separate masks: one for the lower range (e.g., 0° to 10°) and another for the upper range (e.g., 350° to 360°). These masks are then combined to form a single mask that accurately captures all red hues. This approach ensures that all shades of red are detected, avoiding issues caused by the hue value wrapping around the color wheel.
 
-![Wall Detection](<media/download (3).jpeg>)
+![Wall Detection](<media/download (3).jpeg>) <!-- todo add new image -->
 
 In the image above you can see the robot detecting the red and green pillars. After processing the image, the program returns a list of found pillars, sorted by their distance to the robot. The robot then drives towards the closest pillar, until it is close enough to the pillar to avoid it. The robot then drives around the pillar and continues to the next one. You can also see the center ROI used for detecting turn marking lines.
 
-![Behavior Tree](media/Statemaschine.jpg)
+#### Wall Following
+
+We follow the walls using the point-slope-form of the border line between the black wall and the white mat. This is again extracted using [`cv2.Canny`](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html). We use the PD controller to keep the y-intercept of the lines on a constant height. By including the gyro values quadratically in the steering calculation, we can further stabilise the driving so that the robot does not take a U-turn. Furthermore there is a corner detection algorithm that switches the wall following to gyro corrected driving, when passing the end of the walls. <!-- todo add image of robot reaching edge -->
 
 ---
 
 ## Own platform for streams
 
-We created our own HTML file to display the camera image. This is used to send three streams constantly to our connected device in preparation mode. During the competition, we disable the communication so that the raspberry can use all its computational resources for the run. Using the streams limits the performance of the robot as much time of the loop is spent on sending the streams. Therefore, we disable it.
-With our HTML file, we can also read out the color values of the environment and send these changes directly to the robot. We can change the different streams via websocket and thus dis-play images with different filters on them.
+We created our own HTML file to display the camera image. This is used to send three streams constantly to our connected device in preparation mode. During the competition, we disable the communication so that the raspberry can use all its computational resources for the run. Using the streams limits the performance of the robot as much time is spent on sending the streams. Therefore, we disable it.
+With our HTML file, we can also read out the color values of the environment and send these changes directly to the robot. We can change the different streams via websocket and thus display images with different filters on them.
 
 | ![Stream 1](<media/Stream 1.png>) | ![Stream 2](<media/Stream 2.png>) |
 |-----------------------------|-----------------------------|

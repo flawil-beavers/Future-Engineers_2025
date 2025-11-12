@@ -109,6 +109,127 @@ All files for the 3D printed parts can be found in the 3D-Printed-Parts folder o
 
 ## Obstacle Management
 
+<!-- Obstacle management discussion should include the strategy for the vehicle to negotiate the obstacle course for all the challenges. This could include flow diagrams, pseudo code and source code with detailed comments. -->
+
+```mermaid
+flowchart TD
+    main["main()"] --> async["Start asynchronous"]
+    async --> cycle["cycle_loop()"]
+    async --> arduino["arduino_communication_loop()"]
+    async --> main_program["main_program()"]
+    async --> |if not headless| webserver["run_webserver()"]
+
+    cycle --> process["take new frame"]
+    process --> filter["filter the image"]
+    filter --> edges["detect edges"]
+    edges --> |if not headless| viz["visualize"]
+    edges --> |if headless| process
+    viz --> process
+
+    arduino --> waitcon["wait for connection"]
+    waitcon --> arduino_connection["send speed and steering"]
+    arduino_connection --> arduino_receive["receive angle and distance"]
+    arduino_receive --> arduino_connection
+
+    main_program --> wait["wait for arduino to connect"]
+    wait --> wait2["wait for arduino to send switch enable start"]
+    wait2 --> mainprog["start the main program"]
+    mainprog --> pillar{Pillar round?}
+    pillar --> |yes| pillary(open challenge logic)
+    pillar --> |no| pillarn(obstacle challenge logic)
+
+    webserver --> web["start webserver"]
+    web --> |until webserver closes| web
+```
+
+Below is an explanation of the main modules and their interactions according to the flowchart.
+
+## 1. main()
+
+The entry point of the program. It starts the asynchronous components and initializes all subsystems:
+
+- `main()` launches:
+
+  - `cycle_loop()` — image acquisition and processing.
+  - `arduino_communication_loop()` — communication with the Arduino for movement and sensor data.
+  - `main_program()` — the high-level logic of the robot car.
+  - `run_webserver()` — optional, runs if not in headless mode.
+
+### 2. Asynchronous Loops
+
+#### 2.1 cycle_loop()
+
+Handles the continuous image processing loop:
+
+1. `take new frame` — Captures the latest image from the camera.
+2. `filter the image` — Applies preprocessing (extracting red, green and pink stream using hsv and then [Thresholding](https://docs.opencv.org/4.x/d7/d4d/tutorial_py_thresholding.html)).
+3. `detect edges` — Detects edges with [Canny Edge detection](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html)
+4. Visualization:
+
+   - If **headless mode is off**, the processed frame is visualized (`visualize`) in real time.
+   - If **headless**, the loop continues processing without visualization.
+
+**Note:** This loop repeats continuously for real-time perception.
+
+#### 2.2 arduino_communication_loop()
+
+Handles low-level communication with the Arduino:
+
+1. `wait for connection` — Waits until the Arduino is connected via serial.
+2. `send speed and steering` — Sends control commands to the robot.
+3. `receive angle and distance` — Receives sensor readings from the Arduino.
+4. Loops back to save updated values to the `Car` class based on the latest sensor data.
+
+#### 2.3 main_program()
+
+Controls the robot’s high-level challenge logic:
+
+1. `wait for arduino to connect` — Ensures the Arduino is ready.
+2. `wait for arduino to send switch enable start` — Waits for the switch to be set to start
+3. `start the main program` — Initiates challenge execution.
+4. Decision: `Pillar round?`
+
+   - **Yes:** Execute pillar round logic (`open challenge logic`)
+   - **No:** Execute obstacle challenge logic (`obstacle challenge logic`)
+
+This loop drives the robot behavior according to the challenge type.
+
+#### 2.4 run_webserver()
+
+Optional web interface for monitoring robot status:
+
+1. Starts the web server (`start webserver`).
+2. Keeps running until the webserver is manually closed.
+3. Provides a live view of camera frames and robot telemetry.
+
+**Note:** Only runs if the program is not in headless mode.
+
+### 3. Flow Summary
+
+- The program is **asynchronous**, allowing simultaneous execution of:
+
+  - Image processing (`cycle_loop`)
+  - Arduino communication (`arduino_communication_loop`)
+  - High-level logic (`main_program`)
+  - Optional web interface (`run_webserver`)
+
+- Loops and decisions ensure:
+
+  - Continuous perception and visualization.
+  - Real-time robot control via Arduino.
+  - Flexible handling of different challenge types.
+
+- **Headless mode** disables visualization and webserver to optimize for performance.
+
+### Module Dependencies
+
+| Module                         | Description                             | Depends On                     |
+| ------------------------------ | --------------------------------------- | ------------------------------ |
+| `cycle_loop()`                 | Camera acquisition and image processing | N/A                            |
+| `arduino_communication_loop()` | Sends and receives commands to Arduino  | Serial connection              |
+| `main_program()`               | Executes challenge logic                | `arduino_communication_loop()` and `cycle_loop()? |
+| `run_webserver()`              | Web-based monitoring                    | `cycle_loop()` (for frames)    |
+
 ### Opening Race
 
 The robot's behavior is modeled using a behavior tree. The [StateMachine](/raspberry_pi/statemachine.py) class manages the current state and handles transitions to new states. States can also be scheduled to start in the future, which is useful for delaying turns to avoid hitting inner walls. In the opening race, we use the states “STARTING,” “PD-CENTER,” “TURNING-L/R,” and “DONE.”
@@ -168,8 +289,8 @@ With our HTML file, we can also read out the color values of the environment and
 ## Videos
 <!-- The performance videos must demonstrate the performance of the vehicle from start to finish for each challenge. The videos could include an overlay of commentary, titles or animations. The video could also include aspects of section 1, 2 or 3 -->
 
-[![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Watch_Video-df3e3e?logo=youtube)](https://youtu.be/BgnNJaQTD8U)
-[![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Watch_Video-df3e3e?logo=youtube)](https://youtu.be/AOWf1q8zvfM)
+[![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Opening_challenge-df3e3e?logo=youtube)](https://youtu.be/OofLgNROook)
+[![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Obstacle_challenge-df3e3e?logo=youtube)](https://youtu.be/P_mGKfEbACU)
 
 ---
 

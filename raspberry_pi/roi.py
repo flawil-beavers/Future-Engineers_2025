@@ -422,10 +422,10 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
                     break
                 index += 1
                 highest_y = max(highest_y, line["y1"], line["y2"])
+            print(f"index: {index}, lines: {lines}")
             state.parking_x = lines[index]["x1"]
-            state.parking_y = max(lines[index]["y1"], lines[index]["y2"])# highest_y
+            state.parking_y = max(lines[index]["y1"], lines[index]["y2"]) # highest_y
             if not state.headless:
-            
                 cv2.circle(viz_stream, (state.parking_x + lines[index]["x_offset"], state.parking_y +lines[index]["y_offset"]), 5, (255, 150, 0), -1)
                 cv2.putText(viz_stream, f"index = {index}", (320, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                 cv2.putText(viz_stream, f"x = {state.parking_x}", (320, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
@@ -870,9 +870,9 @@ async def parking():
     print("Start parking...")
     # await drive(SPEED_PARK, 0, (lambda: abs(state.parking_x) > 200))
     print(f"state.parking = {state.parking}")
-    wall_line = lambda x: -0.35 * state.round_dir * x - 13
-    parking_line = lambda x: m * x + q
-    await pd_point(100, lambda: (calculate_xy_error()), (lambda: state.lower_point > 150), 0.005) # todo wait for a realistic stop condition, (before robot starts turning)
+    # wall_line = lambda x: -0.35 * state.round_dir * x - 13
+    # parking_line = lambda x: m * x + q
+    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 240), 0.005) # todo wait for a realistic stop condition, (before robot starts turning)
     # await drive(-SPEED_PARK, 60)
     # await turn(SPEED_PARK, 60 * state.round_dir, 1, car.straight_direction)
     # await stop()
@@ -881,7 +881,7 @@ async def parking():
     # await turn(-SPEED_PARK, -50 * state.round_dir, 1)
     # await turn(-SPEED_PARK, 50 * state.round_dir, 1)
     
-    await drive(SPEED_PARK, 270)
+    await drive(SPEED_PARK, 220)
     await stop()
     await turn(-SPEED_PARK, -60 * state.round_dir, 1)
     await turn(-SPEED_PARK, 45 * state.round_dir, 1)

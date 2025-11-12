@@ -48,7 +48,7 @@ We, Damian Hardegger and Philipp Kündig, make up the WRO team Flawil Beavers. W
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 1 – Preparations</span></summary>
 
-Gather all required materials according to the **Bill of Materials (BOM)** and print all necessary **3D models**.  
+Gather all required materials according to the [**Bill of Materials (BOM)**](#bill-of-materials) and print all necessary **[3D‑Printed‑Parts / CAD & STL](3D-Printed-Parts/)**.  
 Use **M3 screws** for all mechanical components, and **M2 screws** for electronic parts.
 
 > ⚠️ **Note:**  
@@ -61,12 +61,14 @@ Use **M3 screws** for all mechanical components, and **M2 screws** for electroni
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 2 – Base Plate and Drive Assembly</span></summary>
 
-Take the printed **base plate** and begin by mounting the two **motors**.  
-The **drive motor** is positioned in the center and secured with **Part 5**.  
-Place a **coupling** between the motor shaft and the **LEGO axle** – we recommend a **metal coupling**, though **Part 7** can also be used.
+Take the printed **[base plate](3D-Printed-Parts/base_plate.cad)** and begin by mounting the two **motors**.  
+The **drive motor** is positioned in the center and secured with **[motor cover](<CAD/Seperate Parts/DC motor cover.3mf>)**.  
+Place a **coupling** between the motor shaft and the **LEGO axle** – we recommend a **metal coupling**, though **[CAD coupling](<CAD/Seperate Parts/Shaft.3mf>)** can also be used.
 
-Next, install the **gearbox mount components** as well as the **servo bracket** on the base plate.  
-Attach the **servo motor** using **connector Part 34** and ensure all fasteners are tight.
+Next, install the **[gearbox mount components](<CAD/Seperate Parts/Gearbox back.3mf>)** as well as the **[servo bracket](<CAD/Seperate Parts/Gerbox front.3mf>)** and **[inset](<CAD/Seperate Parts/Gearbox front inset.3mf>)** on the base plate.  
+Attach the **servo motor** using **[servo connector](<CAD/Seperate Parts/Servo shaft.3mf>) + [servo connector LEGO side](<CAD/Seperate Parts/Servo shaft lego.3mf>)** and ensure all fasteners are tight.
+
+
 
 Route the **motor cables to the side**, so they remain accessible later.  
 Finally, verify that **all shafts are properly aligned and firmly fastened**.
@@ -79,8 +81,7 @@ Finally, verify that **all shafts are properly aligned and firmly fastened**.
 
 Attach the **LEGO components** to the 3D-printed parts as shown below.
 
-![LEGO Assembly](images/lego_montage.jpg)  
-*(Insert image here later)*
+**[LEGO Assembly](CAD/Lego_Chassis.io)**
 
 Ensure all connections fit snugly and that no parts are misaligned.
 
@@ -88,9 +89,9 @@ Ensure all connections fit snugly and that no parts are misaligned.
 
 ---
 
-<details><summary><span style="font-size:1.4em; font-weight:700;">Step 4 – Mounting the Upper Structures</span></summary>
+<details><summary><span style="font-size:1.4em; font-weight:700;">Step 4 – Steering axel</span></summary>
 
-Install **Parts 8 and 9** onto the base plate, then complete the **steering shaft assembly**.  
+Check that you have installed both **gearboxes (step 3)** onto the base plate, then complete the **steering shaft assembly**.  
 A **metal rod** is recommended; alternatively, a **16 cm LEGO steering bar** can be used.
 
 These components secure all shafts in place and ensure stable **gear engagement**.  
@@ -102,11 +103,11 @@ Verify that all gears rotate smoothly and are properly meshed.
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 5 – Computer Mounting Plate</span></summary>
 
-Attach **Part CAD 33**, the **mounting plate for the Raspberry Pi**, to the supports installed in the previous step.  
-Then, mount the **camera holder (CAD 4)** on top of this plate as shown in the image.
+Attach **[Raspberry holder](<CAD/Seperate Parts/Rasbperry holder.3mf>)**, the **mounting plate for the Raspberry Pi and the [cover top lower](<CAD/Seperate Parts/Cover top lower.3mf>)**, to the supports installed in the previous step.  
+Then, mount the **[camera holder](<CAD/Seperate Parts/Camera mount.3mf>)** on top of this plate as shown in the image.
 
-![Computer Mounting Plate](images/rechnergrundplatte.jpg)  
-*(Insert image here later)*
+**[complete vehicle model](<CAD/Car v87.step>)**
+
 
 Make sure the alignment is precise so that cables and connectors remain easily accessible.
 
@@ -116,10 +117,15 @@ Make sure the alignment is precise so that cables and connectors remain easily a
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 6 – Installing the Electronics</span></summary>
 
-Mount the **Raspberry Pi** onto the upper plate according to the reference image.  
+Mount the **Raspberry Pi** onto the upper plate.  
 The **Arduino Nano** will be connected later and should remain **temporarily unattached** for now.
 
-Carefully turn the robot upside down and install the remaining **electrical components** on the underside, following the reference diagram.
+Carefully turn the robot upside down and install the remaining **electrical components** on the underside, following the reference picture.
+
+![alt text](media/DSC00500.JPG)
+
+Use the washers and fastening materials: 
+**[Voltager regulator spacer top](<CAD/Seperate Parts/Voltager regulator spacer top.3mf>), [Motor driver spacer top](<CAD/Seperate Parts/Motor driver spacer top.3mf>), [Gyro spacer](<CAD/Seperate Parts/Gyro spacer.3mf>).**
 
 > 💡 **Tip:**  
 > Use **nylon washers or plastic spacers** under PCBs to prevent short circuits.
@@ -130,7 +136,7 @@ Carefully turn the robot upside down and install the remaining **electrical comp
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 7 – Wiring</span></summary>
 
-Follow the provided **wiring diagram** to correctly interconnect all components.  
+Follow the provided **[Wiring Diagram](#wiring-diagram)** to correctly interconnect all components.  
 The **Arduino Nano** can temporarily remain on the top side for easy access.
 
 Solder the wires of the power components on the underside and use **connectors** where possible to simplify maintenance.  
@@ -146,8 +152,8 @@ For the main power supply, **WAGO terminals** can be placed in the front interio
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 8 – Enclosure Assembly</span></summary>
 
-Place **Part 11** over the wiring from underneath – it should **snap into place securely**.  
-Then, flip the robot back upright and install the **top cover (CAD 99)**.
+Place **[bottom cover](<CAD/Seperate Parts/Bottom cover.3mf>)** over the wiring from underneath – it should **snap into place securely**.  
+Then, flip the robot back upright and prepare the **[top cover](<CAD/Seperate Parts/Cover top upper.3mf>)**.
 
 Mount the **toggle switches** and the **status LED** as shown, and connect them directly to the Arduino.
 
@@ -167,7 +173,8 @@ Carefully attach the **lens**, making sure it is free of dust and properly focus
 Tighten it fully to prevent image blur caused by vibration.
 
 To finish:
-- Install the **rear spoiler** (for that extra aerodynamic performance 😎).  
+- Install the **[rear spoiler](<CAD/Seperate Parts/spoiler_full_2.3mf>)** (for that extra aerodynamic performance 😎).
+- Don't forget to install the **[Battery holder](<CAD/Seperate Parts/Battery holder.3mf>)**.
 - Attach the **wheels**.
 
 Your robot’s **hardware assembly** is now complete and ready for operation.
@@ -178,10 +185,10 @@ Your robot’s **hardware assembly** is now complete and ready for operation.
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 10 – Software Installation and Setup</span></summary>
 
-Carefully read through the **software documentation** and install all required software packages on the **Raspberry Pi** and **Arduino Nano**.  
+Carefully read through the **[software documentation](#enabling-reproducibility)** and install all required software packages on the **Raspberry Pi** and **Arduino Nano**.  
 Upload the corresponding **firmware, scripts, and configuration files** as described in the software section.
 
-> 🎉 **Congratulations!**  
+>  **Congratulations!**  
 > Your robot is now fully assembled and ready for its first run.  
 > Enjoy driving, experimenting, and improving your creation!
 

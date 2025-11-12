@@ -32,8 +32,8 @@ long encoder_pos = 0;
 int encoder_dir = 1; // 1 -> CCW, -1 -> CW
 
 bool en_state = false; // enable state
-const char en_state_true[] = "enable 1";
-const char en_state_false[] = "enable 0";
+const char en_state_true[] = "enable start";
+const char en_state_false[] = "enable stop";
 
 // dc motor settings
 const int max_dc = 200;        // max duty cycle for motor driver
@@ -88,12 +88,16 @@ unsigned long last_status_time = 0;           // when the last status was printe
 unsigned long last_loop_time_us = 0;          // last loop time in microseconds
 float last_loop_time = 0;                     // last loop time in seconds
 unsigned long last_enable_interrupt_time = 0; // last time the enable interrupt was called
+unsigned long last_steering_command = 0;
+unsigned long steering_diff = 0;
 
 sensors_event_t event;
 float degree = 0;
 float degree_calibrated = 0;
 float offset = 0;
 float last_offset = 0;
+float offset_calibrated = 0;
+float last_offset_calibrated = 0;
 // float y = -0.0006x - 0.0034
 const float offset_m = -0.0006;
 const float offset_b = -0.0034;
@@ -273,7 +277,7 @@ void drive_loop()
     return;
   }
   pid_speed();
-  measured_speed = (current_distance - last_distance) / last_loop_time; // approximate speed in mm/s todo: average over multiple loops
+  // measured_speed = (current_distance - last_distance) / last_loop_time; // approximate speed in mm/s todo: average over multiple loops
 }
 
 /*
@@ -348,11 +352,15 @@ void gyro_config(float time_interval = 10)
   {
     last_offset_time = current_time;
     offset = degree - last_offset;
+    offset_calibrated = degree_calibrated - last_offset_calibrated;
     Serial.print(offset / time_interval, 6);
     Serial.print(", ");
-    Serial.println(temperature_average / time_interval, 6);
+    Serial.print(temperature_average / time_interval, 6);
+    Serial.print(", ");
+    Serial.println((degree_calibrated - last_offset_calibrated) / time_interval, 6);
     temperature_average = 0;
     last_offset += offset;
+    last_offset_calibrated += offset_calibrated;
   }
 }
 
@@ -412,6 +420,10 @@ void gyro_config_print()
   }
 }
 
+int last_current_time_int = 0;
+int last_value_2 = 0;
+int time_now_int = 0;
+
 void parseMessage(char *msg)
 {
   char cmd[3]; // To store the 2-char command
@@ -427,13 +439,15 @@ void parseMessage(char *msg)
     beg++;
   }
 
-  char *end = beg;
+  char *second_int = beg;
 
-  while (*end != '\0')
+  while ((*second_int >= '0' && *second_int <= '9') || *second_int == '-')
   {
-    end++;
+    second_int++;
   }
   value = atoi(beg);
+  int value_2 = atoi(++second_int);
+  // Serial.println("ok");
   switch (cmd[0])
   {
   case 'd':
@@ -447,6 +461,8 @@ void parseMessage(char *msg)
     break;
   case 'p':
     stop();
+    current_speed = 0;
+    target_distance = current_distance;
     break;
   case 'h':
     stop(true);
@@ -475,9 +491,31 @@ void parseMessage(char *msg)
   case 'o':
     digitalWrite(ledPin, HIGH);
     break;
+  case 'f':
+    digitalWrite(ledPin, LOW);
+    break;
   case 'z':
-    Serial.println(get_distance(encoder_pos));
+    Serial.print(get_distance(encoder_pos));
+    Serial.print(",");
     Serial.println(degree_calibrated * 180 / PI);
+    break;
+  case 'y':
+    set_speed(value);
+    set_steering(value_2);
+    Serial.print(get_distance(encoder_pos));
+    Serial.print(",");
+    Serial.println(degree_calibrated * 180 / PI);
+    break;
+  case 'x':
+    Serial.print("Steering diff: ");
+    Serial.print(steering_diff);
+    Serial.println(" us");
+    break;
+  case 'm':
+    disable_dc = false;
+    disable_servo = false;
+    set_speed();
+    break;
   }
 }
 
@@ -543,12 +581,14 @@ void check_stalling()
 {
   if (fabs(stall_encoder_pos - encoder_pos) < 4 && fabs(current_dc) > max_dc * 0.9 && !disable_dc)
   {
+    Serial.print("Stall detected, stopping robot: diff_distance:");
     Serial.print(fabs(stall_encoder_pos - encoder_pos));
-    Serial.print(", ");
-    Serial.print(current_dc);
-    Serial.println(" Stalling detected, stopping robot");
+    Serial.print(", current_dc");
+    Serial.println(current_dc);
     // disable motor
     stop();
+    current_speed = 0;
+    target_distance = current_distance;
   }
   stall_encoder_pos = encoder_pos; // update stall position
 }
@@ -595,7 +635,16 @@ void update_gyro()
 {
   gyro.getEvent(&event);
   degree += event.gyro.z * last_loop_time;
-  degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b) / 2) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+  int temperature = get_temperature();
+  if (temperature < 0)
+  {
+    degree_calibrated += (event.gyro.z - (-0.0007 * get_temperature() + -0.0108)) * last_loop_time * 0.98 * scaling_calibrated; // / 2 experimentally included
+  }
+  else
+  {
+    degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b)) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+  }
+
   temperature_average += temperature * last_loop_time;
 }
 

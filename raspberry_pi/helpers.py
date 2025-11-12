@@ -1,5 +1,9 @@
 import numpy as np
-from time import time
+from time import time, sleep
+import sys
+import os
+import serial
+import cv2
 
 class Pillar:
     """
@@ -191,10 +195,10 @@ class Straight_Section:
         """
         if self.parking_lot:
             for i in range(3):
-                if self.l[i] != 0 and direction == 1:
+                if self.l[i] != 0 and direction == -1:
                     self.r[i] = self.l[i]
                     print(f"Fixing parking lot pillar: l[{i}] = {self.l[i]} -> r[{i}] = {self.r[i]}")
-                elif self.r[i] != 0 and direction == -1:
+                elif self.r[i] != 0 and direction == 1:
                     self.l[i] = self.r[i]
                     print(f"Fixing parking lot pillar: l[{i}] = {self.l[i]} <- r[{i}] = {self.r[i]}")
 
@@ -230,3 +234,223 @@ class Straight_Section:
                     self.driving_pos = [i, i]
                     break
         return self.driving_pos
+
+
+def setup_logging():
+    """
+    Set up logging to a file and redirect print statements to the log file.
+    This function creates a log file named 'robot_log.txt' in the 'logs' directory.
+    If the directory does not exist, it will be created.
+    """
+    
+    # Open a file for logging
+    log_file = open("logs/robot_log.txt", "a")
+
+    # Redirect print statements to the log file
+    class Logger:
+        def __init__(self, file):
+            self.file = file
+
+        def write(self, message):
+            self.file.write(message)
+            self.file.flush()
+
+        def flush(self):
+            pass
+
+    sys.stdout = Logger(log_file)
+    sys.stderr = Logger(log_file)
+    
+
+def process_pillars(state, straight_sections):
+    """
+    Process detected pillars and update the straight sections with pillar information.
+    Args:
+        state (SharedState): The shared state containing detected pillars and other information.
+        straight_sections (list): A list of Straight_Section objects representing the straight sections.
+    """
+    if state.rounds == 0:
+        first_section = True
+    else:
+        first_section = False
+    section_index = state.rounds % 4
+    if state.rounds > 4:
+        pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
+        return pillar_driving_pos
+    index = None
+    if straight_sections[section_index].parking_lot:
+        print(f"parking lot in section, resetting pillars")
+        # rescan the parking lot
+        for i in range(3):
+            straight_sections[section_index].l[i] = 0
+            straight_sections[section_index].r[i] = 0
+        # print(f"pillars reset and printing now")
+        # straight_sections[section_index].print()
+    for p in state.detected_pillars: # todo show where the undetected pillars are
+        index = None
+        if p.ignore:
+            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 50) if p.color == "RED" else (0, 50, 0)), 3)
+            cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            continue
+        if first_section:
+            if p.y > 130:
+                print(f"--Pillar {p.color} is too near (higher than 130), y={p.y}")
+            if abs(p.screen_x - 320) > 200:
+                print(f"--Pillar {p.color} is too far from the center (further than 200), x={abs(p.screen_x - 320)}")
+            if p.y > 50:
+                index = 0
+            elif p.y > 23:
+                index = 1
+            else:
+                print(f"--Pillar {p.color} is too far (lower than 24), y={p.y}")
+        else:
+            if p.y > 180:
+                print(f"--Pillar {p.color} is too near (higher than 180), y={p.y}")
+            if p.y > 50:
+                index = 0 # about 80
+            elif p.y > 22:
+                index = 1 # about 28
+            elif p.y > 11:
+                index = 2 # about 13
+            else:
+                print(f"--Pillar {p.color} is too far (lower than 25), y={p.y}")
+        if index == None:
+            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 100) if p.color == "RED" else (0, 100, 0)), 3)
+            cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            continue
+        else:
+            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
+            cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            print(f"Pillar {p.color} accepted at index {index}, y={p.y}, x={p.screen_x}, section {section_index}")
+        if p.screen_x < 320:
+            straight_sections[section_index].l[index] = p.color
+        else:
+            straight_sections[section_index].r[index] = p.color
+
+    straight_sections[section_index].parking_lot = True if section_index == 0 else False
+    straight_sections[section_index].validate(state.round_dir)
+    cv2.imwrite(f"logs/image{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["color_image"])
+    cv2.imwrite(f"logs/image_viz{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["viz"])
+    cv2.imwrite(f"logs/image_red{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["red"])
+    cv2.imwrite(f"logs/image_green{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["green"])
+    pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+    straight_sections[section_index].print()
+    return pillar_driving_pos
+
+    
+class Car:
+    """
+    Class to represent the car's current state.
+
+    Attributes:
+        angle (float): The current angle of the car (degrees).
+        distance (float): The current encoder distance (millimeters).
+        speed (float): The current speed of the car.
+        steering (float): The current steering value.
+    """
+
+    def __init__(self, angle=0.0, distance=0.0, speed=0.0, steering=0.0):
+        self.angle = angle
+        self.distance = distance
+        self.speed = speed
+        self.steering = steering
+
+        self.straight_direction = 0
+
+        # paused
+        self.paused = True
+        self.stalled = False
+
+
+class SharedState:
+    """
+    Central place to store and access all shared data:
+    - Streams (camera images, ROIs, HSV, etc.)
+    - Lines (detected wall/edge lines)
+    - Pillars (red/green markers)
+    - State flags (pillars mode, calibration, shutdown, etc.)
+    """
+    def __init__(self):
+        # Streams
+        self.current_streams = ["viz", "black", "viz"]
+        self.has_sent_streams_info = False
+        self.active_websocket = None
+        self.latest_streams = {}
+        self.detected_corners = {"L": None, "R": None, "P": []} # corner average x, corner average y, index of line, same or different slopes
+
+        # Vision results
+        self.border_lines = {"L": None, "R": None, "M": None}
+        self.detected_pillars = []
+        self.portion_black_l = 0.0
+        self.portion_black_r = 0.0
+        self.portion_orange = 0.0
+        self.portion_blue = 0.0
+        self.distance_front = 0.0
+        
+        self.round_dir = 0
+        self.rounds = 0
+        self.position = "middle"
+      
+        self.current_function = "starting"
+        self.parking = None
+        self.parking_x = 0
+        self.parking_y = 0
+        self.vertical_line = None
+        self.lower_point = 0
+        self.detect_pink = False
+        self.distance_pink = 0
+
+        # Configurable flags
+        self.headless = False
+        self.pillars = False
+        self.shutdown = False
+        self.calibrate = False
+        self.skip_arduino = False
+
+        # Error tracking
+        self.last_error = 0.0
+
+        # PD control params
+        self.kp = 0.0
+        self.kd = 0.0
+
+    def reset_streams(self):
+        self.latest_streams.clear()
+
+    def update_stream(self, name, value):
+        self.latest_streams[name] = value
+
+    def set_lines(self, left, right):
+        self.border_lines["L"] = left
+        self.border_lines["R"] = right
+
+    def add_pillars(self, pillars):
+        self.detected_pillars = pillars
+
+    def set_flags(self, headless=False, pillars=False, shutdown=False, calibrate=False, skip_arduino=False):
+        self.headless = headless
+        self.pillars = pillars
+        self.shutdown = shutdown
+        self.calibrate = calibrate
+        self.skip_arduino = skip_arduino
+
+def find_direction(round_direction, current_position, target_position):
+    # change middle_parking to middle, if current_position or target_position is middle_parking
+    if current_position == "middle_parking":
+        current_position = "middle"
+    if target_position == "middle_parking":
+        target_position = "middle"
+    if current_position == target_position:
+        return 0
+    elif current_position == "inner":
+        direction = -1
+    elif current_position == "outer":
+        direction = 1
+    # current_position == "middle"
+    elif target_position == "inner":
+        direction = 1
+    elif target_position == "outer":
+        direction = -1
+    else:
+        raise ValueError(f"Invalid position: {current_position} or {target_position}")
+    return -direction * round_direction

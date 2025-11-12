@@ -1,7 +1,7 @@
 {
   "version": 1,
   "filters": {
-    "GRAY": 50,
+    "GRAY": 55,
     "REDLO": [
       0,
       20,
@@ -14,7 +14,7 @@
     ],
     "GREENLO": [
       100,
-      20,
+      25,
       6
     ],
     "GREENHI": [
@@ -34,8 +34,8 @@
     ],
     "BLUELO": [
       208,
-      20,
-      10
+      30,
+      20
     ],
     "BLUEHI": [
       235,
@@ -43,14 +43,14 @@
       100
     ],
     "PINKLO": [
-      158,
-      160,
-      100
+      290,
+      50,
+      20
     ],
     "PINKHI": [
-      170,
-      255,
-      255
+      340,
+      100,
+      100
     ]
   },
   "contours": {
@@ -91,5 +91,8 @@
     "kd": 8.0
   },
   "ArduinoSerialPort": "/dev/ttyUSB0",
-  "ArduinoBaudRate": 115200
+  "ArduinoBaudRate": 115200,
+  "d": 5,
+  "sigmaColor": 20,
+  "sigmaSpace": 10
 }

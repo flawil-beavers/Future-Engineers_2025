@@ -872,7 +872,7 @@ async def parking():
     print(f"state.parking = {state.parking}")
     # wall_line = lambda x: -0.35 * state.round_dir * x - 13
     # parking_line = lambda x: m * x + q
-    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 240), 0.005) # todo wait for a realistic stop condition, (before robot starts turning)
+    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 210), 0.005) # todo wait for a realistic stop condition, (before robot starts turning)
     # await drive(-SPEED_PARK, 60)
     # await turn(SPEED_PARK, 60 * state.round_dir, 1, car.straight_direction)
     # await stop()
@@ -881,12 +881,13 @@ async def parking():
     # await turn(-SPEED_PARK, -50 * state.round_dir, 1)
     # await turn(-SPEED_PARK, 50 * state.round_dir, 1)
     
-    await drive(SPEED_PARK, 220)
+    await turn(SPEED_PARK, 50 * state.round_dir, 1)
     await stop()
-    await turn(-SPEED_PARK, -60 * state.round_dir, 1)
-    await turn(-SPEED_PARK, 45 * state.round_dir, 1)
+    await drive(-SPEED_PARK, 280)
     await stop()
-    await turn(SPEED_PARK, -10 * state.round_dir, 1)
+    await turn(-SPEED_PARK, 30 * state.round_dir, 1)
+    await stop()
+    await turn(SPEED_PARK, -10 * state.round_dir, 0.75)
     await stop()
     car.steering = -1 * state.round_dir
     await asyncio.sleep(1)
@@ -899,9 +900,9 @@ async def main_program():
     # global roi_width
     # roi_width = 640//2
     
-    # state.detect_pink = True
-    # state.parking = "R"
-    # state.round_dir = -1
+    state.detect_pink = True
+    state.parking = "R"
+    state.round_dir = -1
     
     if ser and not state.calibrate:
         await connect_to_arduino()

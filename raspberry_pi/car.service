@@ -5,7 +5,7 @@ After=multi-user.target
 [Service]
 Type=simple
 WorkingDirectory=/home/pi/git/Future-Engineers_2025/raspberry_pi
-ExecStart=/home/pi/git/Future-Engineers_2025/raspberry_pi/roi.py --pillar --headless
+ExecStart=/home/pi/git/Future-Engineers_2025/raspberry_pi/main.py --pillar --headless
 StandardOutput=append:/home/pi/git/Future-Engineers_2025/raspberry_pi/logs/roi.log
 StandardError=append:/home/pi/git/Future-Engineers_2025/raspberry_pi/logs/roi_error.log
 User=pi

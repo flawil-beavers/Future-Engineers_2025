@@ -4,12 +4,11 @@
 
 ![Flawil Beavers Logo](media/flawil_beavers_logo.png)
 
-[![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Opening_challenge-df3e3e?logo=youtube)](https://youtu.be/OofLgNROook)
-[![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Obstacle_challenge-df3e3e?logo=youtube)](https://youtu.be/P_mGKfEbACU)
+| Opening Challenge | Obstacle Challenge |
+|--------------|---------------|
+| [![Watch the Opening Race](https://img.youtube.com/vi/OofLgNROook/maxresdefault.jpg)](https://youtu.be/OofLgNROook) | [![Watch the Obstacle Race](https://img.youtube.com/vi/P_mGKfEbACU/maxresdefault.jpg)](https://youtu.be/P_mGKfEbACU) |
+| [![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Opening_Challenge-df3e3e?logo=youtube)](https://youtu.be/OofLgNROook) | [![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Obstacle_Challenge-df3e3e?logo=youtube)](https://youtu.be/P_mGKfEbACU) |
 
-[![Demo Video](https://img.youtube.com/vi/P_mGKfEbACU/maxresdefault.jpg)](https://youtu.be/P_mGKfEbACU)
-
-[![Watch the video](https://img.youtube.com/vi/OofLgNROook/hqdefault.jpg)](https://youtu.be/P_mGKfEbACU)
 
 
 
@@ -377,7 +376,7 @@ Using a small region of interest in the center of the camera feed, we detect the
 ### Obstacle Race
 
 ```mermaid
-flowchart LR
+flowchart TD
     open("Obstacle challenge logic") --> side["Determine round direction"]
     side --> unpark["Unpark"]
     unpark --> foto["Take Foto"]

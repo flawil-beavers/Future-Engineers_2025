@@ -414,17 +414,27 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
     if state.parking != None:
         lines = state.border_lines["P"].lines
         if len(lines) != 0:
-            lines.sort(key=lambda x: x["x1"], reverse=(state.round_dir == 1))
+            lines.sort(key=lambda x: (x["x"]), reverse=(state.round_dir == 1))
             highest_y = 0
+            index_highest_y = 0
             index = 0
             for line in lines:
-                if abs(line["m"]) < 40:
+                if abs(line["m"]) < 10 or abs(line["x1"] - lines[max(index-1, 0)]["x1"]) > 20:
                     break
                 index += 1
-                highest_y = max(highest_y, line["y1"], line["y2"])
-            print(f"index: {index}, lines: {lines}")
-            state.parking_x = lines[index]["x1"]
-            state.parking_y = max(lines[index]["y1"], lines[index]["y2"]) # highest_y
+                if highest_y < line["y1"] or highest_y < line["y2"]:
+                    highest_y = max(highest_y, line["y1"], line["y2"])
+                    index_highest_y = index
+            if index_highest_y >= 1:
+                index_highest_y -= 1
+            index = index_highest_y
+            # print(f"index: {index}, lines: {lines}")
+            if lines[index]["y1"] > lines[index]["y2"]:
+                state.parking_x = lines[index]["x1"]
+                state.parking_y = lines[index]["y1"]
+            else:
+                state.parking_x = lines[index]["x2"]
+                state.parking_y = lines[index]["y2"]
             if not state.headless:
                 cv2.circle(viz_stream, (state.parking_x + lines[index]["x_offset"], state.parking_y +lines[index]["y_offset"]), 5, (255, 150, 0), -1)
                 cv2.putText(viz_stream, f"index = {index}", (320, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
@@ -462,9 +472,9 @@ async def cycle():
         cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 222), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         cv2.putText(viz_stream, f"p: {state.distance_pink:.2f}", (300, 234), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
         line = lambda x: -0.35 * state.round_dir * x - 13
-        await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (200+640//2, int(line(200))), (255, 255, 255))
+        await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (-200*state.round_dir+640//2, int(line(-200*state.round_dir))), (255, 255, 255))
         line = lambda x: -0.95 * state.round_dir * x - 13
-        await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (200+640//2, int(line(200))), (255, 255, 255))
+        await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (-200*state.round_dir+640//2, int(line(-200*state.round_dir))), (255, 255, 255))
         m = -0.95 * state.round_dir
         q = -13
         x1 = state.parking_x
@@ -815,8 +825,9 @@ async def pd_point(speed: int, error: callable, stop_condition: callable, scaler
 async def stop(directly = False):
     car.speed = 0
     if directly:
+        await write_serial("p\n")
+        await asyncio.sleep(0.1)                        
         await write_serial("m\n")
-        await asyncio.sleep(0.1)
     else:
         await asyncio.sleep(0.5)
 
@@ -872,7 +883,21 @@ async def parking():
     print(f"state.parking = {state.parking}")
     # wall_line = lambda x: -0.35 * state.round_dir * x - 13
     # parking_line = lambda x: m * x + q
-    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 210), 0.005) # todo wait for a realistic stop condition, (before robot starts turning)
+    car.straight_direction = car.angle
+    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > (190 if state.round_dir == -1 else 190)), 0.005) # todo wait for a realistic stop condition, (before robot starts turning)
+    cv2.imwrite(f"logs/image.jpg", state.latest_streams["viz"])
+
+    await turn(SPEED_PARK, 60 * state.round_dir, 1)
+    await stop(True)
+    await drive(-SPEED_PARK, 250 + (25 if state.round_dir == 1 else 0)) # 260 seems to be about the maximum
+    await turn(-SPEED_PARK, 40 * state.round_dir, 1)
+    await stop(True)
+    await turn(SPEED_PARK, -10 * state.round_dir, 1)
+    await stop(True)
+    car.steering = 0
+    await asyncio.sleep(0.1)
+    
+    return
     # await drive(-SPEED_PARK, 60)
     # await turn(SPEED_PARK, 60 * state.round_dir, 1, car.straight_direction)
     # await stop()
@@ -880,15 +905,24 @@ async def parking():
     # await turn(-SPEED_PARK, 45 * state.round_dir, 1)
     # await turn(-SPEED_PARK, -50 * state.round_dir, 1)
     # await turn(-SPEED_PARK, 50 * state.round_dir, 1)
+
     
-    await turn(SPEED_PARK, 50 * state.round_dir, 1)
+    await double_turn(-SPEED_PARK, 70 * state.round_dir, 1)
     await stop()
-    await drive(-SPEED_PARK, 280)
+    await turn(SPEED_PARK, 30 * state.round_dir, 0.75)
     await stop()
-    await turn(-SPEED_PARK, 30 * state.round_dir, 1)
-    await stop()
-    await turn(SPEED_PARK, -10 * state.round_dir, 0.75)
-    await stop()
+    # await turn(SPEED_PARK, -10 * state.round_dir, 0.75)
+    # await stop()
+
+    # versuch 1
+    # await turn(SPEED_PARK, 50 * state.round_dir, 1)
+    # await stop()
+    # await drive(-SPEED_PARK, 280)
+    # await stop()
+    # await turn(-SPEED_PARK, 30 * state.round_dir, 1)
+    # await stop()
+    # await turn(SPEED_PARK, -10 * state.round_dir, 0.75)
+    # await stop()
     car.steering = -1 * state.round_dir
     await asyncio.sleep(1)
 
@@ -901,8 +935,8 @@ async def main_program():
     # roi_width = 640//2
     
     state.detect_pink = True
-    state.parking = "R"
     state.round_dir = -1
+    state.parking = "R" if state.round_dir == -1 else "L"
     
     if ser and not state.calibrate:
         await connect_to_arduino()
@@ -910,7 +944,6 @@ async def main_program():
     print("Starting main program...")
     run_time = time()
     
-    state.round_dir = -1
     # # Parking: 
     # SPEED_PARK = 100
     # print("Start parking...")

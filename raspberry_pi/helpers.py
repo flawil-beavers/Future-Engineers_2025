@@ -120,6 +120,7 @@ class Lines:
                     "y1": line[0][1] - calc_offset[1],
                     "x2": line[0][2] - calc_offset[0],
                     "y2": line[0][3] - calc_offset[1],
+                    "x": (line[0][0] + line[0][2]) / 2 - calc_offset[0],
                     "x_offset": x_offset + calc_offset[0],
                     "y_offset": y_offset + calc_offset[1]
                 }
@@ -372,7 +373,7 @@ class SharedState:
     """
     def __init__(self):
         # Streams
-        self.current_streams = ["viz", "black", "viz"]
+        self.current_streams = ["viz", "pink", "viz"]
         self.has_sent_streams_info = False
         self.active_websocket = None
         self.latest_streams = {}

@@ -61,11 +61,11 @@ Use **M3 screws** for all mechanical components, and **M2 screws** for electroni
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 2 – Base Plate and Drive Assembly</span></summary>
 
 Take the printed **[base plate](3D-Printed-Parts/base_plate.cad)** and begin by mounting the two **motors**.  
-The **drive motor** is positioned in the center and secured with **[motor cover](<CAD/Seperate Parts/DC motor cover.3mf>)**.  
-Place a **coupling** between the motor shaft and the **LEGO axle** – we recommend a **metal coupling**, though **[CAD coupling](<CAD/Seperate Parts/Shaft.3mf>)** can also be used.
+The **drive motor** is positioned in the center and secured with [![DC motor cover](./CAD/Seperate%20Parts/DC%20motor%20cover.png)](./CAD/Seperate%20Parts/DC%20motor%20cover.3mf).  
+Place a **coupling** between the motor shaft and the **LEGO axle** – we recommend a **metal coupling**, though [![Shaft](./CAD/Seperate%20Parts/Shaft.png)](./CAD/Seperate%20Parts/Shaft.3mf) can also be used.
 
-Next, install the **[gearbox mount components](<CAD/Seperate Parts/Gearbox back.3mf>)** as well as the **[servo bracket](<CAD/Seperate Parts/Gerbox front.3mf>)** and **[inset](<CAD/Seperate Parts/Gearbox front inset.3mf>)** on the base plate.  
-Attach the **servo motor** using **[servo connector](<CAD/Seperate Parts/Servo shaft.3mf>) + [servo connector LEGO side](<CAD/Seperate Parts/Servo shaft lego.3mf>)** and ensure all fasteners are tight.
+Next, install the [![Gearbox back](./CAD/Seperate%20Parts/Gearbox%20back.png)](./CAD/Seperate%20Parts/Gearbox%20back.3mf) as well as the [![Gerbox front](./CAD/Seperate%20Parts/Gerbox%20front.png)](./CAD/Seperate%20Parts/Gerbox%20front.3mf) and [![Gearbox front inset](./CAD/Seperate%20Parts/Gearbox%20front%20inset.png)](./CAD/Seperate%20Parts/Gearbox%20front%20inset.3mf) on the base plate.  
+Attach the **servo motor** using [![Servo shaft](./CAD/Seperate%20Parts/Servo%20shaft.png)](./CAD/Seperate%20Parts/Servo%20shaft.3mf) + [![Servo shaft lego](./CAD/Seperate%20Parts/Servo%20shaft%20lego.png)](./CAD/Seperate%20Parts/Servo%20shaft%20lego.3mf) and ensure all fasteners are tight.
 
 
 
@@ -102,10 +102,10 @@ Verify that all gears rotate smoothly and are properly meshed.
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 5 – Computer Mounting Plate</span></summary>
 
-Attach **[Raspberry holder](<CAD/Seperate Parts/Rasbperry holder.3mf>)**, the **mounting plate for the Raspberry Pi and the [cover top lower](<CAD/Seperate Parts/Cover top lower.3mf>)**, to the supports installed in the previous step.  
-Then, mount the **[camera holder](<CAD/Seperate Parts/Camera mount.3mf>)** on top of this plate as shown in the image.
+Attach [![Rasbperry holder](./CAD/Seperate%20Parts/Rasbperry%20holder.png)](./CAD/Seperate%20Parts/Rasbperry%20holder.3mf), the **mounting plate for the Raspberry Pi and the [cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower.3mf)** [![Cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower.png)](./CAD/Seperate%20Parts/Cover%20top%20lower.3mf), to the supports installed in the previous step.  
+Then, mount the [![Camera mount](./CAD/Seperate%20Parts/Camera%20mount.png)](./CAD/Seperate%20Parts/Camera%20mount.3mf) on top of this plate as shown in the image.
 
-**[complete vehicle model](<CAD/Car v87.step>)**
+**[complete vehicle model](./CAD/Car%20v87.step)**
 
 
 Make sure the alignment is precise so that cables and connectors remain easily accessible.
@@ -123,8 +123,8 @@ Carefully turn the robot upside down and install the remaining **electrical comp
 
 ![alt text](media/DSC00500.JPG)
 
-Use the washers and fastening materials: 
-**[Voltager regulator spacer top](<CAD/Seperate Parts/Voltager regulator spacer top.3mf>), [Motor driver spacer top](<CAD/Seperate Parts/Motor driver spacer top.3mf>), [Gyro spacer](<CAD/Seperate Parts/Gyro spacer.3mf>).**
+Use the washers and fastening materials:  
+[![Voltager regulator spacer top](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top.png)](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top.3mf), [![Motor driver spacer top](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top.png)](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top.3mf), [![Gyro spacer](./CAD/Seperate%20Parts/Gyro%20spacer.png)](./CAD/Seperate%20Parts/Gyro%20spacer.3mf).
 
 > 💡 **Tip:**  
 > Use **nylon washers or plastic spacers** under PCBs to prevent short circuits.
@@ -151,8 +151,8 @@ For the main power supply, **WAGO terminals** can be placed in the front interio
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 8 – Enclosure Assembly</span></summary>
 
-Place **[bottom cover](<CAD/Seperate Parts/Bottom cover.3mf>)** over the wiring from underneath – it should **snap into place securely**.  
-Then, flip the robot back upright and prepare the **[top cover](<CAD/Seperate Parts/Cover top upper.3mf>)**.
+Place [![Bottom cover](./CAD/Seperate%20Parts/Bottom%20cover.png)](./CAD/Seperate%20Parts/Bottom%20cover.3mf) over the wiring from underneath – it should **snap into place securely**.  
+Then, flip the robot back upright and prepare the [![top cover](./CAD/Seperate%20Parts/Cover%20top%20upper.png)](./CAD/Seperate%20Parts/Cover%20top%20upper.3mf).
 
 Mount the **toggle switches** and the **status LED** as shown, and connect them directly to the Arduino.
 
@@ -172,8 +172,8 @@ Carefully attach the **lens**, making sure it is free of dust and properly focus
 Tighten it fully to prevent image blur caused by vibration.
 
 To finish:
-- Install the **[rear spoiler](<CAD/Seperate Parts/spoiler_full_2.3mf>)** (for that extra aerodynamic performance 😎).
-- Don't forget to install the **[Battery holder](<CAD/Seperate Parts/Battery holder.3mf>)**.
+- Install the [![rear spoiler](./CAD/Seperate%20Parts/spoiler_full_2.png)](./CAD/Seperate%20Parts/spoiler_full_2.3mf) (for that extra aerodynamic performance 😎).
+- Don't forget to install the [![Battery holder](./CAD/Seperate%20Parts/Battery%20holder.png)](./CAD/Seperate%20Parts/Battery%20holder.3mf).
 - Attach the **wheels**.
 
 Your robot’s **hardware assembly** is now complete and ready for operation.

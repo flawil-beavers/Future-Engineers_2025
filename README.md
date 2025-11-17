@@ -47,12 +47,19 @@ We, Damian Hardegger and Philipp Kündig, make up the WRO team Flawil Beavers. W
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 1 – Preparations</span></summary>
 
-Gather all required materials according to the [**Bill of Materials (BOM)**](#bill-of-materials) and print all necessary **[3D‑Printed‑Parts / CAD & STL](3D-Printed-Parts/)**.  
+Gather all required materials according to the [**Bill of Materials (BOM)**](#bill-of-materials) and print all necessary **[3D‑Printed‑Parts / CAD & STL](C:\Users\Damian\Documents\WRO\FE\Future-Engineers_2025\CAD\Seperate Parts)**.  
 Use **M3 screws** for all mechanical components, and **M2 screws** for electronic parts.
 
 > ⚠️ **Note:**  
 > For the **base plate** and **battery cover**, **magnets must be inserted during the printing process**.  
 > Make sure to place them in time before the printer closes the respective layers.
+
+
+
+
+
+
+
 
 </details>
 
@@ -60,17 +67,23 @@ Use **M3 screws** for all mechanical components, and **M2 screws** for electroni
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 2 – Base Plate and Drive Assembly</span></summary>
 
-Take the printed **[base plate](3D-Printed-Parts/base_plate.cad)** and begin by mounting the two **motors**.  
-The **drive motor** is positioned in the center and secured with [![DC motor cover](./CAD/Seperate%20Parts/DC%20motor%20cover.png)](./CAD/Seperate%20Parts/DC%20motor%20cover.3mf).  
-Place a **coupling** between the motor shaft and the **LEGO axle** – we recommend a **metal coupling**, though [![Shaft](./CAD/Seperate%20Parts/Shaft.png)](./CAD/Seperate%20Parts/Shaft.3mf) can also be used.
+Take the printed **[base plate](CAD/Seperate Parts/Base.3mf)** and begin by mounting the two **motors**.  
+The **drive motor** is positioned in the center and secured with [DC motor cover](./CAD/Seperate%20Parts/DC%20motor%20cover.3mf).  
+Place a **coupling** between the motor shaft and the **LEGO axle** – we recommend a **metal coupling**, though [Shaft](./CAD/Seperate%20Parts/Shaft.3mf) can also be used.
 
-Next, install the [![Gearbox back](./CAD/Seperate%20Parts/Gearbox%20back.png)](./CAD/Seperate%20Parts/Gearbox%20back.3mf) as well as the [![Gerbox front](./CAD/Seperate%20Parts/Gerbox%20front.png)](./CAD/Seperate%20Parts/Gerbox%20front.3mf) and [![Gearbox front inset](./CAD/Seperate%20Parts/Gearbox%20front%20inset.png)](./CAD/Seperate%20Parts/Gearbox%20front%20inset.3mf) on the base plate.  
-Attach the **servo motor** using [![Servo shaft](./CAD/Seperate%20Parts/Servo%20shaft.png)](./CAD/Seperate%20Parts/Servo%20shaft.3mf) + [![Servo shaft lego](./CAD/Seperate%20Parts/Servo%20shaft%20lego.png)](./CAD/Seperate%20Parts/Servo%20shaft%20lego.3mf) and ensure all fasteners are tight.
-
-
+Next, install the [Gearbox back](./CAD/Seperate%20Parts/Gearbox%20back.3mf) as well as the [Gerbox front](./CAD/Seperate%20Parts/Gerbox%20front.3mf) and [Gearbox front inset](./CAD/Seperate%20Parts/Gearbox%20front%20inset.3mf) on the base plate.  
+Attach the **servo motor** using [Servo shaft](./CAD/Seperate%20Parts/Servo%20shaft.3mf) + [Servo shaft lego](./CAD/Seperate%20Parts/Servo%20shaft%20lego.3mf) and ensure all fasteners are tight.
 
 Route the **motor cables to the side**, so they remain accessible later.  
 Finally, verify that **all shafts are properly aligned and firmly fastened**.
+
+|![base plate](./CAD/Seperate%20Parts/Base_thumbnail.png)<br> **Base plate**| ![DC motor cover](./CAD/Seperate%20Parts/DC%20motor%20cover_thumbnail.png) <br> **DC motor cover** | ![Shaft](./CAD/Seperate%20Parts/Shaft_thumbnail.png) <br> **Shaft** |
+|---|---|---| 
+|![Gearbox back](./CAD/Seperate%20Parts/Gearbox%20back_thumbnail.png) <br> **Gearbox back**| ![Gerbox front](./CAD/Seperate%20Parts/Gerbox%20front_thumbnail.png) <br> **Gerbox front** | ![Gearbox front inset](./CAD/Seperate%20Parts/Gearbox%20front%20inset_thumbnail.png) <br> **Gearbox front inset** | 
+
+![Servo shaft](./CAD/Seperate%20Parts/Servo%20shaft_thumbnail.png) <br> **Servo shaft** |![Servo shaft](./CAD/Seperate%20Parts/Servo%20shaft%20lego_thumbnail.png) <br> **Servo shaft lego** |
+|---|---|
+
 
 </details>
 
@@ -81,6 +94,11 @@ Finally, verify that **all shafts are properly aligned and firmly fastened**.
 Attach the **LEGO components** to the 3D-printed parts as shown below.
 
 **[LEGO Assembly](CAD/Lego_Chassis.io)**
+<p align="center">
+    <img src="CAD/Lego_Chassis.png" alt="Lego Chassis" />
+    <br>
+    <strong>LEGO Chassis</strong>
+</p>
 
 Ensure all connections fit snugly and that no parts are misaligned.
 
@@ -90,7 +108,7 @@ Ensure all connections fit snugly and that no parts are misaligned.
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 4 – Steering axel</span></summary>
 
-Check that you have installed both **gearboxes (step 3)** onto the base plate, then complete the **steering shaft assembly**.  
+Check that you have installed both **gearboxes (step 2)** onto the base plate, then complete the **steering shaft assembly**.  
 A **metal rod** is recommended; alternatively, a **16 cm LEGO steering bar** can be used.
 
 These components secure all shafts in place and ensure stable **gear engagement**.  
@@ -102,12 +120,16 @@ Verify that all gears rotate smoothly and are properly meshed.
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 5 – Computer Mounting Plate</span></summary>
 
-Attach [![Rasbperry holder](./CAD/Seperate%20Parts/Rasbperry%20holder.png)](./CAD/Seperate%20Parts/Rasbperry%20holder.3mf), the **mounting plate for the Raspberry Pi and the [cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower.3mf)** [![Cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower.png)](./CAD/Seperate%20Parts/Cover%20top%20lower.3mf), to the supports installed in the previous step.  
-Then, mount the [![Camera mount](./CAD/Seperate%20Parts/Camera%20mount.png)](./CAD/Seperate%20Parts/Camera%20mount.3mf) on top of this plate as shown in the image.
+Attach [Raspberry holder](./CAD/Seperate%20Parts/Rasbperry%20holder.3mf), the **mounting plate for the Raspberry Pi and the [cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower.3mf)**, to the supports installed in the previous step.  
+Then, mount the [Camera mount](./CAD/Seperate%20Parts/Camera%20mount.3mf) on top of this plate as shown in the image.
 
 **[complete vehicle model](./CAD/Car%20v87.step)**
 
+| ![Raspberry holder](./CAD/Seperate%20Parts/Rasbperry%20holder_thumbnail.png) <br> **Raspberry holder** | ![cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower_thumbnail.png) <br> **cover top lower** | ![Camera mount](./CAD/Seperate%20Parts/Camera%20mount_thumbnail.png) <br> **Camera mount** |
+|---|---|---|
 
+
+<br>
 Make sure the alignment is precise so that cables and connectors remain easily accessible.
 
 </details>
@@ -124,7 +146,7 @@ Carefully turn the robot upside down and install the remaining **electrical comp
 ![alt text](media/DSC00500.JPG)
 
 Use the washers and fastening materials:  
-[![Voltager regulator spacer top](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top.png)](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top.3mf), [![Motor driver spacer top](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top.png)](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top.3mf), [![Gyro spacer](./CAD/Seperate%20Parts/Gyro%20spacer.png)](./CAD/Seperate%20Parts/Gyro%20spacer.3mf).
+[Voltager regulator spacer top](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top.3mf), [Motor driver spacer top](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top.3mf), [Gyro spacer](./CAD/Seperate%20Parts/Gyro%20spacer.3mf).
 
 > 💡 **Tip:**  
 > Use **nylon washers or plastic spacers** under PCBs to prevent short circuits.
@@ -151,8 +173,8 @@ For the main power supply, **WAGO terminals** can be placed in the front interio
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 8 – Enclosure Assembly</span></summary>
 
-Place [![Bottom cover](./CAD/Seperate%20Parts/Bottom%20cover.png)](./CAD/Seperate%20Parts/Bottom%20cover.3mf) over the wiring from underneath – it should **snap into place securely**.  
-Then, flip the robot back upright and prepare the [![top cover](./CAD/Seperate%20Parts/Cover%20top%20upper.png)](./CAD/Seperate%20Parts/Cover%20top%20upper.3mf).
+Place [Bottom cover](./CAD/Seperate%20Parts/Bottom%20cover.3mf) over the wiring from underneath – it should **snap into place securely**.  
+Then, flip the robot back upright and prepare the [top cover](./CAD/Seperate%20Parts/Cover%20top%20upper.3mf).
 
 Mount the **toggle switches** and the **status LED** as shown, and connect them directly to the Arduino.
 
@@ -161,6 +183,8 @@ Before fully closing the housing:
 2. Link the **Arduino Nano** to the **Raspberry Pi** using a **USB-A to Micro-USB cable**.  
 3. Once completed, install and fasten the housing completely.
 
+| ![Bottom cover](./CAD/Seperate%20Parts/Bottom%20cover_thumbnail.png) <br> **Bottom cover** | ![top cover](./CAD/Seperate%20Parts/Cover%20top%20upper_thumbnail.png) <br> **Top cover** |
+|---|---|
 </details>
 
 ---
@@ -172,11 +196,14 @@ Carefully attach the **lens**, making sure it is free of dust and properly focus
 Tighten it fully to prevent image blur caused by vibration.
 
 To finish:
-- Install the [![rear spoiler](./CAD/Seperate%20Parts/spoiler_full_2.png)](./CAD/Seperate%20Parts/spoiler_full_2.3mf) (for that extra aerodynamic performance 😎).
-- Don't forget to install the [![Battery holder](./CAD/Seperate%20Parts/Battery%20holder.png)](./CAD/Seperate%20Parts/Battery%20holder.3mf).
+- Install the [rear spoiler](./CAD/Seperate%20Parts/spoiler_full_2.3mf) (for that extra aerodynamic performance 😎).
+- Don't forget to install the [Battery holder](./CAD/Seperate%20Parts/Battery%20holder.3mf).
 - Attach the **wheels**.
 
 Your robot’s **hardware assembly** is now complete and ready for operation.
+
+| ![rear spoiler](./CAD/Seperate%20Parts/spoiler_full_2_thumbnail.png) <br> **rear spoiler 😎** | ![Battery holder](./CAD/Seperate%20Parts/Battery%20holder_thumbnail.png) <br> **Battery holder** |
+|---|---|
 
 </details>
 

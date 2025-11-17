@@ -302,7 +302,7 @@ async def process_image(picam2, pipeline):
     if "pink" not in state.latest_streams:
         state.update_stream("pink", None)
     
-    if state.detect_pink:
+    if state.parking != None:
         pink = await asyncio.to_thread(pipeline.filter_pink, hsv_image)
         state.update_stream("pink", pink)
         portion_pink = await asyncio.to_thread(extract_ROI, pink, [640//2-roi_front_width, 0], [640//2+roi_front_width, 240])
@@ -359,7 +359,7 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
     Returns:
         dict: Dictionary with keys 'L' and 'R' containing detected lines for left and right sides as Lines objects.
     """
-    labels = ["L", "R"] + (["P"] if state.parking != None else [])
+    labels = ["L", "R"] + (["P"] if state.latest_streams["pink"] is not None else [])
     roi_lines = {label: [] for label in labels}
     images = [
         state.latest_streams["roi_left"],
@@ -374,7 +374,7 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
         lower = 30
         upper = 90
         edges_img = await asyncio.to_thread(cv2.Canny, blurredImg, lower, upper, 3)
-        roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=25 if state.parking == None else 10, maxLineGap=50 if state.parking == None else 50)
+        roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=10 if "P" in labels else 25, maxLineGap=50 if "P" in labels else 50)
 
     for key in labels:
         if key == "L":
@@ -411,36 +411,41 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
             cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1] + lines[0]["y_offset"]), 3, (255, 255 if state.detected_corners[side_letter][-1] == "different" else 100, 0), -1)
             cv2.putText(viz_stream, f"{state.detected_corners[side_letter][0]} {state.detected_corners[side_letter][1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
-    if state.parking != None:
+    if "P" in labels:
         lines = state.border_lines["P"].lines
         if len(lines) != 0:
             lines.sort(key=lambda x: (x["x"]), reverse=(state.round_dir == 1))
             highest_y = 0
             index_highest_y = 0
             index = 0
-            for line in lines:
-                if abs(line["m"]) < 10 or abs(line["x1"] - lines[max(index-1, 0)]["x1"]) > 20:
-                    break
-                index += 1
-                if highest_y < line["y1"] or highest_y < line["y2"]:
-                    highest_y = max(highest_y, line["y1"], line["y2"])
-                    index_highest_y = index
-            if index_highest_y >= 1:
-                index_highest_y -= 1
-            index = index_highest_y
-            # print(f"index: {index}, lines: {lines}")
-            if lines[index]["y1"] > lines[index]["y2"]:
-                state.parking_x = lines[index]["x1"]
-                state.parking_y = lines[index]["y1"]
-            else:
-                state.parking_x = lines[index]["x2"]
-                state.parking_y = lines[index]["y2"]
-            if not state.headless:
-                cv2.circle(viz_stream, (state.parking_x + lines[index]["x_offset"], state.parking_y +lines[index]["y_offset"]), 5, (255, 150, 0), -1)
-                cv2.putText(viz_stream, f"index = {index}", (320, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-                cv2.putText(viz_stream, f"x = {state.parking_x}", (320, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-                cv2.putText(viz_stream, f"y = {state.parking_y}", (320, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-                cv2.putText(viz_stream, f"y = {lines[index]['m']} * x + {lines[index]['b']}", (320, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            lines = [
+                line for line in lines
+                if not (line["x"] * state.round_dir > 50)
+            ]
+            if len(lines) != 0:
+                for line in lines:
+                    if abs(line["m"]) < 10 or abs(line["x1"] - lines[max(index-1, 0)]["x1"]) > 20:
+                        break
+                    index += 1
+                    if highest_y < line["y1"] or highest_y < line["y2"]:
+                        highest_y = max(highest_y, line["y1"], line["y2"])
+                        index_highest_y = index
+                if index_highest_y >= 1:
+                    index_highest_y -= 1
+                index = index_highest_y
+                # print(f"index: {index}, lines: {lines}")
+                if lines[index]["y1"] > lines[index]["y2"]:
+                    state.parking_x = lines[index]["x1"]
+                    state.parking_y = lines[index]["y1"]
+                else:
+                    state.parking_x = lines[index]["x2"]
+                    state.parking_y = lines[index]["y2"]
+                if not state.headless:
+                    cv2.circle(viz_stream, (state.parking_x + lines[index]["x_offset"], state.parking_y +lines[index]["y_offset"]), 5, (255, 150, 0), -1)
+                    cv2.putText(viz_stream, f"index = {index}", (320, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                    cv2.putText(viz_stream, f"x = {state.parking_x}", (320, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                    cv2.putText(viz_stream, f"y = {state.parking_y}", (320, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                    cv2.putText(viz_stream, f"y = {lines[index]['m']} * x + {lines[index]['b']}", (320, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     # visualisation
     if not state.headless:
         for line_group in state.border_lines.values():
@@ -791,6 +796,10 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                 error = (intercept - 80) / 250 * -state.round_dir
                 if diff_angle != 0:
                     error = bound(error) - (diff_angle / 50) ** 2 * diff_angle / abs(diff_angle)
+            elif side == "middle_parking_end":
+                error = (intercept - 91) / 250 * -state.round_dir
+                if diff_angle != 0:
+                    error = bound(error) - (diff_angle / 50) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle":
                 if detected_corner != None and wait_for_corner:
                     slope_2 = lines[detected_corner[2]]["m"]
@@ -861,7 +870,7 @@ def distance(distance: float, distance_beg: float) -> bool:
     return True
 
 def calculate_xy_error():
-    m = -0.95 * state.round_dir
+    m = -0.95 if state.round_dir == 1 else 0.92
     q = -13
     x1 = state.parking_x
     y1 = state.parking_y
@@ -869,62 +878,36 @@ def calculate_xy_error():
     y2 = m * x2 + q
     error = (x1-x2)**2 + (y1-y2)**2
     error = math.sqrt(error)
-    error *= (x1-x2)/abs(x1-x2)
+    if x1 != x2:
+        error *= (x1-x2)/abs(x1-x2)
     return error
 
 async def parking():
-
-    state.detect_pink = True
     state.parking = "R" if state.round_dir == -1 else "L"
     # Parking: 
     SPEED_PARK = 100
-    print("Start parking...")
-    # await drive(SPEED_PARK, 0, (lambda: abs(state.parking_x) > 200))
     print(f"state.parking = {state.parking}")
     # wall_line = lambda x: -0.35 * state.round_dir * x - 13
     # parking_line = lambda x: m * x + q
     car.straight_direction = car.angle
-    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > (190 if state.round_dir == -1 else 190)), 0.005) # todo wait for a realistic stop condition, (before robot starts turning)
-    cv2.imwrite(f"logs/image.jpg", state.latest_streams["viz"])
+    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 150), 0.005)
+    cv2.imwrite(f"logs/park1.jpg", state.latest_streams["viz"])
+    await pd_point(50, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > (170 if state.round_dir == -1 else 200)), 0.005)
+    cv2.imwrite(f"logs/park2.jpg", state.latest_streams["viz"])
 
-    await turn(SPEED_PARK, 60 * state.round_dir, 1)
+    await turn(SPEED_PARK, 65 * state.round_dir, 1) # turning to little for round = 1
+    car.steering = 0
     await stop(True)
-    await drive(-SPEED_PARK, 250 + (25 if state.round_dir == 1 else 0)) # 260 seems to be about the maximum
-    await turn(-SPEED_PARK, 40 * state.round_dir, 1)
+    await asyncio.sleep(0.2)
+    await drive(-SPEED_PARK, 255 + (30 if state.round_dir == 1 else 0)) # 260 seems to be about the maximum
+    await turn(-SPEED_PARK, 45 * state.round_dir, 1)
+    car.steering = state.round_dir
     await stop(True)
     await turn(SPEED_PARK, -10 * state.round_dir, 1)
     await stop(True)
     car.steering = 0
     await asyncio.sleep(0.1)
-    
-    return
-    # await drive(-SPEED_PARK, 60)
-    # await turn(SPEED_PARK, 60 * state.round_dir, 1, car.straight_direction)
-    # await stop()
-    # await drive(-SPEED_PARK, 300)
-    # await turn(-SPEED_PARK, 45 * state.round_dir, 1)
-    # await turn(-SPEED_PARK, -50 * state.round_dir, 1)
-    # await turn(-SPEED_PARK, 50 * state.round_dir, 1)
 
-    
-    await double_turn(-SPEED_PARK, 70 * state.round_dir, 1)
-    await stop()
-    await turn(SPEED_PARK, 30 * state.round_dir, 0.75)
-    await stop()
-    # await turn(SPEED_PARK, -10 * state.round_dir, 0.75)
-    # await stop()
-
-    # versuch 1
-    # await turn(SPEED_PARK, 50 * state.round_dir, 1)
-    # await stop()
-    # await drive(-SPEED_PARK, 280)
-    # await stop()
-    # await turn(-SPEED_PARK, 30 * state.round_dir, 1)
-    # await stop()
-    # await turn(SPEED_PARK, -10 * state.round_dir, 0.75)
-    # await stop()
-    car.steering = -1 * state.round_dir
-    await asyncio.sleep(1)
 
 
 DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
@@ -934,9 +917,8 @@ async def main_program():
     # global roi_width
     # roi_width = 640//2
     
-    state.detect_pink = True
-    state.round_dir = -1
-    state.parking = "R" if state.round_dir == -1 else "L"
+    state.round_dir = 1
+    # state.parking = "R" if state.round_dir == -1 else "L"
     
     if ser and not state.calibrate:
         await connect_to_arduino()
@@ -953,8 +935,27 @@ async def main_program():
     # await turn(SPEED_PARK, -10 * state.round_dir, 1.2)
     # print("parking completet.")
     # await asyncio.sleep(100)
-    await parking()
+    
+    speed *= 1.25
+    # state.position = "inner"
+    car.straight_direction = car.angle
+    if state.position == "inner":
+        await double_turn(speed, 60 * state.round_dir)
+    await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
     await stop()
+    await turn(-speed, -70 * state.round_dir, 0.75)
+    car.straight_direction += 20 * state.round_dir
+    await stop()
+    await drive(speed, 0, lambda: distance_front_camera(0.37))
+    await turn(speed, 70 * state.round_dir, 1)
+    car.straight_direction += 20 * state.round_dir
+    await stop()
+    await drive(-speed, 450)
+    await stop()
+    state.round_dir *= -1
+    await follow_wall(100, "middle_parking_end", (lambda start=car.distance: lambda: distance(600, start))())
+    state.round_dir *= -1
+    await parking()
     os._exit(0)
     
     try:
@@ -976,7 +977,7 @@ async def main_program():
                 await turn(speed, -80 * state.round_dir, 0.75)
             await pd_middle(speed, "L" if state.round_dir < 0 else "R", (lambda start=car.distance: lambda: distance(1200, start))())
         else: # pillar round
-            state.detect_pink = True
+            state.parking = "Start"
             car.straight_direction = car.angle
             print(f"Initial straight direction: {car.straight_direction}")
             SPEED_UNPARK = 100
@@ -988,7 +989,7 @@ async def main_program():
             await stop()
             await turn(SPEED_UNPARK, 10 * state.round_dir, 1.2)
             await stop()
-            state.detect_pink = False
+            state.parking = "Start"
             await turn(-SPEED_UNPARK, -65 * state.round_dir, 1.2)
             # await drive(speed, 10, )
             await turn(-SPEED_UNPARK, 75 * state.round_dir, 1)
@@ -1066,6 +1067,14 @@ async def main_program():
                 state.rounds += 1
 
                 if state.rounds == 13:
+                    await drive(speed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
+                    await stop()
+                    await turn(-speed, 90 * state.round_dir, 1)
+                    await stop()
+                    await drive(speed, 0, lambda: distance_front_camera(0.7))
+                    await turn(speed, 90 * state.round_dir, 1)
+                    await parking()
+                    break
                     
                     print("Parking back into the parking spot...")
                     SPEED_PARK = 100

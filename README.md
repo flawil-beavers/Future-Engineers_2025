@@ -47,7 +47,7 @@ We, Damian Hardegger and Philipp Kündig, make up the WRO team Flawil Beavers. W
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 1 – Preparations</span></summary>
 
-Gather all required materials according to the [**Bill of Materials (BOM)**](#bill-of-materials) and print all necessary **[3D‑Printed‑Parts / CAD & STL](C:\Users\Damian\Documents\WRO\FE\Future-Engineers_2025\CAD\Seperate Parts)**.  
+Gather all required materials according to the [**Bill of Materials (BOM)**](#bill-of-materials) and print all necessary **[3D‑Printed‑Parts / CAD & STL](./CAD/Seperate%20Parts/)**.  
 Use **M3 screws** for all mechanical components, and **M2 screws** for electronic parts.
 
 > ⚠️ **Note:**  
@@ -67,7 +67,7 @@ Use **M3 screws** for all mechanical components, and **M2 screws** for electroni
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 2 – Base Plate and Drive Assembly</span></summary>
 
-Take the printed **[base plate](CAD/Seperate Parts/Base.3mf)** and begin by mounting the two **motors**.  
+Take the printed **[base plate](./CAD/Seperate%20Parts/Base.3mf)** and begin by mounting the two **motors**.  
 The **drive motor** is positioned in the center and secured with [DC motor cover](./CAD/Seperate%20Parts/DC%20motor%20cover.3mf).  
 Place a **coupling** between the motor shaft and the **LEGO axle** – we recommend a **metal coupling**, though [Shaft](./CAD/Seperate%20Parts/Shaft.3mf) can also be used.
 
@@ -94,6 +94,9 @@ Finally, verify that **all shafts are properly aligned and firmly fastened**.
 Attach the **LEGO components** to the 3D-printed parts as shown below.
 
 **[LEGO Assembly](CAD/Lego_Chassis.io)**
+<br>
+<br>
+
 <p align="center">
     <img src="CAD/Lego_Chassis.png" alt="Lego Chassis" />
     <br>

@@ -148,8 +148,10 @@ Carefully turn the robot upside down and install the remaining **electrical comp
 
 ![alt text](media/DSC00500.JPG)
 
-Use the washers and fastening materials:  
-[Voltager regulator spacer top](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top.3mf), [Motor driver spacer top](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top.3mf), [Gyro spacer](./CAD/Seperate%20Parts/Gyro%20spacer.3mf).
+Use the washers and fastening materials:
+
+| ![Voltager regulator spacer top](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top_thumbnail.png) <br> **[Voltager regulator](./CAD/Seperate%20Parts/Voltager%20regulator%20spacer%20top.3mf)**|![Motor driver spacer top](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top_thumbnail.png) <br> **[Motor driver](./CAD/Seperate%20Parts/Motor%20driver%20spacer%20top.3mf)** |![Gyro spacer](./CAD/Seperate%20Parts/Gyro%20spacer_thumbnail.png) <br> **[Gyro spacer](./CAD/Seperate%20Parts/Gyro%20spacer.3mf)**|
+|---|---|---|
 
 > 💡 **Tip:**  
 > Use **nylon washers or plastic spacers** under PCBs to prevent short circuits.

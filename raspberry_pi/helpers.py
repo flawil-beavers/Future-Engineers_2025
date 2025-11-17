@@ -398,7 +398,6 @@ class SharedState:
         self.parking_y = 0
         self.vertical_line = None
         self.lower_point = 0
-        self.detect_pink = False
         self.distance_pink = 0
 
         # Configurable flags

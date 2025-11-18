@@ -479,31 +479,63 @@ With our HTML file, we can also read out the color values of the environment and
 
 ---
 
-## Firmware running on Arduino
+## Firmware Running on the Arduino
 
-The arduino is connected to the DC motor, servo, gyro, switches and LEDs. Its use is to relay the information from the peripheral devices to the raspberry pi and vice versa. Therefore, we wrote our own custom firmware for the arduino. The main loop of the firmware is as follows:
+The Arduino interfaces directly with the DC motor, servo, gyro sensor, switches, and status LED. Its primary role is to exchange sensor data and control commands between these peripherals and the Raspberry Pi. To support this, we implemented a custom firmware tailored to the robot’s needs.
+
+The high-level program flow is illustrated below:
 
 ```mermaid
 flowchart TD
     program_start("Arduino start") --> ISR
     program_start --> main["main_loop()"]
-    main --> readgyro["read gyro"]
-    readgyro --> readserial["read and write serial"]
-    readserial --> controlmotors["control motors"]
+
+    main --> readgyro["Read gyro + integrate angle"]
+    readgyro --> readserial["Handle serial I/O"]
+    readserial --> controlmotors["Control motors
+     (PID + steering)"]
     controlmotors --> main
 
-    %% INTERRUPTS (run asynchronously)
 subgraph ISR["Interrupt Service Routines"]
-    I1("ISR: Encoder tick received")
-    I2("ISR: Switch toggled") --> EN["Enable/disable motors"]
+    I1("ISR: Encoder tick")
+    I2("ISR: Switch toggle") --> EN["Toggle enable state"]
 end
-EN -. sends .-> Ser("state change over serial")
-I1 -. updates .-> I1b("distance")
 
+EN -. sends .-> Ser("Report state change over serial")
+I1 -. updates .-> I1b("Update encoder distance")
 ```
 
-First the arduino initializes the serial communication and the interrupt for the switches. The interrupt is triggered when a switch is pressed and sends the switch state over serial to the raspberry pi. Then the main loop of the firmware first reads the gyro angular velocity and continously integrates the value to estimate the current heading. With our own custom temperature coefficient we calibrate them to reflect reality. Then the current heading and distance are sent over serial to the raspberry pi. Finally, the arduino reads the speed and steering commands from the raspberry pi and controls the motors accordingly using PWM for speed control and angle control for the servo. The dc motor has a pid controller working in the background to ensure that the robot drives with constant velocity. The feedback of the pid controller is the current encoder distance with respect to the current calculated encoder distance. This pid loop allows us in addition to measure if the robot has been stalled. This is done by measuring the displacement over the last loop and the outputted PWM. If the displacement is nearly zero and the outputted PWM is at maximum, this means that the robot is stalled and tries to move on with maximum power. Therefore we shut the dc motor off to protect it from overheating. In addition, this outputs an error over serial to the raspberry pi. Another safety feature is the current sensing of the MC33926 Motor Driver Carrier. This pin outputs an analog voltage proportional to the current drawn at the moment. But because the MC33926 is designed to work with greater motors, the current sense doesn't really work in our case and it would only trigger in an emergency.
+### Overview of Firmware Operation
 
+At startup, the Arduino initializes the serial connection, configures motor and servo pins, and attaches interrupt handlers for the encoder signals and the enable switch.
+When the enable switch changes state, the corresponding interrupt fires and the new state is immediately sent to the Raspberry Pi.
+
+The **main loop** performs four continuous tasks:
+
+1. **Gyro reading and angle integration**
+   The Arduino reads the angular velocity from the gyro and integrates it to estimate the robot’s heading. A custom temperature compensation model is applied to increase accuracy.
+
+2. **Serial communication**
+   The current heading and encoder-based distance are sent to the Raspberry Pi.
+   At the same time, the Arduino receives speed and steering commands from the Pi.
+
+3. **Motor and steering control**
+
+   * The servo angle is set directly.
+   * The DC motor speed is regulated using a PID controller, which keeps the velocity stable even under load.
+     The PID feedback signal is derived from the encoder distance change over time.
+
+4. **Safety and diagnostics**
+   The firmware monitors conditions that indicate mechanical issues:
+
+   * **Stall detection:**
+     If the encoder shows almost no movement while the PID demands maximum PWM, the robot is considered stalled.
+     In this case, the motor is shut down to prevent overheating, and an error message is sent to the Raspberry Pi.
+   * **Current sensing:**
+     The MC33926 motor driver provides analog current feedback.
+     Although this feature is not highly reliable for small motors, it acts as an additional emergency-level safeguard.
+
+Together, these systems ensure that the Arduino can reliably control the robot’s drivetrain, report accurate sensor data, and react quickly to unsafe conditions.
 
 ---
 

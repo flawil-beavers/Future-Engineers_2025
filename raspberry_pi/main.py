@@ -18,6 +18,7 @@ from rounddir import find_round_dir
 import argparse
 import libcamera
 import sys
+from collections import deque
 
 #?: Webviewer controls for tuning colors, pd, and selecting stream
 
@@ -65,7 +66,6 @@ car = Car()
 state = SharedState()
 
 # Helper buffer to keep recent angle samples with timestamps
-from collections import deque
 class AngleBuffer:
     def __init__(self, window_seconds: float = 1.0):
         self.window = window_seconds
@@ -228,8 +228,46 @@ async def connect_to_arduino():
             car.paused = False
             print("Arduino started directly due to skip_arduino flag.")
         else:
+            gyro_beg = await request_and_parse_float("g")
+            time_gyro_beg = time()
+            last_print = time_gyro_beg
+
+            # Keep a deque of (timestamp, gyro_value) for the last second
+            gyro_history = deque()
+            print_interval = 2
             while car.paused and not state.skip_arduino:
-                await read_and_handle_serial_line()
+                gyro = await request_and_parse_float("g")
+                now = time()
+                
+                # Add current reading to history
+                gyro_history.append((now, gyro))
+                
+                # Remove readings older than 1 second
+                while gyro_history and now - gyro_history[0][0] > 1:
+                    gyro_history.popleft()
+                
+                if now - last_print > print_interval:
+                    last_print = now
+                    
+                    # Total drift since beginning
+                    drift_total = gyro - gyro_beg
+                    duration_total = now - time_gyro_beg
+                    drift_rate_total = drift_total / duration_total if duration_total > 0 else 0
+                    
+                    # Average drift over last second
+                    if len(gyro_history) > 1:
+                        dt = gyro_history[-1][0] - gyro_history[0][0]
+                        dg = gyro_history[-1][1] - gyro_history[0][1]
+                        car.drift_rate_last_sec = dg / dt if dt > 0 else 0
+                    else:
+                        car.drift_rate_last_sec = 0
+                    car.drift_rate_time = now
+                    
+                    print(
+                        f"Gyro Drift: {drift_total:5.2f}° in {duration_total:6.2f}s => {drift_rate_total:5.2f}°/s, "
+                        f"Average last {print_interval}s: {car.drift_rate_last_sec:4.2f}°/s, temp: {await request_and_parse_float('t'):2.0f}°"
+                    )
+                
                 await asyncio.sleep(0.1)
         print("Arduino connected and start signal received.")
     except Exception as e:
@@ -239,7 +277,8 @@ async def connect_to_arduino():
 async def arduino_communication() -> bool:
     try:
         if not car.paused: # currently a lag of about 30 ms to communicate to robot
-            car.distance, car.angle = await request_and_parse_float(f"y{int(car.speed)},{int(car.steering)}", "gyro and distance: ")
+            car.distance, angle = await request_and_parse_float(f"y{int(car.speed)},{int(car.steering)}", "gyro and distance: ")
+            car.angle = angle + (time() - car.drift_rate_time) * car.drift_rate_last_sec
         else:
             car.distance, car.angle = await request_and_parse_float("z", "gyro and distance: ")
         # print(f"Passed time: {await request_and_parse_float('x', 'x (passed time)')}")

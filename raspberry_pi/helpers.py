@@ -357,7 +357,9 @@ class Car:
         self.steering = steering
 
         self.straight_direction = 0
-
+        self.drift_rate_last_sec = 0
+        self.drift_rate_time = 0
+        
         # paused
         self.paused = True
         self.stalled = False

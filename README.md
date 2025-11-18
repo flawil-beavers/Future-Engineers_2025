@@ -385,6 +385,8 @@ flowchart LR
     pillar --> |no| pillarn(obstacle challenge logic)
 ```
 
+<!-- todo: explain the car and state class -->
+
 ### Opening Race
 
 ```mermaid
@@ -476,6 +478,35 @@ With our HTML file, we can also read out the color values of the environment and
 |-----------------------------|-----------------------------|
 
 ---
+
+## Firmware running on Arduino
+
+The arduino is connected to the DC motor, servo, gyro, switches and LEDs. Its use is to relay the information from the peripheral devices to the raspberry pi and vice versa. Therefore, we wrote our own custom firmware for the arduino. The main loop of the firmware is as follows:
+
+```mermaid
+flowchart TD
+    program_start("Arduino start") --> ISR
+    program_start --> main["main_loop()"]
+    main --> readgyro["read gyro"]
+    readgyro --> readserial["read and write serial"]
+    readserial --> controlmotors["control motors"]
+    controlmotors --> main
+
+    %% INTERRUPTS (run asynchronously)
+subgraph ISR["Interrupt Service Routines"]
+    I1("ISR: Encoder tick received")
+    I2("ISR: Switch toggled") --> EN["Enable/disable motors"]
+end
+EN -. sends .-> Ser("state change over serial")
+I1 -. updates .-> I1b("distance")
+
+```
+
+First the arduino initializes the serial communication and the interrupt for the switches. The interrupt is triggered when a switch is pressed and sends the switch state over serial to the raspberry pi. Then the main loop of the firmware first reads the gyro angular velocity and continously integrates the value to estimate the current heading. With our own custom temperature coefficient we calibrate them to reflect reality. Then the current heading and distance are sent over serial to the raspberry pi. Finally, the arduino reads the speed and steering commands from the raspberry pi and controls the motors accordingly using PWM for speed control and angle control for the servo. The dc motor has a pid controller working in the background to ensure that the robot drives with constant velocity. The feedback of the pid controller is the current encoder distance with respect to the current calculated encoder distance. This pid loop allows us in addition to measure if the robot has been stalled. This is done by measuring the displacement over the last loop and the outputted PWM. If the displacement is nearly zero and the outputted PWM is at maximum, this means that the robot is stalled and tries to move on with maximum power. Therefore we shut the dc motor off to protect it from overheating. In addition, this outputs an error over serial to the raspberry pi. Another safety feature is the current sensing of the MC33926 Motor Driver Carrier. This pin outputs an analog voltage proportional to the current drawn at the moment. But because the MC33926 is designed to work with greater motors, the current sense doesn't really work in our case and it would only trigger in an emergency.
+
+
+---
+
 <!-- Pictures of the team and robot must be provided. The pictures of the robot must cover all sides of the robot, must be clear, in focus and show aspects of the mobility, power and sense, and obstacle management. Reference in the discussion sections 1, 2 and 3 can be made to these pictures. Team photo is necessary for judges to relate and identify the team during the local and international competitions. -->
 
 ## Photos
@@ -539,3 +570,13 @@ python3 roi.py
 ```
 
 To launch the robot, open the web interface in your browser and start the robot by clicking the connect button. The robot will now start driving autonomously. To stop the robot, you can close the web interface, press the stop button on the robot or press `ctrl+c` in the ssh session.
+
+6. For future running
+
+To make the progam executable run the following commands in the `raspberry_pi` folder:
+```bash
+chmod +x main.py
+```
+
+<!-- $env:MERMAID_BIN="C:\Users\philk\AppData\Roaming\npm\mmdc.cmd"
+pandoc README.md -o README.pdf --pdf-engine=xelatex -V mainfont="Segoe UI Emoji" --filter pandoc-mermaid -->

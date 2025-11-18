@@ -305,8 +305,8 @@ def process_pillars(state, straight_sections):
             else:
                 print(f"--Pillar {p.color} is too far (lower than 24), y={p.y}")
         else:
-            if p.y > 180:
-                print(f"--Pillar {p.color} is too near (higher than 180), y={p.y}")
+            if p.y > 150:
+                print(f"--Pillar {p.color} is too near (higher than 150), y={p.y}")
             if p.y > 50:
                 index = 0 # about 80
             elif p.y > 22:

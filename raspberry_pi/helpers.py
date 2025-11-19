@@ -1,9 +1,7 @@
 import numpy as np
-from time import time, sleep
+from time import time, sleep, perf_counter
 import sys
-import os
-import serial
-import cv2
+from collections import deque
 
 class Pillar:
     """
@@ -380,3 +378,55 @@ def find_direction(round_direction, current_position, target_position):
     else:
         raise ValueError(f"Invalid position: {current_position} or {target_position}")
     return -direction * round_direction
+
+# Helper buffer to keep recent angle samples with timestamps
+class AngleBuffer:
+    def __init__(self, window_seconds: float = 1.0):
+        self.window = window_seconds
+        self.buf = deque()  # stores (timestamp, angle)
+
+    def append(self, timestamp: float, angle: float):
+        self.buf.append((timestamp, angle))
+        self._trim(timestamp)
+
+    def _trim(self, now: float):
+        # remove samples older than window
+        while self.buf and (now - self.buf[0][0]) > self.window:
+            self.buf.popleft()
+
+    def mean_and_mse(self):
+        if not self.buf:
+            return None, None
+        angles = [a for _, a in self.buf]
+        mean = sum(angles) / len(angles)
+        mse = sum((a - mean) ** 2 for a in angles) / len(angles)
+        return mean, mse
+
+    def clear(self):
+        self.buf.clear()
+
+    def covers_full_window(self, now: float = None) -> bool:
+        """Return True if the buffer currently contains samples that span at least self.window seconds."""
+        if now is None:
+            now = time()
+        if not self.buf:
+            return False
+        return (now - self.buf[0][0]) >= self.window
+   
+
+class LoopTimerRegistry:
+    """Global registry of loop timers. Each loop can just call record('name') once per iteration."""
+    def __init__(self):
+        self._last_call = {}    # Stores the last time each loop was called
+        self._last_duration = {}  # Stores the last loop duration
+
+    def record(self, name: str):
+        """Call once per loop iteration. Automatically computes duration since last call."""
+        now = perf_counter()
+        if name in self._last_call:
+            self._last_duration[name] = now - self._last_call[name]
+        self._last_call[name] = now
+
+    def get_last_durations(self):
+        """Return a copy of the last loop durations."""
+        return dict(self._last_duration)

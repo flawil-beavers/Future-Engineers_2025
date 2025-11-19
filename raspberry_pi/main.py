@@ -4,14 +4,14 @@ import base64
 import json
 import math
 import os
-from time import sleep, time
+from time import sleep, time, perf_counter
 import cv2
 import numpy as np
 import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState, find_direction
+from helpers import *#extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState, find_direction, AngleBuffer, LoopTimerRegistry
 from pipeline import Pipeline
 from picamera2 import Picamera2
 from rounddir import find_round_dir
@@ -19,6 +19,7 @@ import argparse
 import libcamera
 import sys
 from collections import deque
+import traceback
 
 #?: Webviewer controls for tuning colors, pd, and selecting stream
 
@@ -28,6 +29,9 @@ from collections import deque
 
 configloader = ConfigLoader("config.json")
 pipeline = Pipeline(configloader)
+# Load the config file
+with open("config.json", "r") as f:
+    config = json.load(f)
 
 picam2 = Picamera2()
 # picam2.configure(picam2.create_preview_configuration())
@@ -65,44 +69,15 @@ car = Car()
 # Create a single shared state object
 state = SharedState()
 
-# Helper buffer to keep recent angle samples with timestamps
-class AngleBuffer:
-    def __init__(self, window_seconds: float = 1.0):
-        self.window = window_seconds
-        self.buf = deque()  # stores (timestamp, angle)
-
-    def append(self, timestamp: float, angle: float):
-        self.buf.append((timestamp, angle))
-        self._trim(timestamp)
-
-    def _trim(self, now: float):
-        # remove samples older than window
-        while self.buf and (now - self.buf[0][0]) > self.window:
-            self.buf.popleft()
-
-    def mean_and_mse(self):
-        if not self.buf:
-            return None, None
-        angles = [a for _, a in self.buf]
-        mean = sum(angles) / len(angles)
-        mse = sum((a - mean) ** 2 for a in angles) / len(angles)
-        return mean, mse
-
-    def clear(self):
-        self.buf.clear()
-
-    def covers_full_window(self, now: float = None) -> bool:
-        """Return True if the buffer currently contains samples that span at least self.window seconds."""
-        if now is None:
-            now = time()
-        if not self.buf:
-            return False
-        return (now - self.buf[0][0]) >= self.window
-
 # attach an angle buffer to the shared state
 state.angle_buffer = AngleBuffer(window_seconds=3.0)
 
+# create a list with four elements of Straight_Section
+straight_sections = [Straight_Section(i) for i in range(4)]
+
 ports = serial.tools.list_ports.comports()
+
+loop_timer = LoopTimerRegistry()
 
 # get some frames so camera can adjust
 for i in range(30):
@@ -115,13 +90,6 @@ except:
     ser = None
     for port, desc, hwid in sorted(ports):
         print("{}: {} [{}]".format(port, desc, hwid))
-
-# Load the config file
-with open("config.json", "r") as f:
-    config = json.load(f)
-
-# create a list with four elements of Straight_Section
-straight_sections = [Straight_Section(i) for i in range(4)]
 
 def pause_robot(resume=False):
     global car
@@ -229,21 +197,21 @@ async def connect_to_arduino():
             print("Arduino started directly due to skip_arduino flag.")
         else:
             gyro_beg = await request_and_parse_float("g")
-            time_gyro_beg = time()
+            time_gyro_beg = perf_counter()
             last_print = time_gyro_beg
 
             # Keep a deque of (timestamp, gyro_value) for the last second
             gyro_history = deque()
-            print_interval = 2
+            print_interval = 2.5
             while car.paused and not state.skip_arduino:
                 gyro = await request_and_parse_float("g")
-                now = time()
+                now = perf_counter()
                 
                 # Add current reading to history
                 gyro_history.append((now, gyro))
                 
-                # Remove readings older than 1 second
-                while gyro_history and now - gyro_history[0][0] > 1:
+                # Remove readings older than print_interval second
+                while gyro_history and now - gyro_history[0][0] > print_interval:
                     gyro_history.popleft()
                 
                 if now - last_print > print_interval:
@@ -254,7 +222,7 @@ async def connect_to_arduino():
                     duration_total = now - time_gyro_beg
                     drift_rate_total = drift_total / duration_total if duration_total > 0 else 0
                     
-                    # Average drift over last second
+                    # Average drift over last print_interval second
                     if len(gyro_history) > 1:
                         dt = gyro_history[-1][0] - gyro_history[0][0]
                         dg = gyro_history[-1][1] - gyro_history[0][1]
@@ -276,23 +244,27 @@ async def connect_to_arduino():
 
 async def arduino_communication() -> bool:
     try:
-        if not car.paused: # currently a lag of about 30 ms to communicate to robot
-            car.distance, angle = await request_and_parse_float(f"y{int(car.speed)},{int(car.steering)}", "gyro and distance: ")
-            car.angle = angle - (time() - car.drift_rate_time) * car.drift_rate_last_sec
+        if not car.paused:  # currently ~30 ms lag to communicate with robot
+            command = f"y{int(car.speed)},{int(car.steering)}"
+            car.distance, angle = await request_and_parse_float(command, "gyro and distance: ")
+            car.angle = angle - (perf_counter() - car.drift_rate_time) * car.drift_rate_last_sec
         else:
-            car.distance, car.angle = await request_and_parse_float("z", "gyro and distance: ")
-        # print(f"Passed time: {await request_and_parse_float('x', 'x (passed time)')}")
-                
-    except Exception as e:
-        print(f"Exception in arduino_communication: {e}")
-        return False
+            command = "z"
+            car.distance, car.angle = await request_and_parse_float(command, "gyro and distance: ")
 
-    
+    except Exception as e:
+        print(f"Exception in arduino_communication while sending '{command}': {e}")
+        traceback.print_exc()
+        return False
+    return True    
+
 async def arduino_communication_loop():
     # await asyncio.sleep(2)
     while car.paused: # and not state.skip_arduino:
+        loop_timer.record("arduino")
         await asyncio.sleep(0.01)
     while True:
+        loop_timer.record("arduino")
         await asyncio.sleep(0.01)
         arduino_ok = await arduino_communication()
         if arduino_ok is False:
@@ -324,10 +296,6 @@ async def process_image(picam2, pipeline):
             - portion_black_l: Portion of black in the left ROI.
             - portion_black_r: Portion of black in the right ROI.
     """
-    # configloader.load_config()
-    # d = configloader.get_property("d")
-    # sigmaColor = configloader.get_property("sigmaColor")
-    # sigmaSpace = configloader.get_property("sigmaSpace")
     img = await asyncio.to_thread(cv2.cvtColor, picam2.capture_array(), cv2.COLOR_RGB2BGR)
     color_image = await asyncio.to_thread(pipeline.crop, img)
     color_image = await asyncio.to_thread(cv2.bilateralFilter, color_image, 5, 20, 10)
@@ -570,6 +538,7 @@ async def cycle_loop():
         await cycle()
         # print(f"passed cycle time: {time() - time_now:.3f} s; loop cycle: {time() - time_beg:.3f} s")
         # time_now = time()
+        loop_timer.record("cycle")
         await asyncio.sleep(0.02)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
@@ -590,6 +559,7 @@ async def img_stream(websocket, path):
     try:
         while True:
             # check if the websocket has sent a stream request, wait at most for 0.05 seconds
+            loop_timer.record("img_stream")
             try:
                 res = json.loads(await asyncio.wait_for(websocket.recv(), timeout=0.01))
                 if "updateGray" in res:
@@ -632,6 +602,14 @@ async def run_webserver():
         print("Webserver started on ws://0.0.0.0:8765")
         await asyncio.Future()  # Run forever
 
+async def printer_task():
+    """Print all loop durations on one line, once per second."""
+    while True:
+        await asyncio.sleep(1)
+        durations = loop_timer.get_last_durations()
+        line = " | ".join(f"{name}: {dt*1000:.2f} ms" for name, dt in durations.items())
+        print(line)
+
 async def main():
     parser = argparse.ArgumentParser(description="Check if --headless flag was given.")
     parser.add_argument('--headless', action='store_true', help='Run in headless mode')
@@ -662,6 +640,7 @@ async def main():
         tasks.append(asyncio.create_task(run_webserver()))
     if not state.calibrate:
         tasks.append(asyncio.create_task(main_program()))
+    tasks.append(asyncio.create_task(printer_task()))
 
     try:
         await asyncio.gather(*tasks)
@@ -775,7 +754,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
     error = 0
     roi_side = "L" if state.round_dir * (1 if side == "inner" else -1) == 1 else "R"
     # start-time for this follow_wall invocation and reset buffer
-    start_time = time()
+    start_time = perf_counter()
     try:
         state.angle_buffer.clear()
     except Exception:
@@ -785,10 +764,11 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
     updated_mse = None
 
     while True:
+        loop_timer.record("follow_wall")
         diff_angle = car.angle - angle_beg
         # collect angle samples for stability check (mean + MSE)
         try:
-            now = time()
+            now = perf_counter()
             state.angle_buffer.append(now, car.angle)
             mean_angle, mse = state.angle_buffer.mean_and_mse()
             if mean_angle is not None and mse is not None and (now - start_time) >= state.angle_buffer.window:
@@ -963,7 +943,7 @@ async def main_program():
     speed = 300 if not state.pillars else 200
     fspeed = speed * 1.5
     print("Starting main program...")
-    run_time = time()
+    run_time = perf_counter()
     
     # distance_beg, angle_beg = car.distance, car.angle
     # await double_turn(speed, 65, 1)
@@ -1210,7 +1190,7 @@ async def main_program():
     car.speed = 0
     await write_serial("o\n")
     await write_serial("p\n")
-    print(f"Main program completed in {time() - run_time} s. Exiting...")
+    print(f"Main program completed in {perf_counter() - run_time} s. Exiting...")
     await asyncio.sleep(0.5)
     if state.shutdown:
         print("Shutting down the robot...")

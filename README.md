@@ -531,24 +531,32 @@ Together, these systems ensure that the Arduino can reliably control the robot�
 
 ## Photos
 
-![alt text](media/DSC00494.JPG)
-![alt text](media/DSC00495.JPG)
-![alt text](media/DSC00496.JPG)
-![alt text](media/DSC00497.JPG)
-![alt text](media/DSC00498.JPG)
-![alt text](media/DSC00499.JPG)
-![alt text](media/DSC00500.JPG)
-![alt text](media/DSC00502.JPG)
-![alt text](media/DSC00515.JPG)
-![alt text](media/DSC00513.JPG)
-![alt text](media/DSC00506.JPG)
----
+| ![DSC00494](media/DSC00494.JPG) | ![DSC00495](media/DSC00495.JPG) |
+|---------------------------------|---------------------------------|
+| ![DSC00496](media/DSC00496.JPG) | ![DSC00497](media/DSC00497.JPG) |
+| ![DSC00498](media/DSC00498.JPG) | ![DSC00499](media/DSC00499.JPG) |
+| ![DSC00500](media/DSC00500.JPG) | ![DSC00502](media/DSC00502.JPG) |
+| ![DSC00515](media/DSC00515.JPG) | ![DSC00513](media/DSC00513.JPG) |
+ 
 
-## Videos
+
+![Teamfoto Flawil Beavers 2025](media/Teamfoto_Flawil%20Beavers_2025.JPG)
+
+| ![Team](media/Teamfoto_lustig%203.JPG) | ![Team](media/Teamfoto_lustig%202.JPG)|
+|----------------------------------------|---------------------------------------|
+
+**The national menu of Switzerland is fondue. While usually fondue is made from cheese, the team is enjoying a robot fondue 😎🤪**
+
 <!-- The performance videos must demonstrate the performance of the vehicle from start to finish for each challenge. The videos could include an overlay of commentary, titles or animations. The video could also include aspects of section 1, 2 or 3 -->
 
-[![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Opening_challenge-df3e3e?logo=youtube)](https://youtu.be/OofLgNROook)
-[![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Obstacle_challenge-df3e3e?logo=youtube)](https://youtu.be/P_mGKfEbACU)
+## Videos
+
+<!-- https://michaelcurrin.github.io/badge-generator/#/generic -->
+
+
+[![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Opening_Challenge-df3e3e?logo=youtube)](https://youtu.be/OofLgNROook)
+
+[![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Obstacle_Challenge-df3e3e?logo=youtube)](https://youtu.be/P_mGKfEbACU) 
 
 ---
 

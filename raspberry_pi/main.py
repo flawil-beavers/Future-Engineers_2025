@@ -515,8 +515,8 @@ async def cycle():
         if state.pillars:
             cv2.rectangle(viz_stream, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 1)
             cv2.putText(viz_stream, f"{state.distance_front:4.2f}", ((640-26)//2, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-            for p in state.detected_pillars:
-                cv2.line(viz_stream, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 1)
+            # for p in state.detected_pillars:
+            #     cv2.line(viz_stream, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 1)
     state.latest_streams["viz"] = viz_stream
 
 async def cycle_loop():
@@ -1139,7 +1139,7 @@ async def main_program():
                     DISTANCE_FRONT_OUTSIDE_TURN = 0.6
                     if last_driving_pos == "inner":
                         if state.position == "inner":
-                            await drive(speed, 100)
+                            # await drive(speed, 100)
                             await turn(speed, -90 * state.round_dir, 1)
                         elif state.position == "middle_parking":
                             await drive(speed, 300)

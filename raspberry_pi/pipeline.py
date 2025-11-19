@@ -147,78 +147,132 @@ class Pipeline:
             state (SharedState): The shared state containing detected pillars and other information.
             straight_sections (list): A list of Straight_Section objects representing the straight sections.
         """
-        # filter out the red and green colors of the pillars and walls
+        # Filter pillars
         
         detected_pillars_r = self.get_pillars(state.latest_streams["red"], "RED")
         detected_pillars_g = self.get_pillars(state.latest_streams["green"], "GREEN")
         state.detected_pillars = detected_pillars_r + detected_pillars_g
 
-        state.detected_pillars.sort(key=lambda x: x.width*x.height, reverse=True)
-        if state.rounds == 0:
-            first_section = True
-        else:
-            first_section = False
+        state.detected_pillars.sort(key=lambda x: x.width * x.height, reverse=True)
+        first_section = (state.rounds == 0)
         section_index = state.rounds % 4
+
+        # If we drove one round, just return driving pos
         if state.rounds > 4:
-            pillar_driving_pos = straight_sections[section_index].calculate_driving_pos() # todo: in last example red was not saved although it was detected
+            pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
             return pillar_driving_pos
-        index = None
+
+        # Reset parking lot pillar state
         if straight_sections[section_index].parking_lot:
             print(f"parking lot in section, resetting pillars")
-            # rescan the parking lot
             for i in range(3):
                 straight_sections[section_index].l[i] = 0
                 straight_sections[section_index].r[i] = 0
-            # print(f"pillars reset and printing now")
-            # straight_sections[section_index].print()
+        if first_section:
+            # FIRST SECTION (2 usable levels)
+            # index 0: y > 50
+            # index 1: 23 < y <= 50
+
+            cv2.line(state.latest_streams["viz"], (0, 50), (640, 50), (0, 255, 255), 1)
+            cv2.putText(state.latest_streams["viz"], "idx 0 start (y>50)", (10, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+
+            cv2.line(state.latest_streams["viz"], (0, 23), (640, 23), (255, 255, 0), 1)
+            cv2.putText(state.latest_streams["viz"], "idx 1 start (23<y<=50)", (10, 23),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
+
+        else:
+            # OTHER SECTIONS (3 usable levels)
+            # index 0: y > 50
+            # index 1: 22 < y <= 50
+            # index 2: 11 < y <= 22
+
+            cv2.line(state.latest_streams["viz"], (0, 50), (640, 50), (0, 255, 255), 1)
+            cv2.putText(state.latest_streams["viz"], "idx 0 start (y>50)", (10, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+
+            cv2.line(state.latest_streams["viz"], (0, 22), (640, 22), (255, 255, 0), 1)
+            cv2.putText(state.latest_streams["viz"], "idx 1 start (22<y<=50)", (10, 22),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
+
+            cv2.line(state.latest_streams["viz"], (0, 11), (640, 11), (255, 0, 255), 1)
+            cv2.putText(state.latest_streams["viz"], "idx 2 start (11<y<=22)", (10, 11),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
+
+        # Process pillars
         for p in state.detected_pillars: # todo show where the undetected pillars are
+            p.x = p.screen_x
             index = None
+            # Ignored pillars (wrong size/ratio/etc.)
             if p.ignore:
-                cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 50) if p.color == "RED" else (0, 50, 0)), 3)
-                cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y - p.height),
+                            (p.screen_x + int(p.width*0.35), p.y),
+                            ((0, 0, 50) if p.color == "RED" else (0, 50, 0)), 3)
+                cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}",
+                            (p.screen_x - int(p.width*0.35), p.y - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                 continue
             if first_section:
                 if p.y > 130:
-                    print(f"--Pillar {p.color} is too near (higher than 130), y={p.y}")
+                    print(f"--Pillar {p.color} too near (>130), y={p.y}")
                 if abs(p.screen_x - 320) > 200:
-                    print(f"--Pillar {p.color} is too far from the center (further than 200), x={abs(p.screen_x - 320)}")
+                    print(f"--Pillar {p.color} too far from center (>200), dx={abs(p.screen_x - 320)}")
+
                 if p.y > 50:
                     index = 0
                 elif p.y > 23:
                     index = 1
                 else:
-                    print(f"--Pillar {p.color} is too far (lower than 24), y={p.y}")
+                    print(f"--Pillar {p.color} too far (<24), y={p.y}")
+
             else:
                 if p.y > 150:
-                    print(f"--Pillar {p.color} is too near (higher than 150), y={p.y}")
+                    print(f"--Pillar {p.color} too near (>150), y={p.y}")
+
                 if p.y > 50:
-                    index = 0 # about 80
+                    index = 0
                 elif p.y > 22:
-                    index = 1 # about 28
+                    index = 1
                 elif p.y > 11:
-                    index = 2 # about 13
+                    index = 2
                 else:
-                    print(f"--Pillar {p.color} is too far (lower than 25), y={p.y}")
-            if index == None:
-                cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 100) if p.color == "RED" else (0, 100, 0)), 3)
-                cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                    print(f"--Pillar {p.color} too far (<11), y={p.y}")
+
+            # Draw rejected pillar
+            if index is None:
+                cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y - p.height),
+                            (p.screen_x + int(p.width*0.35), p.y),
+                            ((0, 0, 100) if p.color == "RED" else (0, 100, 0)), 1)
+                cv2.putText(state.latest_streams["viz"], f"{p.color[0]} ({int(p.x)},{int(p.y)}) {index}",
+                            (p.screen_x - int(p.width*0.35), p.y + 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                 continue
-            else:
-                cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y-p.height), (p.screen_x + int(p.width*0.35), p.y), ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 3)
-                cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}", (p.screen_x - int(p.width*0.35), p.y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-                print(f"Pillar {p.color} accepted at index {index}, y={p.y}, x={p.screen_x}, section {section_index}")
+
+            # Draw accepted pillar
+            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y - p.height),
+                        (p.screen_x + int(p.width*0.35), p.y),
+                        ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 1)
+            cv2.putText(state.latest_streams["viz"], f"{p.color[0]} ({int(p.x)},{int(p.y)}) {index}",
+                        (p.screen_x - int(p.width*0.35), p.y + 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            print(f"Pillar {p.color} accepted at index {index}, y={p.y}, x={p.screen_x}, section {section_index}")
+
+            # Update left/right pillar storage
             if p.screen_x < 320:
                 straight_sections[section_index].l[index] = p.color
             else:
                 straight_sections[section_index].r[index] = p.color
 
-        straight_sections[section_index].parking_lot = True if section_index == 0 else False
+        # Mark parking lot for section 0
+        straight_sections[section_index].parking_lot = (section_index == 0)
+
+        # Validate and save images
         straight_sections[section_index].validate(state.round_dir)
         cv2.imwrite(f"logs/image{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["color_image"])
         cv2.imwrite(f"logs/image_viz{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["viz"])
         cv2.imwrite(f"logs/image_red{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["red"])
         cv2.imwrite(f"logs/image_green{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["green"])
+
         pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
         straight_sections[section_index].print()
         return pillar_driving_pos
-

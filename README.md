@@ -46,10 +46,7 @@
 - [Photos](#photos)
 - [Videos](#videos)
 - [Enabling Reproducibility](#enabling-reproducibility)
-- [CAD / 3D-printed parts](#cad--3d-printed-parts)
-- [Software & Tests](#software--tests)
-
-
+- [Future Improvements](#future-improvements)
 
 ---
 
@@ -64,7 +61,8 @@ We believe in transparent engineering and hope that sharing our work contributes
 ---
 
 # **Assembly Instructions**
-Below you’ll find a concise assembly guide covering all major build steps.
+
+Below you’ll find a concise assembly guide covering all major build steps
 ---
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 1 – Preparations</span></summary>
@@ -574,8 +572,6 @@ Together, these systems ensure that the Arduino can reliably control the robot�
 | ![DSC00498](media/DSC00498.JPG) | ![DSC00499](media/DSC00499.JPG) |
 | ![DSC00500](media/DSC00500.JPG) | ![DSC00502](media/DSC00502.JPG) |
 | ![DSC00515](media/DSC00515.JPG) | ![DSC00513](media/DSC00513.JPG) |
- 
-
 
 ![Teamfoto Flawil Beavers 2025](media/Teamfoto_Flawil%20Beavers_2025.JPG)
 
@@ -590,10 +586,9 @@ Together, these systems ensure that the Arduino can reliably control the robot�
 
 <!-- https://michaelcurrin.github.io/badge-generator/#/generic -->
 
-
 [![YouTube - Opening Race](https://img.shields.io/badge/YouTube-▶️%20Opening_Challenge-df3e3e?logo=youtube)](https://youtu.be/OofLgNROook)
 
-[![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Obstacle_Challenge-df3e3e?logo=youtube)](https://youtu.be/P_mGKfEbACU) 
+[![YouTube - Obstacle Race](https://img.shields.io/badge/YouTube-▶️%20Obstacle_Challenge-df3e3e?logo=youtube)](https://youtu.be/P_mGKfEbACU)
 
 ---
 
@@ -655,6 +650,28 @@ To enable the reproduction of our robot, we provide the following installation i
         python3 main.py --calibrate # Disable driving and moving to next states
         python3 main.py --skip-arduino # Skip Arduino connection
         ```
+
+## Future Improvements
+
+**Mechanical Improvements**
+
+* Build a robot capable of steering tighter curves, enabling easier parallel parking.
+* Redesign the connection between the back and front steering axes to reduce slack.
+* Consider using fully 3D-printed parts for the steering assembly to further minimize play.
+* Incorporate bearings to drive and steer the axles more smoothly.
+* Remake the custom metal steering rod to ensure proper alignment, so front and back axles steer equally. In our current version they aren't aligned properly.
+
+**Electronics & Sensors**
+
+* Use a more advanced gyro that integrates angular acceleration automatically. E.g. [BNO085](https://www.adafruit.com/product/4754)
+* Develop a custom PCB for all electronics to simplify assembly; current components fit well but a PCB would streamline the setup and reduce errors due to dry solder joints
+
+**Software Improvements**
+
+* Increase the main loop speed, potentially switching to C++, to improve overall responsiveness.
+* Adjust PD controllers to account for variable loop times, ensuring the derivative term reflects actual time intervals.
+* Improve color filtering to handle challenging lighting conditions, such as warm indoor light, outdoor reflections, or poorly lit pillars. This caused some problems while training in our cellar.
+
 
 <!-- $env:MERMAID_BIN="C:\Users\philk\AppData\Roaming\npm\mmdc.cmd"
 pandoc README.md -o README.pdf --pdf-engine=xelatex -V mainfont="Segoe UI Emoji" --filter pandoc-mermaid -->

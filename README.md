@@ -30,12 +30,16 @@
 
 ## Introduction
 
-We, Damian Hardegger and Philipp Kündig, make up the WRO team Flawil Beavers. We've been participating in WRO competitions since 2019. Previously, we competed in the RoboMission category and were successful there. But last year, we took on a new challenge and ventured into the Future Engineers category. There, too, we were able to gain our first experiences and even win the Open Championships in Italy.
+We, **Damian Hardegger and Philipp Kündig**, form the WRO team **Flawil Beavers**. Since 2019, we have been actively participating in the World Robot Olympiad, starting in the RoboMission category where we achieved several successful results. In 2023, we decided to take on a new challenge and moved into the Future Engineers category. There, we gained our first experience with autonomous driving and vehicle robotics — and even managed to win the Open Championships in Italy.
+
+This documentation provides a complete technical overview of our Future Engineers project, including the mechanical design, electronics, software architecture, and our development process. The goal of this README is to offer a clear reference for judges, mentors, and other teams who may benefit from our approach, CAD files, wiring diagrams, and assembly instructions.
+
+We believe in transparent engineering and hope that sharing our work contributes to the WRO community and inspires teams entering the Future Engineers category.
 
 ---
 
 # **Assembly Instructions**
-
+Below you’ll find a concise assembly guide covering all major build steps.
 ---
 
 <details><summary><span style="font-size:1.4em; font-weight:700;">Step 1 – Preparations</span></summary>

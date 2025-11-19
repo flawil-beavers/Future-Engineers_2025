@@ -11,7 +11,7 @@ import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
 from config import ConfigLoader
-from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState, process_pillars, find_direction
+from helpers import Pillar, extract_ROI, print_past_time, Straight_Section, Lines, bound, setup_logging, Car, SharedState, find_direction
 from pipeline import Pipeline
 from picamera2 import Picamera2
 from rounddir import find_round_dir
@@ -278,7 +278,7 @@ async def arduino_communication() -> bool:
     try:
         if not car.paused: # currently a lag of about 30 ms to communicate to robot
             car.distance, angle = await request_and_parse_float(f"y{int(car.speed)},{int(car.steering)}", "gyro and distance: ")
-            car.angle = angle + (time() - car.drift_rate_time) * car.drift_rate_last_sec
+            car.angle = angle - (time() - car.drift_rate_time) * car.drift_rate_last_sec
         else:
             car.distance, car.angle = await request_and_parse_float("z", "gyro and distance: ")
         # print(f"Passed time: {await request_and_parse_float('x', 'x (passed time)')}")
@@ -447,8 +447,8 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
                 
         if not state.headless and state.detected_corners[side_letter] != None:
             corner_x = state.detected_corners[side_letter][0] + lines[0]["x_offset"]
-            cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1] + lines[0]["y_offset"]), 3, (255, 255 if state.detected_corners[side_letter][-1] == "different" else 100, 0), -1)
-            cv2.putText(viz_stream, f"{state.detected_corners[side_letter][0]} {state.detected_corners[side_letter][1]}", (corner_x, roi_height), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            cv2.circle(viz_stream, (corner_x, state.detected_corners[side_letter][1] + lines[0]["y_offset"]), 4, (255, 255 if state.detected_corners[side_letter][-1] == "different" else 100, 0), -1)
+            cv2.putText(viz_stream, f"({state.detected_corners[side_letter][0]:4.0f}, {state.detected_corners[side_letter][1]:4.0f})", (int((roi_width-72)/2 + (640-roi_width if lines[0]["x_offset"] != 0 else 0)), 190 + lines[0]["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     if "P" in labels:
         lines = state.border_lines["P"].lines
@@ -499,57 +499,56 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
                     cv2.circle(viz_stream, (line["x1"] + line["x_offset"], line["y1"] + line["y_offset"]), 2, (0, 255, 0), -1)
                     cv2.circle(viz_stream, (line["x2"] + line["x_offset"], line["y2"] + line["y_offset"]), 2, (0, 0, 255), -1)
                     if b == 200:
-                        cv2.putText(viz_stream, f"y={line['m']:.2f}x+{line['b']:.2f}", 
-                            (line["x1"] + line["x_offset"], 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                        cv2.putText(viz_stream, f"q: {line['b']:5.1f}", 
+                            (int((roi_width-48)/2 + (640-roi_width if line["x_offset"] != 0 else 0)), 200 + line["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                     b *= 0.6
     return viz_stream
 
 
 async def cycle():
     viz_stream = await process_image(picam2, pipeline)
-    if not state.headless:
-        cv2.rectangle(viz_stream, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 3)
-        cv2.putText(viz_stream, f"{state.distance_front:.2f}", (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"{state.portion_black_l:.2f}", (110, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"{state.portion_black_r:.2f}", (510, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"o: {state.portion_orange:.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"b: {state.portion_blue:.2f}", (300, 222), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"p: {state.distance_pink:.2f}", (300, 234), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        line = lambda x: -0.35 * state.round_dir * x - 13
-        await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (-200*state.round_dir+640//2, int(line(-200*state.round_dir))), (255, 255, 255))
-        line = lambda x: -0.95 * state.round_dir * x - 13
-        await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (-200*state.round_dir+640//2, int(line(-200*state.round_dir))), (255, 255, 255))
-        m = -0.95 * state.round_dir
-        q = -13
-        x1 = state.parking_x
-        y1 = state.parking_y
-        x2 = ((y1 - q) * m + x1)/(m**2 + 1)
-        y2 = m * x2 + q
-        await asyncio.to_thread(cv2.line, viz_stream, (int(x2)+640//2, int(y2)), (int(x1)+640//2, int(y1)), (255, 255, 255))
-
     if state.pillars:
         viz_stream = await detect_edge_lines(state, roi_width, viz_stream)
+        # # filter out the red and green colors of the pillars and walls
+        # detected_pillars_r = pipeline.get_pillars(state.latest_streams["red"], "RED")
+        # detected_pillars_g = pipeline.get_pillars(state.latest_streams["green"], "GREEN")
+        # state.detected_pillars = detected_pillars_r + detected_pillars_g
 
-        # filter out the red and green colors of the pillars and walls
-        detected_pillars_r = pipeline.get_pillars(state.latest_streams["red"], "RED")
-        detected_pillars_g = pipeline.get_pillars(state.latest_streams["green"], "GREEN")
-        state.detected_pillars = detected_pillars_r + detected_pillars_g
+        # state.detected_pillars.sort(key=lambda x: x.width*x.height, reverse=True)
 
-        state.detected_pillars.sort(key=lambda x: x.width*x.height, reverse=True)
-        
     # viz stuff
     if not state.headless:
-        cv2.rectangle(viz_stream, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 2)
-        cv2.rectangle(viz_stream, (0, 0), (roi_width, 150), (255, 0, 0), 2)
-        cv2.rectangle(viz_stream, (640-roi_width, 0), (640, 150), (255, 0, 0), 2)
-        cv2.putText(viz_stream, f"Speed: {car.speed} mm/s, Steering: {car.steering:.2f}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1) # change to current function that is running
-        cv2.putText(viz_stream, f"Angle: {car.angle:.2f} deg, Distance: {car.distance:.2f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"Direction: {state.round_dir}, Rounds: {state.rounds}, Position: {state.position}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        cv2.putText(viz_stream, f"Current function: {state.current_function}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-        # cv2.putText(viz_stream, f"{12 - sm.turns_left} / 12", (580, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.rectangle(viz_stream, (0, 0), (roi_width, 150), (255, 0, 0), 1)
+        cv2.rectangle(viz_stream, (640-roi_width, 0), (640, 150), (255, 0, 0), 1)
+        cv2.putText(viz_stream, f"{state.portion_black_l:4.2f}", ((roi_width-26)//2, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"{state.portion_black_r:4.2f}", (640-roi_width + (roi_width-26)//2, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"o: {state.portion_orange:4.2f}", (300, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"b: {state.portion_blue:4.2f}", (300, 222), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.rectangle(viz_stream, (roi_center_x, roi_center_y), (roi_center_x + roi_center_w, roi_center_y + roi_center_h), (0, 255, 0), 1)
+        cv2.putText(viz_stream, f"Speed: {car.speed:3.0f} mm/s, Steering: {car.steering:4.2f}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"Angle: {car.angle:6.1f} deg, Distance: {car.distance:5.0f} mm", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"Direction: {state.round_dir:2.0f}, Corners: {state.rounds:2.0f}", (640-150, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"Position: {state.position}", (640-150, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        cv2.putText(viz_stream, f"Current function: {state.current_function}", (10, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        if state.parking == "Start":
+            cv2.putText(viz_stream, f"p: {state.distance_pink:4.2f}", (300, 234), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+        if state.parking in ["L", "R"]:
+            line = lambda x: -0.35 * state.round_dir * x - 13
+            await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (-200*state.round_dir+640//2, int(line(-200*state.round_dir))), (255, 255, 255))
+            line = lambda x: -0.95 * state.round_dir * x - 13
+            await asyncio.to_thread(cv2.line, viz_stream, (0+640//2, int(line(0))), (-200*state.round_dir+640//2, int(line(-200*state.round_dir))), (255, 255, 255))
+            m = -0.95 * state.round_dir
+            q = -13
+            x1 = state.parking_x
+            y1 = state.parking_y
+            x2 = ((y1 - q) * m + x1)/(m**2 + 1)
+            y2 = m * x2 + q
+            await asyncio.to_thread(cv2.line, viz_stream, (int(x2)+640//2, int(y2)), (int(x1)+640//2, int(y1)), (255, 255, 255))
         if state.pillars:
+            cv2.rectangle(viz_stream, (640//2-roi_front_width, 0), (640//2+roi_front_width, 140), (255, 0, 0), 1)
+            cv2.putText(viz_stream, f"{state.distance_front:4.2f}", ((640-26)//2, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
             for p in state.detected_pillars:
-                cv2.line(viz_stream, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 2)
+                cv2.line(viz_stream, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 1)
     state.latest_streams["viz"] = viz_stream
 
 async def cycle_loop():
@@ -929,7 +928,8 @@ async def parking():
     # wall_line = lambda x: -0.35 * state.round_dir * x - 13
     # parking_line = lambda x: m * x + q
     car.straight_direction = car.angle
-    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 150), 0.005)
+    await pd_point(150, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 100), 0.005)
+    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 160), 0.005)
     cv2.imwrite(f"logs/park1.jpg", state.latest_streams["viz"])
     await pd_point(50, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > (170 if state.round_dir == -1 else 200)), 0.005)
     cv2.imwrite(f"logs/park2.jpg", state.latest_streams["viz"])
@@ -1008,10 +1008,11 @@ async def main_program():
             await stop(True)
             state.position = "middle_parking"
             parking_drive_distance = 0
-            driving_pos = process_pillars(state, straight_sections)
+            driving_pos = pipeline.process_pillars(state, straight_sections)
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle_parking":
                     await drive(fspeed, 50)
+                    await stop(True)
                     await double_turn(fspeed, -75 * state.round_dir, 1)
                     state.position = "inner"
             print(f"current position: {state.position}")
@@ -1019,6 +1020,7 @@ async def main_program():
             if state.position == "inner":
                 parking_drive_distance = -600
                 await drive(fspeed, -300) # just to make sure that corner will be detected
+                await stop(True)
                 await follow_wall(speed, "inner")
                 await drive(fspeed, 250)
                 await double_turn(fspeed, 65 * state.round_dir, 1)
@@ -1053,7 +1055,7 @@ async def main_program():
                     car.stalled = False
                     await follow_wall(speed*0.6, "middle", (lambda start=car.distance: lambda: distance(450, start))(), False)
                     await stop(True)
-                    driving_pos = process_pillars(state, straight_sections)
+                    driving_pos = pipeline.process_pillars(state, straight_sections)
                     last_driving_pos = state.position
                     if driving_pos[0] == inner_colour:
                         state.position = "inner"
@@ -1094,7 +1096,7 @@ async def main_program():
                     await drive(-speed, 450)
                     await stop()
                     state.round_dir *= -1
-                    await follow_wall(100, "middle_parking_end", (lambda start=car.distance: lambda: distance(600, start))())
+                    await follow_wall(150, "middle_parking_end", (lambda start=car.distance: lambda: distance(600, start))())
                     state.round_dir *= -1
                     await parking()
                     break
@@ -1144,7 +1146,7 @@ async def main_program():
                     await stop(True)
                 else:
                     # determine the next position to drive in the next section. This enables the robot to decide what turn to do to end up at the correct position in the next section
-                    driving_pos = process_pillars(state, straight_sections)
+                    driving_pos = pipeline.process_pillars(state, straight_sections)
                     last_driving_pos = state.position
                     if driving_pos[0] == inner_colour:
                         state.position = "inner"
@@ -1160,7 +1162,7 @@ async def main_program():
                             await drive(speed, 100)
                             await turn(speed, -90 * state.round_dir, 1)
                         elif state.position == "middle_parking":
-                            await drive(speed, 400)
+                            await drive(speed, 300)
                             await turn(speed, -90 * state.round_dir, 1)
                         else:
                             await drive(speed, 0, lambda: distance_front_camera(DISTANCE_FRONT_OUTSIDE_TURN))

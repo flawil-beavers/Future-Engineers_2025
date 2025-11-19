@@ -15,16 +15,41 @@
 
 ## Contents
 
-- [Mobility and Hardware Design](#mobility-management)
+- [Introduction](#introduction)
+- [Assembly Instructions](#assembly-instructions)
+  - Steps
+    - Step 1 – Preparations
+    - Step 2 – Base Plate and Drive Assembly
+    - Step 3 – LEGO Component Assembly
+    - Step 4 – Steering axel
+    - Step 5 – Computer Mounting Plate
+    - Step 6 – Installing the Electronics
+    - Step 7 – Wiring
+    - Step 8 – Enclosure Assembly
+    - Step 9 – Hardware Finalization
+    - Step 10 – Software Installation and Setup
+- [Mobility Management](#mobility-management)
 - [Power and Sense Management](#power-and-sense-management)
   - [Power Management](#power-management)
   - [Sense Management](#sense-management)
-  - [Wiring Diagram](#wiring-diagram)
-  - [Bill of Materials](#bill-of-materials)
+- [Wiring Diagram](#wiring-diagram)
+- [Bill of Materials](#bill-of-materials)
 - [Obstacle Management](#obstacle-management)
+  - [Software Architecture](#software-architecture)
+  - [Opening Race](#opening-race)
+  - [Obstacle Race](#obstacle-race)
+  - [Colour Detection](#colour-detection)
+  - [Wall Following](#wall-following)
+- [Own platform for streams](#own-platform-for-streams)
+- [Firmware Running on the Arduino](#firmware-running-on-the-arduino)
+  - [Overview of custom Firmware Operation](#overview-of-custom-firmware-operation)
 - [Photos](#photos)
 - [Videos](#videos)
 - [Enabling Reproducibility](#enabling-reproducibility)
+- [CAD / 3D-printed parts](#cad--3d-printed-parts)
+- [Software & Tests](#software--tests)
+
+
 
 ---
 

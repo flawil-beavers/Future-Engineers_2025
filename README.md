@@ -462,7 +462,7 @@ flowchart TD
     drpark --> park["Parallel Parking"]
 ```
 
-First we determine the `round direction` based on how much black we see on each side in the blue ROI. 
+First we determine the `round direction` based on how much black we see on each side in the blue ROI.
 
 ![Unparking](media/Unparking.jpg)
 
@@ -599,52 +599,62 @@ Together, these systems ensure that the Arduino can reliably control the robot�
 
 ## Enabling Reproducibility
 
-<!-- todo check if still current -->
-
 To enable the reproduction of our robot, we provide the following installation instructions:
 
-1. Install raspberry pi os on your raspberry pi using the [official guide](https://www.raspberrypi.org/documentation/installation/installing-images/README.md) While the os is installing, you can flash the arduino code to the arduino nano. The arduino code can be found in the [src](/src) folder. The code can be uploaded using platformIO.
-2. After booting up the raspberry pi, connect via ssh, and install the following packages:
+1. Install raspberry pi os on your raspberry pi using the [official guide](https://www.raspberrypi.org/documentation/installation/installing-images/README.md) While the os is installing, you can flash the arduino code to the arduino nano. The arduino code can be found in the [src](/src) folder. The code can be uploaded using [PlatformIO](https://docs.platformio.org/en/latest/integration/ide/vscode.html).
+2. After booting up the raspberry pi, connect via [ssh](https://www.raspberrypi.com/documentation/computers/remote-access.html#ssh). Enable the camera with `sudo raspi-config` and the following commands. Then reboot for the changes to take effect.
 
-```bash
-sudo apt-get update
-sudo apt-get install python3-opencv python3-websockets python3-numpy python3-pyserial
-```
+    ```txt
+    Interface Options  →  Legacy Camera  →  Disable (important!)
+    Interface Options  →  CSI Camera     →  Enable
+    ```
 
-3. Enable the camera using `sudo raspi-config` and reboot the raspberry pi for the changes to take effect. Install the corresponding python module:
+3. Install the following packages:
 
-```bash
-sudo apt-get install python3-picamera2
-```
+    ```bash
+    sudo apt-get update
+    sudo apt-get install python3-opencv python3-websockets python3-numpy python3-pyserial python3-picamera2
+    ```
 
 4. Clone the repository and run the main script:
 
-```bash
-git clone https://github.com/flawil-beavers/Future-Engineers_2025.git
-```
+    ```bash
+    git clone https://github.com/flawil-beavers/Future-Engineers_2025.git
+    ```
 
 5. Running the robot in dev mode
 
-Check in the config file, if the correct usb port is set for the arduino. Check the correct port with `ls /dev/tty*` and look for the port that is connected to the arduino. Change the port in the config file to the correct port.
+    Check in the config file, if the correct usb port is set for the arduino. Check the correct port with `ls /dev/tty*` and look for the port that is connected to the arduino. Change the port in the config file to the correct port.
 
-Make sure pillars are enabled/disabled in the config file, and that no fixed round direction is set.
+    Navigate to the `raspberry_pi` directory and run the main script:
 
-Navigate to the `raspberry_pi` directory and run the main script:
+    ```bash
+    cd Future-Engineers_2025/raspberry_pi
+    python3 main.py
+    ```
 
-```bash
-cd Future-Engineers_2025/raspberry_pi
-python3 roi.py
-```
+    To launch the robot, switch the start button to the start position. The robot will now start driving autonomously. If you want to watch the live stream just open the web interface in your browser and click the connect button. To pause and resume the robot, you can press the stop button on the robot. By pressing `ctrl+c` multiple times in the ssh session you can stop the robot.
 
-To launch the robot, open the web interface in your browser and start the robot by clicking the connect button. The robot will now start driving autonomously. To stop the robot, you can close the web interface, press the stop button on the robot or press `ctrl+c` in the ssh session.
+6. Next steps
 
-6. For future running
+    - To make the program executable run the following commands in the `raspberry_pi` folder:
 
-To make the progam executable run the following commands in the `raspberry_pi` folder:
+        ```bash
+        chmod +x main.py
+        ```
 
-```bash
-chmod +x main.py
-```
+        Now you can start the robot using `./main.py` when in the `raspberry_pi` folder.
+
+    - Run [`setup_ssh.bat`](other/setup_ssh.bat) to configure your device to connect to the raspberry pi via ssh without password.
+    - Try out the different flags:
+
+        ```bash
+        python3 main.py --headless  # Run in headless mode without web interface
+        python3 main.py --pillars   # Run in pillar mode
+        python3 main.py --shutdown  # Shutdown after run
+        python3 main.py --calibrate # Disable driving and moving to next states
+        python3 main.py --skip-arduino # Skip Arduino connection
+        ```
 
 <!-- $env:MERMAID_BIN="C:\Users\philk\AppData\Roaming\npm\mmdc.cmd"
 pandoc README.md -o README.pdf --pdf-engine=xelatex -V mainfont="Segoe UI Emoji" --filter pandoc-mermaid -->

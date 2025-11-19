@@ -396,9 +396,11 @@ For driving, we employ a PD-Controller in `pd_middle`. The input is derived from
 
 The red outlines show the region of interest used for wall detection.
 
-Using a small region of interest in the center of the camera feed, we detect the blue and orange lines on the game mat. The color image is converted to HSV for this purpose. Upon encountering such a line, depending on its color, we initiate a turn and decrement the remaining corners counter, allowing us to accurately stop at the end of the round.
+Using a small region of interest in the center of the camera feed (green rectangle), we detect the blue and orange lines on the game mat. The color image is converted to HSV for this purpose. Upon encountering such a line, depending on its color, we initiate a turn and decrement the remaining corners counter, allowing us to accurately stop at the end of the round.
 
-<!-- Todo add image -->
+![Blue line](<media/Blue line.jpg>)
+
+The decimal numbers in the green rectangle show the percentage of orange and blue pixels.
 
 ---
 
@@ -431,9 +433,13 @@ flowchart TD
     drpark --> park["Parallel Parking"]
 ```
 
-First we determine the `round direction` based on how much black we see on each side in the blue ROI. <!-- Todo: add image --> Then we `unpark` by performing a turning sequence. Before starting to drive the rounds we evaluate the current image for pillars and decide whether we have to avoid a pillar. The robot continues driving until it is near to the wall. Then it takes a backward turn to realign itself and starts driving again. After taking  another picture we evaluate the pillars again.
+First we determine the `round direction` based on how much black we see on each side in the blue ROI. 
 
-<!-- todo add image -->
+![Unparking](media/Unparking.jpg)
+
+Then we `unpark` by performing a turning sequence. Before starting to drive the rounds we evaluate the current image for pillars and decide whether we have to avoid a pillar. The robot continues driving until it is near to the wall. Then it takes a backward turn to realign itself and starts driving again. After taking  another picture we evaluate the pillars again.
+
+![Pillar detection](media/Pillars.png)
 
 If there are pillars, it performs a double turn to avoid the pillars and then continues following the correct wall. If there are two pillars, the robot will change side in the middle of the section. After another double turn we increment the rounds counter
 
@@ -447,13 +453,15 @@ In addition to extracting a black-and-white image, we convert the cropped color 
 
 When handling the HSV color space, special care is needed for colors near the red hue due to the wrap-around effect. The hue value for red is around 0° and 360°, meaning it wraps around the HSV color wheel. To accurately detect red, we create two separate masks: one for the lower range (e.g., 0° to 10°) and another for the upper range (e.g., 350° to 360°). These masks are then combined to form a single mask that accurately captures all red hues. This approach ensures that all shades of red are detected, avoiding issues caused by the hue value wrapping around the color wheel.
 
-![Wall Detection](<media/download (3).jpeg>) <!-- todo add new image -->
+![Green mask](media/Pillars_green.png)
 
-In the image above you can see the robot detecting the red and green pillars. After processing the image, the program returns a list of found pillars, sorted by their distance to the robot. The robot then drives towards the closest pillar, until it is close enough to the pillar to avoid it. The robot then drives around the pillar and continues to the next one. You can also see the center ROI used for detecting turn marking lines.
+In the image above you can see the robot detecting the green pillars with the mask. It's the mask from the other [visualization](media/Pillars.png). After processing the image, the program returns a list of found pillars, sorted by their distance to the robot. The robot then drives towards the closest pillar, until it is close enough to the pillar to avoid it. The robot then drives around the pillar and continues to the next one. You can also see the center ROI used for detecting turn marking lines.
 
 #### Wall Following
 
-We follow the walls using the point-slope-form of the border line between the black wall and the white mat. This is again extracted using [`cv2.Canny`](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html). We use the PD controller to keep the y-intercept of the lines on a constant height. By including the gyro values quadratically in the steering calculation, we can further stabilise the driving so that the robot does not take a U-turn. Furthermore there is a corner detection algorithm that switches the wall following to gyro corrected driving, when passing the end of the walls. <!-- todo add image of robot reaching edge -->
+We follow the walls using the point-slope-form of the border line between the black wall and the white mat. This is again extracted using [`cv2.Canny`](https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html). We use the PD controller to keep the y-intercept of the lines on a constant height. By including the gyro values quadratically in the steering calculation, we can further stabilise the driving so that the robot does not take a U-turn. Furthermore there is a corner detection algorithm that switches the wall following to gyro corrected driving, when passing the end of the walls. In the following image you can see the corner being detected on the left roi where two red ends of detected edges meet.
+
+![Corner](media/Corner.png)
 
 ---
 
@@ -553,6 +561,8 @@ Together, these systems ensure that the Arduino can reliably control the robot�
 ---
 
 ## Enabling Reproducibility
+
+<!-- todo check if still current -->
 
 To enable the reproduction of our robot, we provide the following installation instructions:
 

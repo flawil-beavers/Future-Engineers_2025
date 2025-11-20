@@ -16,38 +16,49 @@
 ## Contents
 
 - [Introduction](#introduction)
+
 - [Mobility Management](#mobility-management)
-- [Assembly Instructions](#assembly-instructions)
-  - Steps
-    - Step 1 – Preparations
-    - Step 2 – Base Plate and Drive Assembly
-    - Step 3 – LEGO Component Assembly
-    - Step 4 – Steering Axle
-    - Step 5 – Computer Mounting Plate
-    - Step 6 – Installing the Electronics
-    - Step 7 – Wiring
-    - Step 8 – Enclosure Assembly
-    - Step 9 – Hardware Finalization
-    - Step 10 – Software Installation and Setup
-- [Structural and Mechanical Design](#structural-and-mechanical-design)
-- [Power and Sense Management](#power-and-sense-management)
-  - [Power Management](#power-management)
+  - [Assembly Instructions](#assembly-instructions)
+    - [Step 1 – Preparations](#step-1-preparations)
+    - [Step 2 – Base Plate and Drive Assembly](#step-2-base-plate-and-drive-assembly)
+    - [Step 3 – LEGO Component Assembly](#step-3-lego-component-assembly)
+    - [Step 4 – Steering Axle](#step-4-steering-axle)
+    - [Step 5 – Computer Mounting Plate](#step-5-computer-mounting-plate)
+    - [Step 6 – Installing the Electronics](#step-6-installing-the-electronics)
+    - [Step 7 – Wiring](#step-7-wiring)
+    - [Step 8 – Enclosure Assembly](#step-8-enclosure-assembly)
+    - [Step 9 – Hardware Finalization](#step-9-hardware-finalization)
+    - [Step 10 – Software Installation and Setup](#step-10-software-installation-and-setup)
+  - [Structural and Mechanical Design](#structural-and-mechanical-design)
+
+- [Power and Sense Management](#power-and-sense-management)  
+  - [Power Management](#power-management)  
   - [Sense Management](#sense-management)
+
 - [Wiring Diagram](#wiring-diagram)
+
 - [Bill of Materials](#bill-of-materials)
-- [Obstacle Management](#obstacle-management)
-  - [Software Architecture](#software-architecture)
-  - [Opening Race](#opening-race)
-  - [Obstacle Race](#obstacle-race)
-  - [Colour Detection](#colour-detection)
-  - [Wall Following](#wall-following)
+
+- [Obstacle Management](#obstacle-management)  
+  - [Software Architecture](#software-architecture)  
+  - [Opening Race](#opening-race)  
+  - [Obstacle Race](#obstacle-race)  
+    - [Colour Detection](#colour-detection)  
+    - [Wall Following](#wall-following)
+
 - [Own platform for streams](#own-platform-for-streams)
-- [Firmware Running on the Arduino](#firmware-running-on-the-arduino)
-  - [Overview of custom Firmware Operation](#overview-of-custom-firmware-operation)
-- [Photos](#photos)
+
+- [Firmware Running on the Arduino](#firmware-running-on-the-arduino)  
+  - [Overview of custom Firmware Operation](#overview-of-custom-firmware-operation)  
+  - [System-Level Interaction Diagram](#system-level-interaction-diagram)
+
+- [Photos](#photos)  
 - [Videos](#videos)
+
 - [Enabling Reproducibility](#enabling-reproducibility)
+
 - [Future Improvements](#future-improvements)
+
 
 ---
 
@@ -65,7 +76,7 @@ We believe in transparent engineering and hope that sharing our work contributes
 
 ### Assembly Instructions
 
-Below you’ll find a concise assembly guide covering all major build steps
+Below you’ll find a concise assembly guide covering all major build steps.
 
 ---
 
@@ -142,7 +153,7 @@ Verify that all gears rotate smoothly and are properly meshed.
 Attach [Raspberry holder](./CAD/Seperate%20Parts/Rasbperry%20holder.3mf), the **mounting plate for the Raspberry Pi and the [cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower.3mf)**, to the supports installed in the previous step.  
 Then, mount the [Camera mount](./CAD/Seperate%20Parts/Camera%20mount.3mf) on top of this plate as shown in the image.
 
-**[complete vehicle model](./CAD/Car%20v87.step)**
+**[Complete vehicle model](./CAD/Car%20v87.step)**
 
 | ![Raspberry holder](./CAD/Seperate%20Parts/Rasbperry%20holder_thumbnail.png) <br> **Raspberry holder** | ![cover top lower](./CAD/Seperate%20Parts/Cover%20top%20lower_thumbnail.png) <br> **cover top lower** | ![Camera mount](./CAD/Seperate%20Parts/Camera%20mount_thumbnail.png) <br> **Camera mount** |
 |---|---|---|
@@ -227,7 +238,7 @@ To finish:
 
 Your robot’s **hardware assembly** is now complete and ready for operation.
 
-| ![rear spoiler](./CAD/Seperate%20Parts/spoiler_full_2_thumbnail.png) <br> **rear spoiler 😎** | ![Battery holder](./CAD/Seperate%20Parts/Battery%20holder_thumbnail.png) <br> **Battery holder** |
+| ![Rear spoiler](./CAD/Seperate%20Parts/spoiler_full_2_thumbnail.png) <br> **Rear spoiler 😎** | ![Battery holder](./CAD/Seperate%20Parts/Battery%20holder_thumbnail.png) <br> **Battery holder** |
 |---|---|
 
 </details>
@@ -279,7 +290,7 @@ This step ensures that the printed components match the design exactly and can b
 **Component Mounting and Assembly:**
 
 - Additional 3D-printed parts were designed for the camera mount, electronics plates, and battery holder. The camera mount allows easy insertion from above, while other electronics are mounted on plates above or below the chassis depending on available space.
-- All components are secured using standard M3 or M2.5 hardware, with nuts pressed into the 3D prints post-printing, eliminating the need for support structures and ensuring strong, reliable connections. Square or hexagonal nuts were selected based on accessibility.
+- All components are secured using standard M3 or M2 hardware, with nuts pressed into the 3D prints post-printing, eliminating the need for support structures and ensuring strong, reliable connections. Square or hexagonal nuts were selected based on accessibility.
 - The battery is mounted low and held by a magnetic mount, allowing quick replacement while maintaining a low center of gravity.
 
 **Design Improvements:**
@@ -344,7 +355,7 @@ The [wiring diagram](#wiring-diagram) provides a professional overview of all co
 | 2          | Changeover switch                                                         | 4.00            ||
 | 1          | USB-A to USB-micro cable 15cm                                             | 7.80            ||
 | 1          | LED                                                                       | 0.50            ||
-| ~20        | M2.5 Screws and Nuts                                                      | 2.00            ||
+| ~20        | M3 Screws and Nuts                                                      | 2.00            ||
 | ~10        | M2 Screws and Nuts                                                        | 1.00            ||
 | ~300g      | 3D Printing Filament                                                      | 5.00            ||
 | ~20        | Jumper Cables                                                             | 4.00            ||
@@ -426,7 +437,7 @@ flowchart LR
 
 To communicate with the Arduino, we use the `pyserial` library. The Arduino is programmed to receive speed and steering commands via serial communication and send back angle and distance measurements. The communication protocol is simple: the Raspberry Pi sends a formatted string containing speed and steering values, and the Arduino responds with a formatted string containing angle and distance readings.
 
-The `main_program()` controls the high-level challenge logic. It waits for the Arduino to connect and for the start switch to be enabled. Once started, it decides whether to execute open challenge logic or obstacle challenge logic based on the challenge type given as flag
+The `main_program()` controls the high-level challenge logic. It waits for the Arduino to connect and for the start switch to be enabled. Once started, it decides whether to execute open challenge logic or obstacle challenge logic based on the challenge type given as flag.
 
 ```mermaid
 flowchart LR
@@ -460,7 +471,7 @@ For driving, we employ a PD-Controller in `pd_middle`. The input is derived from
 
 The red outlines show the region of interest (ROI) used for wall detection.
 
-Using a small (ROI) in the center of the camera feed (green rectangle), we detect the blue and orange lines on the game mat. The color image is converted to HSV for this purpose. Upon encountering such a line, depending on its color, we initiate a turn and decrement the remaining corners counter, allowing us to accurately stop at the end of the round.
+Using a small ROI in the center of the camera feed (green rectangle), we detect the blue and orange lines on the game mat. The color image is converted to HSV for this purpose. Upon encountering such a line, depending on its color, we initiate a turn and decrement the remaining corners counter, allowing us to accurately stop at the end of the round.
 
 ![Blue line](<media/Blue line.jpg>)
 
@@ -529,17 +540,7 @@ We follow the walls using the point-slope-form of the border line between the bl
 
 ---
 
-## Own platform for streams
-
-We created our own HTML file to display the camera image. This is used to send three streams constantly to our connected device in preparation mode. During the competition, we disable the communication so that the Raspberry Pi can use all its computational resources for the run. Using the streams limits the performance of the robot as much time is spent on sending the streams. Therefore, we disable it.
-With our HTML file, we can also read out the color values of the environment and send these changes directly to the robot. We can change the different streams via websocket and thus display images with different filters on them.
-
-| ![Stream 1](<media/Stream 1.png>) | ![Stream 2](<media/Stream 2.png>) |
-|-----------------------------|-----------------------------|
-
----
-
-## Firmware Running on the Arduino
+### Firmware Running on the Arduino
 
 The Arduino interfaces directly with the DC motor, servo, gyro sensor, switches, and status LED. Its primary role is to exchange sensor data and control commands between these peripherals and the Raspberry Pi. To support this, we implemented a custom firmware tailored to the robot’s needs.
 
@@ -565,7 +566,7 @@ EN -. sends .-> Ser("Report state change over serial")
 I1 -. updates .-> I1b("Update encoder distance")
 ```
 
-### Overview of custom Firmware Operation
+#### Overview of custom Firmware Operation
 
 At startup, the Arduino initializes the serial connection, configures motor and servo pins, and attaches interrupt handlers for the encoder signals and the enable switch.
 When the enable switch changes state, the corresponding interrupt fires and the new state is immediately sent to the Raspberry Pi.
@@ -597,7 +598,7 @@ The **main loop** performs four continuous tasks:
 
 Together, these systems ensure that the Arduino can reliably control the robot’s drivetrain, report accurate sensor data, and react quickly to unsafe conditions.
 
-### System-Level Interaction Diagram
+#### System-Level Interaction Diagram
 
 The diagram below shows how the Raspberry Pi loops interact with the Arduino firmware. The Pi runs asynchronous loops for image processing, main logic, Arduino communication, and optionally a webserver.
 
@@ -634,6 +635,16 @@ flowchart TD
     S1 --> A3
     S2 --> A4
 ```
+
+---
+
+## Own platform for Streams
+
+We created our own HTML file to display the camera image. This is used to send three streams constantly to our connected device in preparation mode. During the competition, we disable the communication so that the Raspberry Pi can use all its computational resources for the run. Using the streams limits the performance of the robot as much time is spent on sending the streams. Therefore, we disable it.
+With our HTML file, we can also read out the color values of the environment and send these changes directly to the robot. We can change the different streams via websocket and thus display images with different filters on them.
+
+| ![Stream 1](<media/Stream 1.png>) | ![Stream 2](<media/Stream 2.png>) |
+|-----------------------------|-----------------------------|
 
 ---
 

@@ -133,7 +133,7 @@ class Pipeline:
                     lowest_y = rect_y + h
 
                     # Filter out invalid contours
-                    if height * width <= 40.0 or height < width * 1.1:
+                    if height * width <= 40.0 or (height < width * 1.1 and lowest_y > 30):
                         continue
 
                     # Pass the lowest_y to the Pillar object
@@ -142,121 +142,132 @@ class Pipeline:
     
     def process_pillars(self, state, straight_sections):
         """
-        Process detected pillars and update the straight sections with pillar information.
-        Args:
-            state (SharedState): The shared state containing detected pillars and other information.
-            straight_sections (list): A list of Straight_Section objects representing the straight sections.
+        Process detected pillars and update the straight sections.
+        Only pillars inside the blue trapezoid are considered.
         """
-        # Filter pillars
+        first_section   = (state.rounds == 0)
+        section_index   = state.rounds % 4
         
-        detected_pillars_r = self.get_pillars(state.latest_streams["red"], "RED")
-        detected_pillars_g = self.get_pillars(state.latest_streams["green"], "GREEN")
-        state.detected_pillars = detected_pillars_r + detected_pillars_g
-
-        state.detected_pillars.sort(key=lambda x: x.width * x.height, reverse=True)
-        first_section = (state.rounds == 0)
-        section_index = state.rounds % 4
-
-        # If we drove one round, just return driving pos
+        # --- If full round already driven, skip classification ---
         if state.rounds > 4:
             return straight_sections[section_index].calculate_driving_pos()
 
-        # Reset parking lot pillar state
+        # --- Detect pillars ---
+        detected_pillars_r = self.get_pillars(state.latest_streams["red"], "RED")
+        detected_pillars_g = self.get_pillars(state.latest_streams["green"], "GREEN")
+        state.detected_pillars = detected_pillars_r + detected_pillars_g
+        state.detected_pillars.sort(key=lambda x: x.width * x.height, reverse=True)
+
+
+
+        # --- Reset section if parking lot found ---
         if straight_sections[section_index].parking_lot:
-            print(f"parking lot in section, resetting pillars")
+            print("parking lot in section, resetting pillars")
             for i in range(3):
                 straight_sections[section_index].l[i] = 0
                 straight_sections[section_index].r[i] = 0
+
+        # --- Draw y-lines and trapezoid lines ---
         if first_section:
-            cv2.line(state.latest_streams["viz"], (0, 50), (640, 50), (0, 255, 255), 1)
-            cv2.line(state.latest_streams["viz"], (0, 23), (640, 23), (255, 255, 0), 1)
+            y_lines = [(50, (0, 255, 255)), (23, (255, 255, 0))]
             opening_top = 40
             opening_bottom = 200
-            cv2.line(state.latest_streams["viz"], (320-opening_bottom, 240), (320-opening_top, 0), (255, 255, 0), 1)
-            cv2.line(state.latest_streams["viz"], (320+opening_bottom, 240), (320+opening_top, 0), (255, 255, 0), 1)
         else:
-            cv2.line(state.latest_streams["viz"], (0, 50), (640, 50), (0, 255, 255), 1)
-            cv2.line(state.latest_streams["viz"], (0, 22), (640, 22), (255, 255, 0), 1)
-            cv2.line(state.latest_streams["viz"], (0, 11), (640, 11), (255, 0, 255), 1)
-            opening_top = 40
-            opening_bottom = 200
-            cv2.line(state.latest_streams["viz"], (320-opening_bottom, 240), (320-opening_top, 0), (255, 255, 0), 1)
-            cv2.line(state.latest_streams["viz"], (320+opening_bottom, 240), (320+opening_top, 0), (255, 255, 0), 1)
-        # Process pillars
-        for p in state.detected_pillars: # todo show where the undetected pillars are
+            y_lines = [(50, (0, 255, 255)), (22, (255, 255, 0)), (11, (255, 0, 255))]
+            opening_top = 45
+            opening_bottom = 350
+
+        for y, col in y_lines:
+            cv2.line(state.latest_streams["viz"], (0, y), (640, y), col, 1)
+
+        # Left boundary line
+        cv2.line(state.latest_streams["viz"], (320 - opening_bottom, 240),
+                    (320 - opening_top, 0), (255, 255, 0), 1)
+        # Right boundary line
+        cv2.line(state.latest_streams["viz"], (320 + opening_bottom, 240),
+                    (320 + opening_top, 0), (255, 255, 0), 1)
+
+        # --- Process each pillar ---
+        for p in state.detected_pillars:
             p.x = p.screen_x - 320
-            index = None
-            # Ignored pillars (wrong size/ratio/etc.)
+
+            # Mark raw position
             cv2.circle(state.latest_streams["viz"], (p.screen_x, p.y), 3, (255, 0, 0), -1)
+
+            # --- Step 1: Ignore invalid pillars ---
             if p.ignore:
-                cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y - p.height),
-                            (p.screen_x + int(p.width*0.35), p.y),
-                            ((0, 0, 50) if p.color == "RED" else (0, 50, 0)), 3)
-                cv2.putText(state.latest_streams["viz"], f"{p.color} {int(p.y)} {index}",
-                            (p.screen_x - int(p.width*0.35), p.y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                self.draw_pillar(state.latest_streams["viz"], p, color=(0, 0, 50) if p.color == "RED" else (0, 50, 0), tag="IGN")
                 continue
+
+            # --- Step 2: Trapezoid gating ---
+            # Interpolate left/right boundary at this Y
+            t = p.y / 240.0
+            horizontal_offset = opening_top + (opening_bottom - opening_top) * t
+
+            left_bound  = 320 - horizontal_offset
+            right_bound = 320 + horizontal_offset
+
+            # Visualize gating points
+            cv2.circle(state.latest_streams["viz"], (int(left_bound),  p.y), 2, (255, 200, 0), -1)
+            cv2.circle(state.latest_streams["viz"], (int(right_bound), p.y), 2, (255, 200, 0), -1)
+
+            # Reject if outside trapezoid
+            if not (left_bound <= p.screen_x <= right_bound):
+                self.draw_pillar(state.latest_streams["viz"], p, color=(50, 50, 50), tag="OUT")
+                continue
+
+            # --- Step 3: Assign distance index based on y ---
+            index = None
             if first_section:
-                if p.y > 130:
-                    print(f"--Pillar {p.color} too near (>130), y={p.y}")
+                if p.y > 130: print(f"--Pillar {p.color} too near (>130), y={p.y}")
                 if abs(p.screen_x - 320) > 200:
                     print(f"--Pillar {p.color} too far from center (>200), dx={abs(p.screen_x - 320)}")
 
-                if p.y > 50:
-                    index = 0
-                elif p.y > 23:
-                    index = 1
-                else:
-                    print(f"--Pillar {p.color} too far (<24), y={p.y}")
-
+                if   p.y > 50: index = 0
+                elif p.y > 23: index = 1
+                else: print(f"--Pillar {p.color} too far (<24), y={p.y}")
             else:
-                if p.y > 150:
-                    print(f"--Pillar {p.color} too near (>150), y={p.y}")
+                if p.y > 150: print(f"--Pillar {p.color} too near (>150), y={p.y}")
 
-                if p.y > 50:
-                    index = 0
-                elif p.y > 22:
-                    index = 1
-                elif p.y > 11:
-                    index = 2
-                else:
-                    print(f"--Pillar {p.color} too far (<11), y={p.y}")
+                if   p.y > 50: index = 0
+                elif p.y > 22: index = 1
+                elif p.y > 11: index = 2
+                else: print(f"--Pillar {p.color} too far (<11), y={p.y}")
 
-            # Draw rejected pillar
+            # --- Step 4: Reject or accept pillar ---
             if index is None:
-                cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y - p.height),
-                            (p.screen_x + int(p.width*0.35), p.y),
-                            ((0, 0, 100) if p.color == "RED" else (0, 100, 0)), 1)
-                cv2.putText(state.latest_streams["viz"], f"{p.color[0]} ({int(p.x)},{int(p.y)}) {index}",
-                            (p.screen_x - int(p.width*0.35), p.y + 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+                self.draw_pillar(state.latest_streams["viz"], p, color=(0, 0, 100) if p.color == "RED" else (0, 100, 0), tag="?")
                 continue
 
-            # Draw accepted pillar
-            cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y - p.height),
-                        (p.screen_x + int(p.width*0.35), p.y),
-                        ((0, 0, 255) if p.color == "RED" else (0, 255, 0)), 1)
-            cv2.putText(state.latest_streams["viz"], f"{p.color[0]} ({int(p.x)},{int(p.y)}) {index}",
-                        (p.screen_x - int(p.width*0.35), p.y + 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+            # Accepted
+            self.draw_pillar(state.latest_streams["viz"], p, color=(0, 0, 255) if p.color == "RED" else (0, 255, 0), tag=str(index)[0])
             print(f"Pillar {p.color} accepted at index {index}, y={p.y}, x={p.screen_x}, section {section_index}")
 
-            # Update left/right pillar storage
-            if p.screen_x < 320:
-                straight_sections[section_index].l[index] = p.color
-            else:
-                straight_sections[section_index].r[index] = p.color
+            # Store classification
+            side_list = straight_sections[section_index].l if p.screen_x < 320 else straight_sections[section_index].r
+            side_list[index] = p.color
 
-        # Mark parking lot for section 0
+        # --- Mark parking lot for section 0 ---
         straight_sections[section_index].parking_lot = (section_index == 0)
 
-        # Validate and save images
+        # --- Validate and save logs ---
         straight_sections[section_index].validate(state.round_dir)
         cv2.imwrite(f"logs/image{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["color_image"])
         cv2.imwrite(f"logs/image_viz{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["viz"])
         cv2.imwrite(f"logs/image_red{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["red"])
         cv2.imwrite(f"logs/image_green{section_index}{'_p' if first_section else ''}.jpg", state.latest_streams["green"])
 
-        pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
+        # --- Return position ---
         straight_sections[section_index].print()
-        return pillar_driving_pos
+        return straight_sections[section_index].calculate_driving_pos()
+
+
+    # Small helper (clean drawing)
+    def draw_pillar(self, viz, p, color, tag):
+        cv2.rectangle(viz,
+                    (p.screen_x - int(p.width * 0.35), p.y - p.height),
+                    (p.screen_x + int(p.width * 0.35), p.y),
+                    color, 1)
+        cv2.putText(viz, f"{p.color[0]}({int(p.x)},{int(p.y)}) {tag}",
+                    (p.screen_x - int(p.width * 0.35), p.y + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)

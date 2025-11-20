@@ -518,6 +518,7 @@ async def cycle():
             # for p in state.detected_pillars:
             #     cv2.line(viz_stream, (p.screen_x, 0), (p.screen_x, 480), (0, 0, 255) if p.color == "RED" else (0, 255, 0), 1)
     state.latest_streams["viz"] = viz_stream
+    # pipeline.process_pillars(state, straight_sections)
 
 async def cycle_loop():
     """
@@ -640,7 +641,7 @@ async def main():
         tasks.append(asyncio.create_task(run_webserver()))
     if not state.calibrate:
         tasks.append(asyncio.create_task(main_program()))
-    tasks.append(asyncio.create_task(printer_task()))
+    # tasks.append(asyncio.create_task(printer_task()))
 
     try:
         await asyncio.gather(*tasks)
@@ -667,7 +668,7 @@ def encode_image(image):
 MAX_STEERING_ANGLE = 25.0
 
 async def calculate_steering(error, scaler = 1) -> float:
-    correction = error * scaler * state.kp + (error - state.last_error) * scaler * state.kd
+    correction = error * scaler * state.kp + (error - state.last_error) * (scaler ** 2) * state.kd
     state.last_error = error
     return bound(correction) * MAX_STEERING_ANGLE
 
@@ -764,6 +765,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
     updated_mse = None
 
     while True:
+        error = 0
         loop_timer.record("follow_wall")
         diff_angle = car.angle - angle_beg
         # collect angle samples for stability check (mean + MSE)
@@ -797,9 +799,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                     slope_2 = lines[detected_corner[2]]["m"]
                     if (abs(slope) > 3 or abs(slope_2) > 3) and detected_corner[1] > 100 and detected_corner[3] == "same":
                         # if we reach the end of the wall
-                        # sm.following_angle = True
                         cv2.imwrite(f"logs/image_corner_{state.rounds}.jpg", state.latest_streams["viz"])
-                        # error = (sm.diff_angle / 80) ** 2
                         break
                 else:
                     error = (160 - intercept) / 250 * -state.round_dir
@@ -811,9 +811,13 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                 if diff_angle != 0:
                     error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle_parking":
-                error = (intercept - 80) / 250 * -state.round_dir
-                if diff_angle != 0:
-                    error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
+                if (slope * state.round_dir > 0):
+                    error = (intercept - 80) / 250 * -state.round_dir
+                    if diff_angle != 0:
+                        error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
+                else:
+                    if diff_angle != 0:
+                        error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle_parking_end":
                 error = (intercept - 91) / 250 * -state.round_dir
                 if diff_angle != 0:
@@ -937,6 +941,7 @@ async def main_program():
     
     # state.round_dir = 1
     # state.parking = "R" if state.round_dir == -1 else "L"
+    # state.rounds = 1
     
     if ser and not state.calibrate:
         await connect_to_arduino()
@@ -988,6 +993,7 @@ async def main_program():
             await stop(True)
             state.position = "middle_parking"
             parking_drive_distance = 0
+            await asyncio.sleep(0.5)
             driving_pos = pipeline.process_pillars(state, straight_sections)
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle_parking":
@@ -1044,12 +1050,12 @@ async def main_program():
                     else:
                         state.position = "outer"
                     direction = find_direction(state.round_dir, last_driving_pos, state.position)
-                    await double_turn(fspeed, 60 * direction)
+                    await double_turn(fspeed, 59 * direction)
                     if direction == 0: # if we are driving through middle_parking
                         await follow_wall(speed, state.position, (lambda start=car.distance: lambda: distance(300, start))(), False if "middle" in state.position else True)
                 if driving_pos[0] != driving_pos[1]:
                     if straight_sections[state.rounds % 4].parking_lot:
-                        follow_wall_distance_extra += 50 # todo check if correct # extra distance for the small "double turn"
+                        follow_wall_distance_extra += 50
                         state.position = "middle_parking" if state.position == "inner" else "inner"
                     else:
                         follow_wall_distance_extra += 250 # extra distance for the big "double turn"
@@ -1120,7 +1126,7 @@ async def main_program():
                     
 
                 if state.rounds < 5:
-                    await double_turn(fspeed, 60 * direction)
+                    await double_turn(fspeed, 59 * direction)
                     state.position = "middle"
                     await drive(fspeed, 0, lambda: distance_front_camera(DISTANCE_TO_WALL))
                     await stop(True)

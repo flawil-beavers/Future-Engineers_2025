@@ -19,25 +19,14 @@
 
 - [Mobility Management](#mobility-management)
   - [Assembly Instructions](#assembly-instructions)
-    - [Step 1 – Preparations](#step-1-preparations)
-    - [Step 2 – Base Plate and Drive Assembly](#step-2-base-plate-and-drive-assembly)
-    - [Step 3 – LEGO Component Assembly](#step-3-lego-component-assembly)
-    - [Step 4 – Steering Axle](#step-4-steering-axle)
-    - [Step 5 – Computer Mounting Plate](#step-5-computer-mounting-plate)
-    - [Step 6 – Installing the Electronics](#step-6-installing-the-electronics)
-    - [Step 7 – Wiring](#step-7-wiring)
-    - [Step 8 – Enclosure Assembly](#step-8-enclosure-assembly)
-    - [Step 9 – Hardware Finalization](#step-9-hardware-finalization)
-    - [Step 10 – Software Installation and Setup](#step-10-software-installation-and-setup)
   - [Structural and Mechanical Design](#structural-and-mechanical-design)
 
 - [Power and Sense Management](#power-and-sense-management)  
   - [Power Management](#power-management)  
   - [Sense Management](#sense-management)
-
-- [Wiring Diagram](#wiring-diagram)
-
-- [Bill of Materials](#bill-of-materials)
+  - [Wiring Diagram and Bill of Materials](#wiring-diagram-and-bill-of-materials)
+    - [Wiring Diagram](#wiring-diagram)
+    - [Bill of Materials](#bill-of-materials)
 
 - [Obstacle Management](#obstacle-management)  
   - [Software Architecture](#software-architecture)  
@@ -45,12 +34,11 @@
   - [Obstacle Race](#obstacle-race)  
     - [Colour Detection](#colour-detection)  
     - [Wall Following](#wall-following)
+  - [Firmware Running on the Arduino](#firmware-running-on-the-arduino)  
+    - [Overview of custom Firmware Operation](#overview-of-custom-firmware-operation)  
+    - [System-Level Interaction Diagram](#system-level-interaction-diagram)
 
-- [Own platform for streams](#own-platform-for-streams)
-
-- [Firmware Running on the Arduino](#firmware-running-on-the-arduino)  
-  - [Overview of custom Firmware Operation](#overview-of-custom-firmware-operation)  
-  - [System-Level Interaction Diagram](#system-level-interaction-diagram)
+- [Own platform for Streams](#own-platform-for-streams)
 
 - [Photos](#photos)  
 - [Videos](#videos)
@@ -58,7 +46,6 @@
 - [Enabling Reproducibility](#enabling-reproducibility)
 
 - [Future Improvements](#future-improvements)
-
 
 ---
 

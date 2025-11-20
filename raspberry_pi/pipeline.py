@@ -159,8 +159,7 @@ class Pipeline:
 
         # If we drove one round, just return driving pos
         if state.rounds > 4:
-            pillar_driving_pos = straight_sections[section_index].calculate_driving_pos()
-            return pillar_driving_pos
+            return straight_sections[section_index].calculate_driving_pos()
 
         # Reset parking lot pillar state
         if straight_sections[section_index].parking_lot:
@@ -169,41 +168,26 @@ class Pipeline:
                 straight_sections[section_index].l[i] = 0
                 straight_sections[section_index].r[i] = 0
         if first_section:
-            # FIRST SECTION (2 usable levels)
-            # index 0: y > 50
-            # index 1: 23 < y <= 50
-
             cv2.line(state.latest_streams["viz"], (0, 50), (640, 50), (0, 255, 255), 1)
-            cv2.putText(state.latest_streams["viz"], "idx 0 start (y>50)", (10, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
-
             cv2.line(state.latest_streams["viz"], (0, 23), (640, 23), (255, 255, 0), 1)
-            cv2.putText(state.latest_streams["viz"], "idx 1 start (23<y<=50)", (10, 23),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
-
+            opening_top = 40
+            opening_bottom = 200
+            cv2.line(state.latest_streams["viz"], (320-opening_bottom, 240), (320-opening_top, 0), (255, 255, 0), 1)
+            cv2.line(state.latest_streams["viz"], (320+opening_bottom, 240), (320+opening_top, 0), (255, 255, 0), 1)
         else:
-            # OTHER SECTIONS (3 usable levels)
-            # index 0: y > 50
-            # index 1: 22 < y <= 50
-            # index 2: 11 < y <= 22
-
             cv2.line(state.latest_streams["viz"], (0, 50), (640, 50), (0, 255, 255), 1)
-            cv2.putText(state.latest_streams["viz"], "idx 0 start (y>50)", (10, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
-
             cv2.line(state.latest_streams["viz"], (0, 22), (640, 22), (255, 255, 0), 1)
-            cv2.putText(state.latest_streams["viz"], "idx 1 start (22<y<=50)", (10, 22),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
-
             cv2.line(state.latest_streams["viz"], (0, 11), (640, 11), (255, 0, 255), 1)
-            cv2.putText(state.latest_streams["viz"], "idx 2 start (11<y<=22)", (10, 11),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
-
+            opening_top = 40
+            opening_bottom = 200
+            cv2.line(state.latest_streams["viz"], (320-opening_bottom, 240), (320-opening_top, 0), (255, 255, 0), 1)
+            cv2.line(state.latest_streams["viz"], (320+opening_bottom, 240), (320+opening_top, 0), (255, 255, 0), 1)
         # Process pillars
         for p in state.detected_pillars: # todo show where the undetected pillars are
-            p.x = p.screen_x
+            p.x = p.screen_x - 320
             index = None
             # Ignored pillars (wrong size/ratio/etc.)
+            cv2.circle(state.latest_streams["viz"], (p.screen_x, p.y), 3, (255, 0, 0), -1)
             if p.ignore:
                 cv2.rectangle(state.latest_streams["viz"], (p.screen_x - int(p.width*0.35), p.y - p.height),
                             (p.screen_x + int(p.width*0.35), p.y),

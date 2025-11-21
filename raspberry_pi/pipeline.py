@@ -6,20 +6,58 @@ from config import ConfigLoader
 from helpers import Pillar
 
 class Pipeline:
+    """
+    Image processing pipeline for detecting colored pillars, walls, and markers.
+
+    Attributes:
+        configloader (ConfigLoader): Instance of ConfigLoader for loading filters and parameters.
+    """
+
     def __init__(self, configloader: ConfigLoader):
+        """
+        Initialize the Pipeline with a configuration loader.
+
+        Args:
+            configloader (ConfigLoader): Provides access to configuration parameters.
+        """
         self.configloader = configloader
 
-    def undistort(self, image: np.ndarray):
+    def undistort(self, image: np.ndarray) -> np.ndarray:
+        """
+        Correct lens distortion using camera matrix and distortion coefficients.
+
+        Args:
+            image (np.ndarray): Input distorted image.
+
+        Returns:
+            np.ndarray: Undistorted image.
+        """
         mtx, dist = np.array(self.configloader.get_property("camera")['mtx']), np.array(self.configloader.get_property("camera")['dist'])
         return cv2.undistort(image, mtx, dist, None, mtx)
 
-    def crop(self, image: np.ndarray):
-        # scale the image by 0.5 in height. This means that the image will have a height of 240 pixels instead of 480
+    def crop(self, image: np.ndarray) -> np.ndarray:
+        """
+        Crop the image by scaling its height to 50%.
+
+        Args:
+            image (np.ndarray): Input image.
+
+        Returns:
+            np.ndarray: Cropped/resized image.
+        """
         return cv2.resize(image, (int(image.shape[1]), int(image.shape[0] * 0.5)))
     
-    def inRange(self, image: np.ndarray, min: list, max: list):
+    def inRange(self, image: np.ndarray, min: list, max: list) -> np.ndarray:
         """
-        Returns a mask of the image with the pixels in the range of min and max
+        Create a mask of pixels within a specified HSV range.
+
+        Args:
+            image (np.ndarray): Input HSV image.
+            min (list): Minimum HSV values.
+            max (list): Maximum HSV values.
+
+        Returns:
+            np.ndarray: Binary mask where pixels within range are 255.
         """
         mins = list(min)
         maxs = list(max)
@@ -29,11 +67,17 @@ class Pipeline:
             i[2] = int(round(i[2]*2.55))
         return cv2.inRange(image, tuple(mins), tuple(maxs))
 
-    def filter_RG_Bl(self, hsv: np.ndarray, color_image: np.ndarray):
+    def filter_RG_Bl(self, hsv: np.ndarray, color_image: np.ndarray) -> dict:
         """
-        Extracts the red, green and black colors from the image -> this is used to detect the pillars and walls
+        Extract red, green, black, orange, and blue colors from the image.
+
+        Args:
+            hsv (np.ndarray): HSV image.
+            color_image (np.ndarray): Original RGB image.
+
+        Returns:
+            dict: Masks for each color, e.g. {"green": mask, "red": mask, ...}.
         """
-        # reload config file
         self.configloader.load_config()
         redMin = list(self.configloader.get_property("filters")['REDLO'])
         redMax = list(self.configloader.get_property("filters")['REDHI'])
@@ -41,64 +85,74 @@ class Pipeline:
         greenMax = list(self.configloader.get_property("filters")['GREENHI'])
         grayThresh = int(self.configloader.get_property("filters")['GRAY'])
 
-
-        # red filter
-        # First red range
+        # Red filter (two ranges to handle hue wrap-around)
         rMask1 = self.inRange(hsv, redMin, redMax)
-
-        # Second red range (adjusted for hue wrapping)
         redMin2 = [360 - redMax[0], redMin[1], redMin[2]]
         redMax2 = [360, redMax[1], redMax[2]]
         rMask2 = self.inRange(hsv, redMin2, redMax2)
-
-        # Combine both red ranges
         rMask = cv2.bitwise_or(rMask1, rMask2)
 
-        # green filter
+        # Green filter
         gMask = self.inRange(hsv, greenMin, greenMax)
-    
-        # blur images to remove noise
+
+        # Blur to remove noise
         blurredR = cv2.medianBlur(rMask, 5)
         blurredG = cv2.medianBlur(gMask, 5)
 
+        # Black filter via grayscale and thresholding
         grayImage = cv2.cvtColor(color_image, cv2.COLOR_RGB2GRAY)
         blurredImg = cv2.GaussianBlur(grayImage, (3, 3), 0)
-        # edge detection
-        lower = 30
-        upper = 90
         blackimg = cv2.inRange(blurredImg, 0, grayThresh)
         
+        # Orange/blue detection and removal from black mask
         ob_image = self.filter_OB(hsv)
-        # combine images
         combined = cv2.bitwise_or(ob_image["orange"], ob_image["blue"])
         blackimg = cv2.subtract(blackimg, combined)
+
         return {"green": blurredG, "red": blurredR, "black": blackimg, "orange": ob_image["orange"], "blue": ob_image["blue"]}
         
-    def filter_OB(self, hsv: np.ndarray):
+    def filter_OB(self, hsv: np.ndarray) -> dict:
         """
-        Extracts the orange and blue colors from the image -> this is used to detect the turn markers
+        Extract orange and blue colors for turn markers.
+
+        Args:
+            hsv (np.ndarray): HSV image.
+
+        Returns:
+            dict: {"orange": orange_mask, "blue": blue_mask}
         """
         orangeMin = list(self.configloader.get_property("filters")['ORANGELO'])
         orangeMax = list(self.configloader.get_property("filters")['ORANGEHI'])
         blueMin = list(self.configloader.get_property("filters")['BLUELO'])
         blueMax = list(self.configloader.get_property("filters")['BLUEHI'])
-        # orange filter
+
         oMask = self.inRange(hsv, orangeMin, orangeMax)
-        # blue filter
         bMask = self.inRange(hsv, blueMin, blueMax)
-        # blur images to remove noise
+
+        # Blur to remove noise
         blurredO = cv2.medianBlur(oMask, 5)
         blurredB = cv2.medianBlur(bMask, 5)
-        # remove more noise by eroding and dilating the image
+
+        # Erode and dilate for further noise removal
         kernel_erode = np.ones((3, 3), np.uint8)
         kernel_dilate = np.ones((10, 10), np.uint8)
         blurredO = cv2.erode(blurredO, kernel_erode, iterations=2)
         blurredO = cv2.dilate(blurredO, kernel_dilate, iterations=2)
         blurredB = cv2.erode(blurredB, kernel_erode, iterations=2)
         blurredB = cv2.dilate(blurredB, kernel_dilate, iterations=2)
+
         return {"orange": blurredO, "blue": blurredB}
     
-    def filter_pink(self, hsv: np.ndarray):
+    def filter_pink(self, hsv: np.ndarray) -> np.ndarray:
+        """
+        Extract pink regions from the image.
+
+        Args:
+            hsv (np.ndarray): HSV image.
+
+        Returns:
+            np.ndarray: Pink color mask.
+        """
         pinkMin = list(self.configloader.get_property("filters")['PINKLO'])
         pinkMax = list(self.configloader.get_property("filters")['PINKHI'])
         pMask = self.inRange(hsv, pinkMin, pinkMax)
@@ -107,13 +161,18 @@ class Pipeline:
 
     def get_pillars(self, imgIn: np.ndarray, type="RED") -> list[Pillar]:
         """
-        Extracts pillars from filtered image.
+        Detect pillar objects from a binary mask.
+
+        Args:
+            imgIn (np.ndarray): Mask of a specific color (RED or GREEN).
+            type (str): Color type for the pillars.
+
+        Returns:
+            list[Pillar]: List of Pillar objects with position, size, and color.
         """
         minSize = float(self.configloader.get_property("contours")['minSize'])
         edges = cv2.Canny(cv2.medianBlur(cv2.copyMakeBorder(imgIn[:], 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=0), 3), 30, 200)
-
-        contours, hierarchy = cv2.findContours(edges, 
-            cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         processedContours = []
         for contour in contours:
@@ -123,27 +182,44 @@ class Pipeline:
                 if moment["m00"] != 0:
                     x = int(moment["m10"] / moment["m00"])
                     y = int(moment["m01"] / moment["m00"])
-
-                    # Get bounding rectangle
                     rect_x, rect_y, w, h = cv2.boundingRect(contour)
                     width = math.ceil(w)
                     height = math.ceil(h)
-
-                    # Calculate the y-coordinate of the lowest part of the pillar
                     lowest_y = rect_y + h
-
-                    # Filter out invalid contours
                     if height * width <= 40.0 or (height < width * 1.1 and lowest_y > 30):
                         continue
-
-                    # Pass the lowest_y to the Pillar object
                     processedContours.append(Pillar(x, width, height, type, y=lowest_y))
         return processedContours
-    
+
     def process_pillars(self, state, straight_sections):
         """
-        Process detected pillars and update the straight sections.
-        Only pillars inside the blue trapezoid are considered.
+        Process detected pillars and update straight sections with pillar information.
+
+        This method performs the following steps:
+        1. Detect red and green pillars from the filtered images in `state.latest_streams`.
+        2. Combine and sort detected pillars by size (width * height).
+        3. Determine the current track section based on `state.rounds`.
+        4. Reset parking lot pillars if necessary.
+        5. Visualize pillar index thresholds for the first and subsequent sections.
+        6. Iterate over each detected pillar:
+            - Reject pillars that are ignored or outside valid bounds.
+            - Draw visualizations on `state.latest_streams["viz"]`.
+            - Assign accepted pillars to left or right in the `Straight_Section`.
+        7. Mark parking lot if in section 0.
+        8. Validate the straight section.
+        9. Save visualizations and color images to disk.
+        10. Calculate and return the driving position for the current section.
+
+        Args:
+            state (SharedState): The shared state object containing:
+                - latest_streams: dictionary of processed image streams ("red", "green", "viz", "color_image")
+                - rounds: current number of completed track rounds
+                - round_dir: direction of the round
+                - detected_pillars: will be updated with detected Pillar objects
+            straight_sections (list[Straight_Section]): List of straight sections representing segments of the track.
+        
+        Returns:
+            list[str]: Driving position derived from the accepted pillars in the current section.
         """
         first_section   = (state.rounds == 0)
         section_index   = state.rounds % 4

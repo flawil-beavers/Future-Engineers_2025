@@ -372,37 +372,81 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
     Returns:
         dict: Dictionary with keys 'L' and 'R' containing detected lines for left and right sides as Lines objects.
     """
-    labels = ["L", "R"] + (["P"] if state.latest_streams.get("pink") is not None else [])
+    # active_roi_sides is either None or a set containing one or both of 'L'/'R'.
+    # If None -> skip all line detection (fast). If contains both -> detect both.
+    active = getattr(state, 'active_roi_sides', None)
+    # If no active ROI sides are requested and we're not in calibrate mode
+    # then normally skip detection to save CPU. However, when `state.parking`
+    # is set we still want to run detection for the pink parking marker.
+    if active is None and not state.calibrate and state.latest_streams.get("pink") is None:
+        # Nothing to detect: return early
+        return viz_stream
+
+    # Normalize active to a set for easy checks; if calibrate is on, always use both
+    if state.calibrate:
+        active_sides = {"L", "R"}
+    else:
+        active_sides = set(c for c in (active or []) if c in ("L", "R"))
+    labels = []
+    if "L" in active_sides:
+        labels.append("L")
+    if "R" in active_sides:
+        labels.append("R")
+    # include pink when present and either calibrate or both sides active
+    if state.latest_streams.get("pink") is not None:
+        labels.append("P")
 
     # Run the full detection pipeline for all ROIs in one worker thread to
     # reduce task-switching overhead.
     def _sync_detect():
         roi_lines = {label: [] for label in labels}
-        images = [state.latest_streams.get("roi_left"), state.latest_streams.get("roi_right"), state.latest_streams.get("pink")]
-        for image, key in zip(images[:len(labels)], labels):
+        image_map = {
+            "L": state.latest_streams.get("roi_left"),
+            "R": state.latest_streams.get("roi_right"),
+            "P": state.latest_streams.get("pink")
+        }
+        for key in labels:
+            image = image_map.get(key)
+            if image is None:
+                roi_lines[key] = None
+                continue
             img = image[5:, :]
             blurredImg = cv2.GaussianBlur(img, (3, 3), 0)
             lower = 30
             upper = 90
             edges_img = cv2.Canny(blurredImg, lower, upper, 3)
-            roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=(10 if "P" in labels else 25), maxLineGap=(50 if "P" in labels else 50))
+            min_len = 10 if key == "P" else 25
+            roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=min_len, maxLineGap=50)
         return roi_lines
 
     roi_lines = await asyncio.to_thread(_sync_detect)
 
+    # Fill border_lines for processed labels; set empty Lines for skipped ones
+    processed = set()
     for key in labels:
+        processed.add(key)
         if key == "L":
-            state.border_lines[key] = Lines(roi_lines[key], (0, 5), (0, 0))
+            state.border_lines[key] = Lines(roi_lines.get(key), (0, 5), (0, 0))
         elif key == "R":
-            state.border_lines[key] = Lines(roi_lines[key], (640 - roi_width, 5), (roi_width, 0))
+            state.border_lines[key] = Lines(roi_lines.get(key), (640 - roi_width, 5), (roi_width, 0))
         elif key == "P":
-            state.border_lines[key] = Lines(roi_lines[key], (0, 5), (640 // 2, 0))
+            state.border_lines[key] = Lines(roi_lines.get(key), (0, 5), (640 // 2, 0))
+    if "L" not in processed:
+        state.border_lines["L"] = Lines(None, (0, 5), (0, 0))
+    if "R" not in processed:
+        state.border_lines["R"] = Lines(None, (640 - roi_width, 5), (roi_width, 0))
 
     max_diff = 400 # max difference squared of the two points to be the same point
     for side_letter in ["L", "R"]:
-        lines = state.border_lines[side_letter].lines
-        # calculate the slope and intercept of the line
+        # If this side was not processed, its border_lines entry may be None
+        line_group = state.border_lines.get(side_letter)
         state.detected_corners[side_letter] = None
+        if line_group is None:
+            continue
+        lines = line_group.lines or []
+        if not lines:
+            continue
+        # calculate the slope and intercept of the line
         for line in lines:
             # detect if any line forms a corner with the first line
             if not (line["m"] != 0 and lines[0]["m"] != 0 and line["m"]/abs(line["m"]) != lines[0]["m"]/abs(lines[0]["m"])):
@@ -426,7 +470,8 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
             cv2.putText(viz_stream, f"({state.detected_corners[side_letter][0]:4.0f}, {state.detected_corners[side_letter][1]:4.0f})", (int((roi_width-72)/2 + (640-roi_width if lines[0]["x_offset"] != 0 else 0)), 190 + lines[0]["y_offset"]), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
     if "P" in labels:
-        lines = state.border_lines["P"].lines
+        p_group = state.border_lines.get("P")
+        lines = p_group.lines if (p_group is not None) else []
         if len(lines) != 0:
             lines.sort(key=lambda x: (x["x"]), reverse=(state.round_dir == 1))
             highest_y = 0
@@ -529,11 +574,9 @@ async def cycle():
 
 async def cycle_loop():
     """
-    Main loop that continuously reads data from the Arduino, processes images, and applies control logic.
+    Main loop that continuously processes images
 
-    This function captures images from the camera, processes them to extract relevant features,
-    and applies a PD control algorithm to drive the robot. It also handles state transitions
-    based on the robot's current state and sensor readings.
+    This function captures images from the camera, processes them to extract relevant features
 
     Returns:
         None
@@ -590,7 +633,7 @@ async def img_stream(websocket, path):
             # Asynchronously encode all images in parallel
             async def async_encode(val):
                 if isinstance(val, np.ndarray):
-                    return await asyncio.to_thread(encode_image, val)
+                    return await asyncio.to_thread(encode_image, val, state.hq)
                 return val
             tasks = [async_encode(state.latest_streams.get(stream_name)) for stream_name in state.current_streams]
             results = await asyncio.gather(*tasks)
@@ -625,6 +668,7 @@ async def main():
     parser.add_argument('--shutdown', action='store_true', help='Shutdown after run')
     parser.add_argument('--calibrate', action='store_true', help='Disable driving and moving to next states')
     parser.add_argument('--skip-arduino', action='store_true', help='Skip Arduino connection')
+    parser.add_argument('--hq', action='store_true', help='Stream in High Quality')
     args = parser.parse_args()
 
     state.set_flags(
@@ -632,7 +676,8 @@ async def main():
         pillars=args.pillars,
         shutdown=args.shutdown,
         calibrate=args.calibrate,
-        skip_arduino=args.skip_arduino
+        skip_arduino=args.skip_arduino,
+        hq=args.hq
     )
 
     state.kp = configloader.get_property("PD")['kp']
@@ -642,13 +687,19 @@ async def main():
     
     # connect_arduino is now called at the start of main_program
 
+    # # During startup (and when calibrate is active) we want to run full
+    # # edge/corner detection on both sides so problems are visible.
+    # if state.calibrate:
+    #     # In calibrate mode, always process both sides so you can see issues
+    #     state.active_roi_sides = {"L", "R"}
+
     tasks = [asyncio.create_task(cycle_loop()),
              asyncio.create_task(arduino_communication_loop())]
     if not state.headless:
         tasks.append(asyncio.create_task(run_webserver()))
     if not state.calibrate:
         tasks.append(asyncio.create_task(main_program()))
-    # tasks.append(asyncio.create_task(printer_task()))
+    tasks.append(asyncio.create_task(printer_task()))
 
     try:
         await asyncio.gather(*tasks)
@@ -667,25 +718,54 @@ async def main():
         await asyncio.sleep(0.1)  # Give tasks a moment to cancel
         os._exit(0)
 
-def encode_image(image):
+def encode_image(image, hq: bool = False):
     if image is None:
         return None
-    # Downscale large frames for faster JPEG encoding and reduced bandwidth
-    h, w = image.shape[:2]
-    if w > 480:
-        new_w = 480
-        new_h = int(h * new_w / w)
-        image = cv2.resize(image, (new_w, new_h))
-    # Use slightly lower quality to speed up encoding and reduce size
-    retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-    base64_str = base64.b64encode(buffer).decode('utf-8')
+    if hq:
+        retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 99])
+        base64_str = base64.b64encode(buffer).decode('utf-8')
+
+    else:
+        # Downscale large frames for faster JPEG encoding and reduced bandwidth
+        h, w = image.shape[:2]
+        if w > 480:
+            new_w = 480
+            new_h = int(h * new_w / w)
+            image = cv2.resize(image, (new_w, new_h))
+        # Use slightly lower quality to speed up encoding and reduce size
+        retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+        base64_str = base64.b64encode(buffer).decode('utf-8')
     return base64_str
 
 MAX_STEERING_ANGLE = 25.0
 
-async def calculate_steering(error, scaler = 1) -> float:
-    correction = error * scaler * state.kp + (error - state.last_error) * (scaler ** 2) * state.kd
+async def calculate_steering(error, speed = 200) -> float:
+    # Use time-aware derivative: derivative = (error - last_error) / dt
+    kp = state.kp
+    kd = state.kd
+    if (speed > 220):
+        kp = 5
+        kd = 0.2
+    now = perf_counter()
+    last_time = getattr(state, 'last_error_time', None)
+    if last_time is None:
+        dt = None
+    else:
+        dt = now - last_time
+
+    # proportional term
+    p = kp * error
+
+    # derivative term (guard against zero or very small dt)
+    if dt is None or dt <= 0:
+        d = 0.0
+    else:
+        derivative = (error - state.last_error) / dt
+        d = kd * derivative
+
+    correction = p + d
     state.last_error = error
+    state.last_error_time = now
     return bound(correction) * MAX_STEERING_ANGLE
 
 def current_function(func):
@@ -776,7 +856,12 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
         state.angle_buffer.clear()
     except Exception:
         pass
-    
+
+    # Indicate which ROI side(s) should be processed by the detector.
+    # While following a wall we only need the ROI for the active side.
+    # Use a simple set containing one of {'L','R'}.
+    state.active_roi_sides = {roi_side}
+
     updated_mean_angle = None
     updated_mse = None
 
@@ -804,8 +889,9 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
             # keep silent in production, but print for debugging
             print("Angle buffer error")
             pass
-        detected_corner = state.detected_corners[roi_side]
-        lines = state.border_lines[roi_side].lines
+        detected_corner = state.detected_corners.get(roi_side)
+        line_group = state.border_lines.get(roi_side)
+        lines = line_group.lines if (line_group is not None) else []
         if len(lines) > 0:
             slope = lines[0]["m"]
             intercept = lines[0]["b"]
@@ -814,6 +900,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                 if detected_corner != None and wait_for_corner:
                     slope_2 = lines[detected_corner[2]]["m"]
                     if (abs(slope) > 3 or abs(slope_2) > 3) and detected_corner[1] > 100 and detected_corner[3] == "same":
+                        cv2.putText(state.latest_streams["viz"], f"slope {slope}, slope2 {slope_2}, ({detected_corner[0]}, {detected_corner[1]})", (10, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
                         # if we reach the end of the wall
                         cv2.imwrite(f"logs/image_corner_{state.rounds}.jpg", state.latest_streams["viz"])
                         break
@@ -828,9 +915,9 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                     error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle_parking":
                 if (slope * state.round_dir > 0):
-                    error = (intercept - 80) / 250 * -state.round_dir
+                    error = (intercept - 74) / 250 * -state.round_dir
                     if diff_angle != 0:
-                        error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
+                        error = bound(error) - (diff_angle / 160) ** 2 * diff_angle / abs(diff_angle)
                 else:
                     if diff_angle != 0:
                         error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
@@ -839,24 +926,29 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                 if diff_angle != 0:
                     error = bound(error) - (diff_angle / 50) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle":
-                if detected_corner != None and wait_for_corner:
-                    slope_2 = lines[detected_corner[2]]["m"]
-                    if detected_corner[1] > 10:
-                        cv2.imwrite(f"logs/image_corner_{state.rounds}.jpg", state.latest_streams["viz"])
-                        break
-                error = (intercept - 53) / 100 * -state.round_dir
+                if (slope * state.round_dir > 0):
+                    error = (intercept - 53) / 100 * -state.round_dir
+                    if diff_angle != 0:
+                        error = bound(error) - (diff_angle / 80) ** 2 * diff_angle / abs(diff_angle)
+                else:
+                    if diff_angle != 0:
+                        error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
             else:
                 raise ValueError(f"side must be 'inner', 'outer' or 'middle', currently it is set to '{side}'")
-        else:
-            if roi_side == "L":
-                error = state.portion_black_l - REF_PORTION_SIDE
-            else:
-                error = REF_PORTION_SIDE - state.portion_black_r
+        # else:
+        #     if diff_angle != 0:
+        #         error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
+            # if roi_side == "L":
+            #     error = state.portion_black_l - REF_PORTION_SIDE
+            # else:
+            #     error = REF_PORTION_SIDE - state.portion_black_r
         if stop_condition():
             break
 
-        car.steering = await calculate_steering(error, 0.8 if speed > 220 else 1)            
+        car.steering = await calculate_steering(error, speed)            
         await asyncio.sleep(0.01)
+    state.active_roi_sides = None
+
     if (updated_mean_angle is not None and updated_mse is not None):
         print(f"Updated straight direction to {updated_mean_angle:.2f} deg (MSE: {updated_mse:.2f})")
 
@@ -955,7 +1047,7 @@ DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
 async def main_program():
     # Wait for Arduino trigger before starting main logic
     
-    # state.round_dir = 1
+    # state.round_dir = -1
     # state.parking = "R" if state.round_dir == -1 else "L"
     # state.rounds = 1
     
@@ -969,6 +1061,8 @@ async def main_program():
     # distance_beg, angle_beg = car.distance, car.angle
     # await double_turn(speed, 65, 1)
     # print(f"current distance: {car.distance - distance_beg} cm and angle {car.angle - angle_beg}")
+    # await follow_wall(fspeed, "middle_parking")
+    # await follow_wall(0.6*speed, "middle", lambda: False, False)
     # await stop(True)
     # os._exit(0)
     
@@ -1014,7 +1108,6 @@ async def main_program():
             for i in range(2):
                 if driving_pos[i] == inner_colour and state.position == "middle_parking":
                     await drive(fspeed, 50)
-                    await stop(True)
                     await double_turn(fspeed, -75 * state.round_dir, 1)
                     state.position = "inner"
             print(f"current position: {state.position}")

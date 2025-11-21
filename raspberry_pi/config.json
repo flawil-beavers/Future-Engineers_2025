@@ -88,7 +88,7 @@
   "ROI": {},
   "PD": {
     "kp": 5,
-    "kd": 8.0
+    "kd": 0.084
   },
   "ArduinoSerialPort": "/dev/ttyUSB0",
   "ArduinoBaudRate": 115200,

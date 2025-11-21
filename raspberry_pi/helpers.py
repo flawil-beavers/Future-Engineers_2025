@@ -351,13 +351,19 @@ class SharedState:
         self.shutdown = False
         self.calibrate = False
         self.skip_arduino = False
+        self.hq = False
 
         # Error tracking
         self.last_error = 0.0
+        # Timestamp of the last error sample (perf_counter seconds). Used by PD controller.
+        self.last_error_time = None
 
         # PD parameters
         self.kp = 0.0
         self.kd = 0.0
+        # If set, contains list of ROI labels to process (e.g. ['L'] or ['R']).
+        # When None, the detector should process both sides.
+        self.active_roi_sides = None
 
     def reset_streams(self):
         """Clear all stored latest stream data."""
@@ -376,13 +382,14 @@ class SharedState:
         """Replace detected pillars list."""
         self.detected_pillars = pillars
 
-    def set_flags(self, headless=False, pillars=False, shutdown=False, calibrate=False, skip_arduino=False):
+    def set_flags(self, headless=False, pillars=False, shutdown=False, calibrate=False, skip_arduino=False, hq=False):
         """Update control and mode flags."""
         self.headless = headless
         self.pillars = pillars
         self.shutdown = shutdown
         self.calibrate = calibrate
         self.skip_arduino = skip_arduino
+        self.hq = hq
 
 
 def find_direction(round_direction, current_position, target_position):

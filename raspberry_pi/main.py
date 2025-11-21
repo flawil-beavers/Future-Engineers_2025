@@ -296,59 +296,65 @@ async def process_image(picam2, pipeline):
             - portion_black_l: Portion of black in the left ROI.
             - portion_black_r: Portion of black in the right ROI.
     """
-    img = await asyncio.to_thread(cv2.cvtColor, picam2.capture_array(), cv2.COLOR_RGB2BGR)
-    color_image = await asyncio.to_thread(pipeline.crop, img)
-    color_image = await asyncio.to_thread(cv2.bilateralFilter, color_image, 5, 20, 10)
-    viz_stream = color_image.copy()
-    hsv_image = await asyncio.to_thread(cv2.cvtColor, color_image, cv2.COLOR_BGR2HSV)
+    # Combine all CPU-bound image operations into a single synchronous function
+    # and run it once in a worker thread. This avoids creating many small
+    # threads per frame (one per cv2 call) which caused scheduling overhead.
+    def _sync_process():
+        img = cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR)
+        color_image = pipeline.crop(img)
+        # reduce work by smoothing at lower resolution
+        # color_image = cv2.bilateralFilter(color_image, 5, 20, 10)
+        viz_stream = color_image.copy()
+        hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
 
-    state.update_stream("roi_center", await asyncio.to_thread(extract_ROI, hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h]))
+        state.update_stream("roi_center", extract_ROI(hsv_image, [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h]))
 
-    rgbl = await asyncio.to_thread(pipeline.filter_RG_Bl, hsv_image, color_image)
-    
-    if "pink" not in state.latest_streams:
-        state.update_stream("pink", None)
-    
-    if state.parking != None:
-        pink = await asyncio.to_thread(pipeline.filter_pink, hsv_image)
-        state.update_stream("pink", pink)
-        portion_pink = await asyncio.to_thread(extract_ROI, pink, [640//2-roi_front_width, 0], [640//2+roi_front_width, 240])
-        state.distance_pink = await asyncio.to_thread(cv2.countNonZero, portion_pink) / (portion_pink.shape[0] * portion_pink.shape[1])
-    elif state.latest_streams["pink"] != None:
-        state.update_stream("pink", None)
+        rgbl = pipeline.filter_RG_Bl(hsv_image, color_image, state.calibrate)
 
-    roi_left_side = await asyncio.to_thread(extract_ROI, rgbl["black"], [0, 0], [roi_width, rgbl["black"].shape[0]])
-    roi_right_side = await asyncio.to_thread(extract_ROI, rgbl["black"], [640-roi_width, 0], [640, rgbl["black"].shape[0]])
+        if "pink" not in state.latest_streams:
+            state.update_stream("pink", None)
 
-    roi_left = await asyncio.to_thread(extract_ROI, roi_left_side, [0, 0], [roi_width, roi_height])
-    roi_right = await asyncio.to_thread(extract_ROI, roi_right_side, [0, 0], [roi_width, roi_height])
+        if state.parking is not None:
+            pink = pipeline.filter_pink(hsv_image)
+            state.update_stream("pink", pink)
+            portion_pink = extract_ROI(pink, [640//2-roi_front_width, 0], [640//2+roi_front_width, 240])
+            state.distance_pink = cv2.countNonZero(portion_pink) / (portion_pink.shape[0] * portion_pink.shape[1])
+        elif state.latest_streams.get("pink") is not None:
+            state.update_stream("pink", None)
 
-    portion_black_l = await asyncio.to_thread(cv2.countNonZero, roi_left) / (roi_left.shape[0] * roi_left.shape[1])
-    portion_black_r = await asyncio.to_thread(cv2.countNonZero, roi_right) / (roi_right.shape[0] * roi_right.shape[1])
+        roi_left_side = extract_ROI(rgbl["black"], [0, 0], [roi_width, rgbl["black"].shape[0]])
+        roi_right_side = extract_ROI(rgbl["black"], [640-roi_width, 0], [640, rgbl["black"].shape[0]])
 
-    orange_roi = await asyncio.to_thread(extract_ROI, rgbl["orange"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
-    blue_roi = await asyncio.to_thread(extract_ROI, rgbl["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
-    state.portion_orange = await asyncio.to_thread(cv2.countNonZero, orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
-    state.portion_blue = await asyncio.to_thread(cv2.countNonZero, blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
+        roi_left = extract_ROI(roi_left_side, [0, 0], [roi_width, roi_height])
+        roi_right = extract_ROI(roi_right_side, [0, 0], [roi_width, roi_height])
 
-    if state.pillars:
-        roi_front = await asyncio.to_thread(extract_ROI, rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
-        state.distance_front = await asyncio.to_thread(cv2.countNonZero, roi_front) / (roi_front.shape[0] * roi_front.shape[1])
+        portion_black_l = cv2.countNonZero(roi_left) / (roi_left.shape[0] * roi_left.shape[1])
+        portion_black_r = cv2.countNonZero(roi_right) / (roi_right.shape[0] * roi_right.shape[1])
 
+        orange_roi = extract_ROI(rgbl["orange"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+        blue_roi = extract_ROI(rgbl["blue"], [roi_center_x, roi_center_y], [roi_center_x + roi_center_w, roi_center_y + roi_center_h])
+        state.portion_orange = cv2.countNonZero(orange_roi) / (orange_roi.shape[0] * orange_roi.shape[1])
+        state.portion_blue = cv2.countNonZero(blue_roi) / (blue_roi.shape[0] * blue_roi.shape[1])
 
+        if state.pillars:
+            roi_front = extract_ROI(rgbl["black"], [640//2-roi_front_width, 0], [640//2+roi_front_width, 140])
+            state.distance_front = cv2.countNonZero(roi_front) / (roi_front.shape[0] * roi_front.shape[1])
 
-    state.update_stream("color_image", color_image)
-    state.update_stream("hsv_image", hsv_image)
-    state.update_stream("red", rgbl["red"])
-    state.update_stream("green", rgbl["green"])
-    state.update_stream("black", rgbl["black"])
-    state.update_stream("orange", rgbl["orange"])
-    state.update_stream("blue", rgbl["blue"])
-    state.update_stream("roi_left", roi_left_side)
-    state.update_stream("roi_right", roi_right_side)
+        state.update_stream("color_image", color_image)
+        state.update_stream("hsv_image", hsv_image)
+        state.update_stream("red", rgbl["red"])
+        state.update_stream("green", rgbl["green"])
+        state.update_stream("black", rgbl["black"])
+        state.update_stream("orange", rgbl["orange"])
+        state.update_stream("blue", rgbl["blue"])
+        state.update_stream("roi_left", roi_left_side)
+        state.update_stream("roi_right", roi_right_side)
 
-    state.portion_black_l = portion_black_l
-    state.portion_black_r = portion_black_r
+        state.portion_black_l = portion_black_l
+        state.portion_black_r = portion_black_r
+        return viz_stream
+
+    viz_stream = await asyncio.to_thread(_sync_process)
     return viz_stream
 
 async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
@@ -366,22 +372,23 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
     Returns:
         dict: Dictionary with keys 'L' and 'R' containing detected lines for left and right sides as Lines objects.
     """
-    labels = ["L", "R"] + (["P"] if state.latest_streams["pink"] is not None else [])
-    roi_lines = {label: [] for label in labels}
-    images = [
-        state.latest_streams["roi_left"],
-        state.latest_streams["roi_right"],
-        state.latest_streams["pink"],
-    ]
+    labels = ["L", "R"] + (["P"] if state.latest_streams.get("pink") is not None else [])
 
-    for image, key in zip(images[:len(labels)], labels):
-        # remove the 5 uppest rows from the image just in case the robot sees over the barriers
-        image = image[5:, :]
-        blurredImg = await asyncio.to_thread(cv2.GaussianBlur, image, (3, 3), 0)
-        lower = 30
-        upper = 90
-        edges_img = await asyncio.to_thread(cv2.Canny, blurredImg, lower, upper, 3)
-        roi_lines[key] = await asyncio.to_thread(cv2.HoughLinesP, edges_img, 1, np.pi/180, 10, minLineLength=10 if "P" in labels else 25, maxLineGap=50 if "P" in labels else 50)
+    # Run the full detection pipeline for all ROIs in one worker thread to
+    # reduce task-switching overhead.
+    def _sync_detect():
+        roi_lines = {label: [] for label in labels}
+        images = [state.latest_streams.get("roi_left"), state.latest_streams.get("roi_right"), state.latest_streams.get("pink")]
+        for image, key in zip(images[:len(labels)], labels):
+            img = image[5:, :]
+            blurredImg = cv2.GaussianBlur(img, (3, 3), 0)
+            lower = 30
+            upper = 90
+            edges_img = cv2.Canny(blurredImg, lower, upper, 3)
+            roi_lines[key] = cv2.HoughLinesP(edges_img, 1, np.pi/180, 10, minLineLength=(10 if "P" in labels else 25), maxLineGap=(50 if "P" in labels else 50))
+        return roi_lines
+
+    roi_lines = await asyncio.to_thread(_sync_detect)
 
     for key in labels:
         if key == "L":
@@ -661,7 +668,16 @@ async def main():
         os._exit(0)
 
 def encode_image(image):
-    retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 99])
+    if image is None:
+        return None
+    # Downscale large frames for faster JPEG encoding and reduced bandwidth
+    h, w = image.shape[:2]
+    if w > 480:
+        new_w = 480
+        new_h = int(h * new_w / w)
+        image = cv2.resize(image, (new_w, new_h))
+    # Use slightly lower quality to speed up encoding and reduce size
+    retval, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
     base64_str = base64.b64encode(buffer).decode('utf-8')
     return base64_str
 

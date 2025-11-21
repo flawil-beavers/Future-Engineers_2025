@@ -67,7 +67,7 @@ class Pipeline:
             i[2] = int(round(i[2]*2.55))
         return cv2.inRange(image, tuple(mins), tuple(maxs))
 
-    def filter_RG_Bl(self, hsv: np.ndarray, color_image: np.ndarray) -> dict:
+    def filter_RG_Bl(self, hsv: np.ndarray, color_image: np.ndarray, calibrate: bool) -> dict:
         """
         Extract red, green, black, orange, and blue colors from the image.
 
@@ -78,7 +78,10 @@ class Pipeline:
         Returns:
             dict: Masks for each color, e.g. {"green": mask, "red": mask, ...}.
         """
-        self.configloader.load_config()
+        # Avoid reloading the config file on every frame — this caused
+        # excessive disk IO and slowed down per-frame processing.
+        if calibrate:
+            self.configloader.load_config()
         redMin = list(self.configloader.get_property("filters")['REDLO'])
         redMax = list(self.configloader.get_property("filters")['REDHI'])
         greenMin = list(self.configloader.get_property("filters")['GREENLO'])

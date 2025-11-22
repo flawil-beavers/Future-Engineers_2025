@@ -639,6 +639,8 @@ With our HTML file, we can also read out the color values of the environment and
 
 ## Photos
 
+![Our Robot Car enjoying the View on the Aletsch Glacier](media/PXL_20250825_115712649.MP.jpg)
+
 | ![DSC00494](media/DSC00494.JPG) | ![DSC00495](media/DSC00495.JPG) |
 |---------------------------------|---------------------------------|
 | ![DSC00496](media/DSC00496.JPG) | ![DSC00497](media/DSC00497.JPG) |

@@ -21,6 +21,19 @@ import sys
 from collections import deque
 import traceback
 
+"""
+raspberry_pi/main.py
+---------------------
+Main entrypoint for the Raspberry Pi robot. Configures camera and pipeline,
+coordinates Arduino communication (gyro/odometry and motor commands), runs
+the vision pipeline (color filters, ROI extraction, line detection) and
+provides PD-based control primitives and a high-level state machine used
+for rounds and parking maneuvers.
+
+This module is intended to run on a Raspberry Pi with a Picamera and an
+Arduino connected for motion and gyro feedback.
+"""
+
 #?: Webviewer controls for tuning colors, pd, and selecting stream
 
 # todo: move most of this code to the main function
@@ -92,6 +105,15 @@ except:
         print("{}: {} [{}]".format(port, desc, hwid))
 
 def pause_robot(resume=False):
+    """Pause or resume the robot.
+
+    Args:
+        resume (bool): If True, unpause the robot; otherwise pause it.
+
+    Toggles `car.paused` and prints a short status message. This helper is
+    used by serial commands and by the main program to temporarily stop
+    motion for safety or calibration.
+    """
     global car
     if resume:
         car.paused = False
@@ -101,15 +123,37 @@ def pause_robot(resume=False):
         print("Robot paused")
 
 async def write_serial(msg):
+    """Write a message to the Arduino serial port without blocking the loop.
+
+    The actual serial write is performed in a threadpool so the asyncio
+    event loop remains responsive.
+
+    Args:
+        msg (str): Message to send (including newline if required).
+    """
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, ser.write, msg.encode())
     
 async def read_serial_line():
+    """Read one line from the serial port in a background thread.
+
+    Returns the decoded, stripped line as a string.
+    """
     loop = asyncio.get_running_loop()
     line = await loop.run_in_executor(None, ser.readline)
     return line.decode('utf-8').strip()
 
 async def read_and_handle_serial_line():
+    """Read a serial line and handle common control messages.
+
+    Recognized protocol messages include:
+      - "enable start" / "enable stop": toggle pause
+      - Lines beginning with "Stall": mark the car as stalled
+      - Lines beginning with "Error": log error
+
+    Returns a tuple (handled: bool, line: str) where handled indicates if
+    the caller-side handled the message.
+    """
     line = await read_serial_line()
     if line == "enable start":
         pause_robot(True)
@@ -127,6 +171,24 @@ async def read_and_handle_serial_line():
     return False, line
 
 async def request_and_parse_float(letter=None, prompt=None):
+    """Send a single-letter command to the Arduino and parse its response.
+
+    The Arduino protocol used by this project commonly uses single-letter
+    requests. This helper drains pending serial lines, sends the request and
+    returns a typed response depending on the command.
+
+    Behavior:
+      - 'y' or 'z' -> expect two comma-separated floats (distance, angle)
+      - 'x' -> expect a raw string
+      - other letters -> expect a single float
+
+    Args:
+        letter (str|None): Command letter to send
+        prompt (str|None): Optional context used in error messages
+
+    Returns:
+        float | (float,float) | str | None on parse error
+    """
     while ser.in_waiting > 0:
         result, line = await read_and_handle_serial_line()
         if not result:
@@ -168,6 +230,14 @@ async def request_and_parse_float(letter=None, prompt=None):
                 return None
 
 async def connect_to_arduino():
+    """Perform the Arduino connection handshake and initial drift monitoring.
+
+    This coroutine waits for the Arduino to indicate gyro readiness ("Gyro OK"),
+    toggles DTR to reset the device if needed, sends an open command and then
+    reads gyro temperature and stabilization information. When the robot is
+    paused the function continuously samples gyro readings to compute a
+    recent drift rate used to correct angles.
+    """
     try:
         if ser is None:
             print("No Arduino connected, skipping communication.")
@@ -243,6 +313,14 @@ async def connect_to_arduino():
 
 
 async def arduino_communication() -> bool:
+    """Exchange commands with the Arduino and update odometry/angle.
+
+    When running, this coroutine sends the current motor command to the
+    Arduino and parses back distance and angle telemetry. When paused a
+    lighter-weight request is used.
+
+    Returns True on success, False on exception.
+    """
     try:
         if not car.paused:  # currently ~30 ms lag to communicate with robot
             command = f"y{int(car.speed)},{int(car.steering)}"
@@ -259,6 +337,12 @@ async def arduino_communication() -> bool:
     return True    
 
 async def arduino_communication_loop():
+    """Background task that periodically calls `arduino_communication`.
+
+    The loop records timings to `loop_timer` and sleeps a short interval
+    between calls. Errors are logged and can be extended with recovery
+    logic if needed.
+    """
     # await asyncio.sleep(2)
     while car.paused: # and not state.skip_arduino:
         loop_timer.record("arduino")
@@ -526,6 +610,12 @@ async def detect_edge_lines(state: SharedState, roi_width, viz_stream):
 
 
 async def cycle():
+    """Perform a single image processing cycle and update visualization.
+
+    Captures an image, runs the detection pipeline (when enabled) and draws
+    debug overlays on the visualization stream which is saved into
+    `state.latest_streams['viz']`.
+    """
     viz_stream = await process_image(picam2, pipeline)
     if state.pillars:
         viz_stream = await detect_edge_lines(state, roi_width, viz_stream)
@@ -593,6 +683,12 @@ async def cycle_loop():
         await asyncio.sleep(0.02)  # Sleep for a short duration to prevent blocking
 
 async def img_stream(websocket, path):
+    """Websocket handler for the image streaming web UI.
+
+    Maintains a single active websocket connection; accepts small JSON
+    commands from the client to select streams or update filters and
+    responds with base64-encoded JPEG images for the requested streams.
+    """
     # todo: make sure old webserver is closed properly before starting a new one
     print("Websocket connection established")
     # If there is already an active websocket, close it
@@ -649,6 +745,11 @@ async def img_stream(websocket, path):
 
 
 async def run_webserver():
+    """Start the websocket server for the image web viewer.
+
+    Binds to 0.0.0.0:8765 and serves `img_stream` handler until the
+    program exits.
+    """
     async with serve(img_stream, "0.0.0.0", 8765):
         print("Webserver started on ws://0.0.0.0:8765")
         await asyncio.Future()  # Run forever
@@ -662,6 +763,13 @@ async def printer_task():
         print(line)
 
 async def main():
+    """Program entrypoint that parses CLI flags and starts asyncio tasks.
+
+    Supported CLI flags include `--headless`, `--pillars`, `--shutdown`,
+    `--calibrate`, `--skip-arduino` and `--hq`. The function configures the
+    shared `state` object, creates background tasks (camera loop, Arduino
+    comms, webserver, main_program) and waits for them to complete.
+    """
     parser = argparse.ArgumentParser(description="Check if --headless flag was given.")
     parser.add_argument('--headless', action='store_true', help='Run in headless mode')
     parser.add_argument('--pillars', action='store_true', help='Run in pillar mode')
@@ -719,6 +827,17 @@ async def main():
         os._exit(0)
 
 def encode_image(image, hq: bool = False):
+    """Encode an image (numpy array) to a base64 JPEG string for websocket transport.
+
+    Args:
+        image (np.ndarray | None): Image to encode. If None, returns None.
+        hq (bool): If True encode at high JPEG quality and full size; otherwise
+                   downscale large images and use a lower quality setting for
+                   bandwidth savings.
+
+    Returns:
+        str | None: Base64 encoded JPEG string or None if image was None.
+    """
     if image is None:
         return None
     if hq:
@@ -740,6 +859,20 @@ def encode_image(image, hq: bool = False):
 MAX_STEERING_ANGLE = 25.0
 
 async def calculate_steering(error, speed = 200) -> float:
+    """PD controller wrapper that computes a steering command from an error.
+
+    Uses state.kp and state.kd and a time-aware derivative term. Stores the
+    last sampled error and timestamp in the global SharedState instance so the
+    derivative is computed across calls.
+
+    Args:
+        error (float): Current error signal (positive/negative).
+        speed (int): Current driving speed (optional). Some tuning parameters
+                     change when driving at high speed.
+
+    Returns:
+        float: Steering command scaled to [-MAX_STEERING_ANGLE, MAX_STEERING_ANGLE].
+    """
     # Use time-aware derivative: derivative = (error - last_error) / dt
     kp = state.kp
     kd = state.kd
@@ -769,6 +902,12 @@ async def calculate_steering(error, speed = 200) -> float:
     return bound(correction) * MAX_STEERING_ANGLE
 
 def current_function(func):
+    """Decorator that records the currently executing function call in state.
+
+    The decorator stores a short string representation of the function name
+    and its arguments into `state.current_function` for runtime diagnostics
+    and then calls the wrapped function.
+    """
     def wrapper(*args, **kwargs):
         # saves the whole function call as in the python file
         state.current_function = func.__name__ + "(" + ", ".join([str(a) for a in args] + [f"{k}={v}" for k, v in kwargs.items()]) + ")"
@@ -822,6 +961,11 @@ async def turn(speed, degrees, steering, angle_beg = None):
     
 @current_function
 async def double_turn(speed, angle, steering=0.75):
+    """Perform two consecutive turns in opposite directions.
+
+    This is a small helper that executes `turn()` twice to produce an S-like
+    steering maneuver and then stops the car.
+    """
     await turn(speed, angle, steering)
     await turn(speed, -angle, steering)
     car.speed = 0
@@ -1000,6 +1144,11 @@ def distance(distance: float, distance_beg: float) -> bool:
     return True
 
 def calculate_xy_error():
+    """Compute signed euclidean error between parking point and reference line.
+
+    Projects the detected parking point onto a reference line and returns the
+    euclidean distance; sign indicates lateral offset direction.
+    """
     m = -0.95 if state.round_dir == 1 else 0.9
     q = -13
     x1 = state.parking_x

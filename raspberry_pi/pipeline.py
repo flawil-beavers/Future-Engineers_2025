@@ -282,7 +282,7 @@ class Pipeline:
             opening_top = 40
             opening_bottom = 200
         else:
-            y_lines = [(50, (0, 255, 255)), (22, (255, 255, 0)), (11, (255, 0, 255))]
+            y_lines = [(50, (0, 255, 255)), (18, (255, 255, 0)), (11, (255, 0, 255))]
             opening_top = 45
             opening_bottom = 350
 
@@ -335,7 +335,7 @@ class Pipeline:
                 elif p.y > 23: index = 1
             else:
                 if p.y > 50: index = 0
-                elif p.y > 22: index = 1
+                elif p.y > 18: index = 1
                 elif p.y > 11: index = 2
 
             # Reject if index invalid

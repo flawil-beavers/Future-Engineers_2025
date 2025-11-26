@@ -876,9 +876,13 @@ async def calculate_steering(error, speed = 200) -> float:
     # Use time-aware derivative: derivative = (error - last_error) / dt
     kp = state.kp
     kd = state.kd
-    if (speed > 220):
+    if (speed > 220 and state.pillars):
+        kp = 4
+        kd = 0.1
+    if not state.pillars:
         kp = 5
-        kd = 0.2
+        kd = 0.1
+        
     now = perf_counter()
     last_time = getattr(state, 'last_error_time', None)
     if last_time is None:
@@ -1079,13 +1083,14 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                         error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
             else:
                 raise ValueError(f"side must be 'inner', 'outer' or 'middle', currently it is set to '{side}'")
-        # else:
-        #     if diff_angle != 0:
-        #         error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
-            # if roi_side == "L":
-            #     error = state.portion_black_l - REF_PORTION_SIDE
-            # else:
-            #     error = REF_PORTION_SIDE - state.portion_black_r
+        else:
+            # if diff_angle != 0:
+            #     error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
+            print(f"Falling back to wall following with percentage; side: {roi_side}")
+            if roi_side == "L":
+                error = state.portion_black_l - REF_PORTION_SIDE
+            else:
+                error = REF_PORTION_SIDE - state.portion_black_r
         if stop_condition():
             break
 
@@ -1196,9 +1201,10 @@ DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
 async def main_program():
     # Wait for Arduino trigger before starting main logic
     
-    # state.round_dir = -1
+    state.round_dir = -1
     # state.parking = "R" if state.round_dir == -1 else "L"
     # state.rounds = 1
+    # state.parking = "Start"
     
     if ser and not state.calibrate:
         await connect_to_arduino()
@@ -1210,10 +1216,10 @@ async def main_program():
     # distance_beg, angle_beg = car.distance, car.angle
     # await double_turn(speed, 65, 1)
     # print(f"current distance: {car.distance - distance_beg} cm and angle {car.angle - angle_beg}")
-    # await follow_wall(fspeed, "middle_parking")
+    await follow_wall(fspeed, "outer")
     # await follow_wall(0.6*speed, "middle", lambda: False, False)
-    # await stop(True)
-    # os._exit(0)
+    await stop(True)
+    os._exit(0)
     
     try:
         if not state.pillars:

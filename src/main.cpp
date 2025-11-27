@@ -638,11 +638,11 @@ void update_gyro()
   int temperature = get_temperature();
   if (temperature < 0)
   {
-    degree_calibrated += (event.gyro.z - (-0.0007 * get_temperature() + -0.0108)) * last_loop_time * 0.98 * scaling_calibrated; // / 2 experimentally included
+    degree_calibrated += (event.gyro.z - (-0.0007 * temperature + -0.0108)) * last_loop_time * 0.98 * scaling_calibrated; // / 2 experimentally included
   }
   else
   {
-    degree_calibrated += (event.gyro.z - (offset_m * get_temperature() + offset_b)) * last_loop_time * scaling_calibrated; // / 2 experimentally included
+    degree_calibrated += (event.gyro.z - (offset_m * temperature + offset_b)) * last_loop_time * scaling_calibrated; // / 2 experimentally included
   }
 
   temperature_average += temperature * last_loop_time;

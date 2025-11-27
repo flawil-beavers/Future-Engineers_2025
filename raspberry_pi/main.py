@@ -7,9 +7,9 @@ import os
 from time import sleep, time, perf_counter
 import cv2
 import numpy as np
-from datetime import datetime
-import shutil
-import subprocess
+# from datetime import datetime
+# import shutil
+# import subprocess
 import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
@@ -86,7 +86,7 @@ car = Car()
 state = SharedState()
 
 # attach an angle buffer to the shared state
-state.angle_buffer = AngleBuffer(window_seconds=3.0)
+state.angle_buffer = AngleBuffer(window_seconds=10.0)
 
 # create a list with four elements of Straight_Section
 straight_sections = [Straight_Section(i) for i in range(4)]
@@ -269,47 +269,68 @@ async def connect_to_arduino():
             car.paused = False
             print("Arduino started directly due to skip_arduino flag.")
         else:
+            # Use a rolling window of gyro samples to compute a floating average
+            # drift rate while the robot is paused. Once the robot is started
+            # the last averaged drift is kept and used to correct new gyro
+            # readings (same behavior as before).
             gyro_beg = await request_and_parse_float("g")
+            if gyro_beg is None:
+                gyro_beg = 0.0
             time_gyro_beg = perf_counter()
             last_print = time_gyro_beg
 
-            # Keep a deque of (timestamp, gyro_value) for the last second
-            gyro_history = deque()
+            # Ensure shared history exists and is empty
+            try:
+                state.gyro_history.clear()
+            except Exception:
+                state.gyro_history = deque()
+
             print_interval = 5
+            window = getattr(state, 'gyro_window_seconds', 10.0)
             while car.paused and not state.skip_arduino:
                 gyro = await request_and_parse_float("g")
+                if gyro is None:
+                    await asyncio.sleep(0.05)
+                    continue
                 now = perf_counter()
-                
-                # Add current reading to history
-                gyro_history.append((now, gyro))
-                
-                # Remove readings older than print_interval second
-                while gyro_history and now - gyro_history[0][0] > print_interval:
-                    gyro_history.popleft()
-                
+
+                # append sample and trim to the configured window
+                state.gyro_history.append((now, gyro))
+                while state.gyro_history and now - state.gyro_history[0][0] > window:
+                    state.gyro_history.popleft()
+
+                # compute floating average drift as (last - first) / dt
+                if len(state.gyro_history) > 1:
+                    t0, g0 = state.gyro_history[0]
+                    tn, gn = state.gyro_history[-1]
+                    dt = tn - t0
+                    dg = gn - g0
+                    car.drift_rate_last_sec = dg / dt if dt > 0 else 0
+                else:
+                    car.drift_rate_last_sec = 0
+
+                car.drift_rate_time = now
+
+                # periodic verbose print (keeps old summary behavior)
                 if now - last_print > print_interval:
                     last_print = now
-                    
-                    # Total drift since beginning
                     drift_total = gyro - gyro_beg
                     duration_total = now - time_gyro_beg
                     drift_rate_total = drift_total / duration_total if duration_total > 0 else 0
-                    
-                    # Average drift over last print_interval second
-                    if len(gyro_history) > 1:
-                        dt = gyro_history[-1][0] - gyro_history[0][0]
-                        dg = gyro_history[-1][1] - gyro_history[0][1]
-                        car.drift_rate_last_sec = dg / dt if dt > 0 else 0
-                    else:
-                        car.drift_rate_last_sec = 0
-                    car.drift_rate_time = now
-                    
+                    try:
+                        temp = await request_and_parse_float('t')
+                    except Exception:
+                        temp = None
                     print(
                         f"Gyro Drift: {drift_total:5.2f}° in {duration_total:6.2f}s => {drift_rate_total:5.2f}°/s, "
-                        f"Average last {print_interval}s: {car.drift_rate_last_sec:4.2f}°/s, temp: {await request_and_parse_float('t'):2.0f}°"
+                        f"Average last {window}s: {car.drift_rate_last_sec:4.2f}°/s, temp: {temp if temp is not None else 'N/A'}"
                     )
-                
+
                 await asyncio.sleep(0.1)
+
+            # Robot is starting now — freeze the last computed drift and use it
+            # as reference time for future corrections (same behavior as before).
+            car.drift_rate_time = perf_counter()
         print(f"Arduino connected and start signal received. Drift rate: {car.drift_rate_last_sec}")
     except Exception as e:
         print(f"Exception in connect_arduino: {e}")
@@ -781,6 +802,7 @@ async def main():
     parser.add_argument('--skip-arduino', action='store_true', help='Skip Arduino connection')
     parser.add_argument('--hq', action='store_true', help='Stream in High Quality')
     parser.add_argument('--record', action='store_true', help='Record the whole run at low quality to a file')
+    parser.add_argument('--gyro-window', type=float, default=None, help='Gyro drift averaging window in seconds')
     args = parser.parse_args()
  
     state.set_flags(
@@ -794,6 +816,12 @@ async def main():
 
     state.kp = configloader.get_property("PD")['kp']
     state.kd = configloader.get_property("PD")['kd']
+    # Apply optional gyro window from CLI
+    if args.gyro_window is not None:
+        try:
+            state.gyro_window_seconds = float(args.gyro_window)
+        except Exception:
+            print(f"Invalid --gyro-window value: {args.gyro_window}")
     
     setup_logging()
     
@@ -863,6 +891,7 @@ def encode_image(image, hq: bool = False):
     return base64_str
 
 async def record_run(low_quality: bool = True, fps: int = 10, segment_seconds: int = 8):
+    return
     """Record the `viz` stream to a single file using ffmpeg if available.
 
     Preferred method: spawn `ffmpeg` and stream JPEG frames to its stdin
@@ -1391,12 +1420,12 @@ async def main_program():
             car.straight_direction = car.angle
             print(f"Initial straight direction: {car.straight_direction}")
             SPEED_UNPARK = 100
-            distance_front_unparking = 0.85
-            if distance_front_camera(distance_front_unparking, "pink"):
-                await drive(-SPEED_UNPARK/2, 0, lambda: not distance_front_camera(distance_front_unparking+0.05, "pink"))
-            else:
-                await drive(SPEED_UNPARK/2, 0, lambda: distance_front_camera(distance_front_unparking, "pink"))
-            await stop(True)
+            # distance_front_unparking = 0.85
+            # if distance_front_camera(distance_front_unparking, "pink"):
+            #     await drive(-SPEED_UNPARK/2, 0, lambda: not distance_front_camera(distance_front_unparking+0.05, "pink"))
+            # else:
+            #     await drive(SPEED_UNPARK/2, 0, lambda: distance_front_camera(distance_front_unparking, "pink"))
+            # await stop(True)
             await turn(SPEED_UNPARK, 10 * state.round_dir, 1.2)
             await stop(True)
             state.parking = "Start"

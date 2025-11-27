@@ -364,6 +364,12 @@ class SharedState:
         # If set, contains list of ROI labels to process (e.g. ['L'] or ['R']).
         # When None, the detector should process both sides.
         self.active_roi_sides = None
+        # Gyro history used to compute a rolling average drift rate while paused.
+        # Each entry is (timestamp, gyro_value).
+        self.gyro_history = deque()
+        # Window (seconds) used for the rolling average. Can be overridden
+        # via CLI (`--gyro-window`) or at runtime by setting this attribute.
+        self.gyro_window_seconds = 10.0
 
     def reset_streams(self):
         """Clear all stored latest stream data."""

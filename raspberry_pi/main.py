@@ -7,6 +7,9 @@ import os
 from time import sleep, time, perf_counter
 import cv2
 import numpy as np
+from datetime import datetime
+import shutil
+import subprocess
 import serial
 import serial.tools.list_ports
 from websockets import WebSocketServerProtocol, serve
@@ -272,7 +275,7 @@ async def connect_to_arduino():
 
             # Keep a deque of (timestamp, gyro_value) for the last second
             gyro_history = deque()
-            print_interval = 2.5
+            print_interval = 5
             while car.paused and not state.skip_arduino:
                 gyro = await request_and_parse_float("g")
                 now = perf_counter()
@@ -307,7 +310,7 @@ async def connect_to_arduino():
                     )
                 
                 await asyncio.sleep(0.1)
-        print("Arduino connected and start signal received.")
+        print(f"Arduino connected and start signal received. Drift rate: {car.drift_rate_last_sec}")
     except Exception as e:
         print(f"Exception in connect_arduino: {e}")
 
@@ -777,8 +780,9 @@ async def main():
     parser.add_argument('--calibrate', action='store_true', help='Disable driving and moving to next states')
     parser.add_argument('--skip-arduino', action='store_true', help='Skip Arduino connection')
     parser.add_argument('--hq', action='store_true', help='Stream in High Quality')
+    parser.add_argument('--record', action='store_true', help='Record the whole run at low quality to a file')
     args = parser.parse_args()
-
+ 
     state.set_flags(
         headless=args.headless,
         pillars=args.pillars,
@@ -807,7 +811,9 @@ async def main():
         tasks.append(asyncio.create_task(run_webserver()))
     if not state.calibrate:
         tasks.append(asyncio.create_task(main_program()))
-    tasks.append(asyncio.create_task(printer_task()))
+    if args.record:
+        tasks.append(asyncio.create_task(record_run(low_quality=True, fps=10)))
+    # tasks.append(asyncio.create_task(printer_task()))
 
     try:
         await asyncio.gather(*tasks)
@@ -856,6 +862,135 @@ def encode_image(image, hq: bool = False):
         base64_str = base64.b64encode(buffer).decode('utf-8')
     return base64_str
 
+async def record_run(low_quality: bool = True, fps: int = 10, segment_seconds: int = 8):
+    """Record the `viz` stream to a single file using ffmpeg if available.
+
+    Preferred method: spawn `ffmpeg` and stream JPEG frames to its stdin
+    (image2pipe). We use `-movflags +frag_keyframe+empty_moov -g 1` so the
+    output MP4 is fragmented and playable while being written. If `ffmpeg`
+    isn't on PATH, fall back to segmenting MJPG .avi files (previous
+    behavior).
+    """
+    os.makedirs("logs", exist_ok=True)
+    base_ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    fps = int(fps)
+
+    ffmpeg_exe = shutil.which("ffmpeg")
+    if ffmpeg_exe:
+        outname = f"logs/run_{base_ts}.mp4"
+        # Build ffmpeg command: read MJPEG frames from stdin and write
+        # fragmented MP4 that is playable while writing.
+        cmd = [
+            ffmpeg_exe,
+            '-y',
+            '-f', 'mjpeg',
+            '-i', '-',
+            '-r', str(fps),
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '28',
+            '-pix_fmt', 'yuv420p',
+            '-g', '1',
+            '-movflags', '+frag_keyframe+empty_moov',
+            outname
+        ]
+
+        print(f"Starting ffmpeg recording to {outname}")
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+
+        try:
+            interval = 1.0 / float(fps)
+            while True:
+                frame = state.latest_streams.get('viz')
+                if frame is not None:
+                    # encode using same helper (downscales when hq=False)
+                    b64 = encode_image(frame, hq=False)
+                    if b64:
+                        jpg = base64.b64decode(b64)
+                        # write to ffmpeg stdin in a thread
+                        await asyncio.to_thread(proc.stdin.write, jpg)
+                        await asyncio.to_thread(proc.stdin.flush)
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            # Close stdin to let ffmpeg finalize
+            try:
+                proc.stdin.close()
+            except Exception:
+                pass
+            await asyncio.to_thread(proc.wait)
+            print(f"ffmpeg recording finished: {outname}")
+            raise
+        except Exception as e:
+            print(f"Exception in ffmpeg record_run: {e}")
+            try:
+                proc.stdin.close()
+            except Exception:
+                pass
+            await asyncio.to_thread(proc.wait)
+            raise
+    else:
+        # Fallback: segment into small MJPG .avi files (keeps previous behavior)
+        print("ffmpeg not found; falling back to segmented AVI recording")
+        segment_index = 0
+        writer = None
+        current_filename = None
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        interval = 1.0 / float(fps)
+        try:
+            seg_start = perf_counter()
+            while True:
+                frame = state.latest_streams.get("viz")
+                if frame is not None:
+                    frame_to_write = frame
+                    if low_quality:
+                        h, w = frame.shape[:2]
+                        target_w = 320
+                        if w != target_w:
+                            new_h = int(h * target_w / w)
+                            frame_to_write = cv2.resize(frame, (target_w, new_h))
+                    if writer is None:
+                        current_filename = f"logs/run_{base_ts}_part{segment_index:04d}.avi"
+                        writer = cv2.VideoWriter(current_filename, fourcc, float(fps), (frame_to_write.shape[1], frame_to_write.shape[0]))
+                        seg_start = perf_counter()
+                        print(f"Started recording segment: {current_filename}")
+                    await asyncio.to_thread(writer.write, frame_to_write)
+
+                if writer is not None and (perf_counter() - seg_start) >= float(segment_seconds):
+                    await asyncio.to_thread(writer.release)
+                    try:
+                        fd = os.open(current_filename, os.O_RDONLY)
+                        await asyncio.to_thread(os.fsync, fd)
+                        os.close(fd)
+                    except Exception:
+                        pass
+                    print(f"Finalized segment: {current_filename}")
+                    segment_index += 1
+                    writer = None
+
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            if writer is not None:
+                try:
+                    await asyncio.to_thread(writer.release)
+                except Exception:
+                    pass
+                try:
+                    fd = os.open(current_filename, os.O_RDONLY)
+                    await asyncio.to_thread(os.fsync, fd)
+                    os.close(fd)
+                except Exception:
+                    pass
+                print(f"Recording finished, last segment: {current_filename}")
+            raise
+        except Exception as e:
+            print(f"Exception in record_run fallback: {e}")
+            if writer is not None:
+                try:
+                    await asyncio.to_thread(writer.release)
+                except Exception:
+                    pass
+            raise
+    
 MAX_STEERING_ANGLE = 25.0
 
 async def calculate_steering(error, speed = 200) -> float:
@@ -1024,12 +1159,12 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
             mean_angle, mse = state.angle_buffer.mean_and_mse()
             if mean_angle is not None and mse is not None and (now - start_time) >= state.angle_buffer.window:
                 # only change straight_direction when the buffer spans the configured window
-                if mse < 15 and abs(mean_angle - car.straight_direction) < 10:
+                if mse < 10 and abs(mean_angle - car.straight_direction) < 10:
                     # print(f"Updating straight direction to {mean_angle:.2f} deg (MSE: {mse:.2f})")
                     car.straight_direction = mean_angle
                     updated_mean_angle = mean_angle
                     updated_mse = mse
-                elif mse < 15:
+                elif mse < 10:
                     pass
                     # print(f"Not updating straight direction (MSE: {mse:.2f}), because mean angle deviation is {abs(mean_angle - car.straight_direction):.2f} deg")
         except Exception:
@@ -1070,7 +1205,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
                     if diff_angle != 0:
                         error = bound(error) - (diff_angle / 25) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle_parking_end":
-                error = (intercept - 91) / 250 * -state.round_dir
+                error = (intercept - 80) / 250 * -state.round_dir
                 if diff_angle != 0:
                     error = bound(error) - (diff_angle / 50) ** 2 * diff_angle / abs(diff_angle)
             elif side == "middle":
@@ -1099,7 +1234,7 @@ async def follow_wall(speed: int, side: str = state.position, stop_condition: ca
     state.active_roi_sides = None
 
     if (updated_mean_angle is not None and updated_mse is not None):
-        print(f"Updated straight direction to {updated_mean_angle:.2f} deg (MSE: {updated_mse:.2f})")
+        print(f"Updated straight direction to {updated_mean_angle:.2f} deg (MSE: {updated_mse:.2f}) ------------------------------------------")
 
 @current_function
 async def pd_point(speed: int, error: callable, stop_condition: callable, scaler: float = 1):
@@ -1174,18 +1309,18 @@ async def parking():
     # wall_line = lambda x: -0.35 * state.round_dir * x - 13
     # parking_line = lambda x: m * x + q
     car.straight_direction = car.angle
-    await pd_point(150, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 100), 0.005)
-    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 160), 0.005)
+    await pd_point(150, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 90), 0.006)
+    await pd_point(100, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > 150), 0.007)
     cv2.imwrite(f"logs/park1.jpg", state.latest_streams["viz"])
-    await pd_point(50, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > (170 if state.round_dir == -1 else 200)), 0.005)
+    await pd_point(50, lambda: (calculate_xy_error()), (lambda: abs(state.parking_x) > (160 if state.round_dir == -1 else 180)), 0.009)
     cv2.imwrite(f"logs/park2.jpg", state.latest_streams["viz"])
 
-    await turn(SPEED_PARK, 63 * state.round_dir, 1) # turning to little for round = 1
+    await turn(SPEED_PARK, (63 if state.round_dir == -1 else 63) * state.round_dir, 1) # turning to little for round = 1
     car.straight_direction += 2 * state.round_dir
     car.steering = 0
     await stop(True)
     await asyncio.sleep(0.2)
-    await drive(-SPEED_PARK, 255 + (30 if state.round_dir == 1 else 0)) # 260 seems to be about the maximum
+    await drive(-SPEED_PARK, 255 + (0 if state.round_dir == -1 else 5)) # 260 seems to be about the maximum
     await turn(-SPEED_PARK, 45 * state.round_dir, 1)
     car.steering = state.round_dir
     await stop(True)
@@ -1200,29 +1335,38 @@ DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
 
 async def main_program():
     # Wait for Arduino trigger before starting main logic
-    
-    # state.round_dir = -1
-    
-    # state.parking = "R" if state.round_dir == -1 else "L"
-    # state.rounds = 1
-    # state.parking = "Start"
-    
+    # if not state.headless:
+    #     if state.pillars:
+    #         state.round_dir = -1
+        
+    #     # state.parking = "R" if state.round_dir == -1 else "L"
+    #     # state.rounds = 1
+    #     # state.parking = "Start"
+    #     state.active_roi_sides = "RL"
+        
+    #     if ser and not state.calibrate:
+    #         await connect_to_arduino()
+    #     speed = 300 if not state.pillars else 200
+    #     fspeed = speed * 1.5
+    #     print("Starting main program...")
+    #     run_time = perf_counter()
+        
+    #     # distance_beg, angle_beg = car.distance, car.angle
+    #     # await double_turn(speed, 65, 1)
+    #     # print(f"current distance: {car.distance - distance_beg} cm and angle {car.angle - angle_beg}")
+    #     # await follow_wall(fspeed, "outer")
+    #     # await follow_wall(0.6*speed, "middle", lambda: False, False)
+    #     # await stop(True)
+    #     if state.pillars:
+    #         await parking()
+    #         await asyncio.sleep(2)
+
     if ser and not state.calibrate:
         await connect_to_arduino()
     speed = 300 if not state.pillars else 200
     fspeed = speed * 1.5
     print("Starting main program...")
     run_time = perf_counter()
-    
-    # distance_beg, angle_beg = car.distance, car.angle
-    # await double_turn(speed, 65, 1)
-    # print(f"current distance: {car.distance - distance_beg} cm and angle {car.angle - angle_beg}")
-    # await follow_wall(fspeed, "outer")
-    # await follow_wall(0.6*speed, "middle", lambda: False, False)
-    # await stop(True)
-    
-    # await parking()
-    # os._exit(0)
     
     try:
         if not state.pillars:
@@ -1256,8 +1400,8 @@ async def main_program():
             await turn(SPEED_UNPARK, 10 * state.round_dir, 1.2)
             await stop(True)
             state.parking = "Start"
-            await turn(-fspeed, -65 * state.round_dir, 1.2)
-            await turn(-fspeed, 75 * state.round_dir, 1)
+            await turn(-speed, -65 * state.round_dir, 1.2)
+            await turn(-speed, 75 * state.round_dir, 1)
             await stop(True)
             state.position = "middle_parking"
             parking_drive_distance = 0

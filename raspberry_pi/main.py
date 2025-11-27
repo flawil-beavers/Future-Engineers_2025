@@ -1201,7 +1201,8 @@ DISTANCE_TO_WALL = 0.95  # Distance to the wall for state transition
 async def main_program():
     # Wait for Arduino trigger before starting main logic
     
-    state.round_dir = -1
+    # state.round_dir = -1
+    
     # state.parking = "R" if state.round_dir == -1 else "L"
     # state.rounds = 1
     # state.parking = "Start"
@@ -1216,10 +1217,12 @@ async def main_program():
     # distance_beg, angle_beg = car.distance, car.angle
     # await double_turn(speed, 65, 1)
     # print(f"current distance: {car.distance - distance_beg} cm and angle {car.angle - angle_beg}")
-    await follow_wall(fspeed, "outer")
+    # await follow_wall(fspeed, "outer")
     # await follow_wall(0.6*speed, "middle", lambda: False, False)
-    await stop(True)
-    os._exit(0)
+    # await stop(True)
+    
+    # await parking()
+    # os._exit(0)
     
     try:
         if not state.pillars:
